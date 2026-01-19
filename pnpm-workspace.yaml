@@ -1,0 +1,6 @@
+ignoredBuiltDependencies:
+  - esbuild
+  - msgpackr-extract
+  - puppeteer
+  - sharp
+  - unrs-resolver

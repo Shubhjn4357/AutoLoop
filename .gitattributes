@@ -1,0 +1,8 @@
+# Images - Store with Xet
+*.png filter=xet diff=xet merge=xet
+*.jpg filter=xet diff=xet merge=xet
+*.jpeg filter=xet diff=xet merge=xet
+*.gif filter=xet diff=xet merge=xet
+*.webp filter=xet diff=xet merge=xet
+*.svg filter=xet diff=xet merge=xet
+

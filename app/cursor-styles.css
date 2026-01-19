@@ -1,0 +1,33 @@
+/* Global cursor pointer for all buttons and interactive elements */
+button,
+a[role="button"],
+[role="button"],
+.cursor-pointer {
+  cursor: pointer !important;
+}
+
+button:disabled,
+button[disabled] {
+  cursor: not-allowed !important;
+}
+
+/* Ensure all Radix UI interactive elements have pointer cursor */
+[data-radix-collection-item],
+[role="menuitem"],
+[role="option"],
+[role="tab"],
+[role="switch"],
+[role="checkbox"],
+[role="radio"] {
+  cursor: pointer;
+}
+
+/* Select elements */
+select {
+  cursor: pointer;
+}
+
+/* Links */
+a:not([disabled]) {
+  cursor: pointer;
+}
