@@ -103,3 +103,21 @@ export const feedback = pgTable("feedback", {
   status: varchar("status", { length: 20 }).default("new").notNull(), 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const notifications = pgTable("notifications", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: varchar("type", { length: 20 }).default("info").notNull(),
+  read: boolean("read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const banners = pgTable("banners", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  message: text("message").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdBy: text("created_by").references(() => users.id),
+});

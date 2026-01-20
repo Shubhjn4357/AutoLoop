@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { scrapingJobs, automationWorkflows } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export async function GET() {
     try {
@@ -79,6 +79,42 @@ export async function GET() {
         console.error("Error fetching tasks:", error);
         return NextResponse.json(
             { error: "Failed to fetch tasks" },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(request: Request) {
+    try {
+        const session = await auth();
+        if (!session?.user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const id = searchParams.get("id");
+        const type = searchParams.get("type");
+        const userId = session.user.id;
+
+        if (!id || !type) {
+            return NextResponse.json({ error: "ID and type required" }, { status: 400 });
+        }
+
+        if (type === "workflow") {
+            await db
+                .delete(automationWorkflows)
+                .where(and(eq(automationWorkflows.id, id), eq(automationWorkflows.userId, userId)));
+        } else {
+            await db
+                .delete(scrapingJobs)
+                .where(and(eq(scrapingJobs.id, id), eq(scrapingJobs.userId, userId)));
+        }
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("Error deleting task:", error);
+        return NextResponse.json(
+            { error: "Failed to delete task" },
             { status: 500 }
         );
     }

@@ -21,18 +21,18 @@ import {
 import { BusinessTypeSelect } from "@/components/business-type-select";
 import { KeywordInput } from "@/components/keyword-input";
 import { ActiveTaskCard } from "@/components/active-task-card";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+// Recharts moved to separate component
+import dynamic from "next/dynamic";
+import { AnimatedContainer } from "@/components/animated-container";
+
+const EmailChart = dynamic(() => import("@/components/dashboard/email-chart"), {
+  loading: () => <div className="h-[300px] flex items-center justify-center"><Loader2 className="animate-spin h-6 w-6" /></div>,
+  ssr: false
+});
 import { useApi } from "@/hooks/use-api";
 import { toast } from "sonner";
 import { allLocations } from "@/lib/locations";
+import { sendNotification } from "@/components/notification-bell";
 
 interface DashboardStats {
   totalBusinesses: number;
@@ -146,9 +146,22 @@ export default function DashboardPage() {
     };
   }, [getBusinessesApi, fetchDashboardStats, fetchActiveTask]);
 
+  const { post: sendEmailApi } = useApi();
+
   const handleSendEmail = async (business: Business) => {
-    // Send email API call
-    console.log("Sending email to:", business);
+    const toastId = toast.loading(`Sending email to ${business.name}...`);
+    try {
+      await sendEmailApi("/api/email/send", { businessId: business.id });
+      toast.success(`Email sent to ${business.email}`, { id: toastId });
+
+      setBusinesses(prev => prev.map(b =>
+        b.id === business.id
+          ? { ...b, emailStatus: "sent", emailSent: true }
+          : b
+      ));
+    } catch {
+      toast.error("Failed to send email", { id: toastId });
+    }
   };
 
   const handleStartScraping = async () => {
@@ -164,8 +177,12 @@ export default function DashboardPage() {
       });
 
       if (result) {
-        toast.success("Scraping job started!", {
-          description: "Check the Tasks page to monitor progress.",
+        sendNotification({
+          title: "Scraping job started!",
+          message: "Check the Tasks page to monitor progress.",
+          type: "success",
+          link: "/dashboard/tasks",
+          actionLabel: "View Tasks"
         });
 
         // Refresh businesses list after a short delay
@@ -204,7 +221,11 @@ export default function DashboardPage() {
           (kw: string) => !keywords.includes(kw)
         );
         setKeywords([...keywords, ...newKeywords]);
-        toast.success(`Generated ${newKeywords.length} keywords!`);
+        sendNotification({
+          title: "Keywords Generated",
+          message: `Successfully generated ${newKeywords.length} new keywords.`,
+          type: "success"
+        });
       }
     } catch (error) {
       toast.error("Failed to generate keywords");
@@ -291,11 +312,8 @@ export default function DashboardPage() {
                   type="checkbox"
                   checked={scrapingSources.includes("google-maps")}
                   onChange={(e) => {
-                    if (e.target.checked) {
-                      setScrapingSources([...scrapingSources, "google-maps"]);
-                    } else {
-                      setScrapingSources(scrapingSources.filter((s: string) => s !== "google-maps"));
-                    }
+                    if (e.target.checked) setScrapingSources([...scrapingSources, "google-maps"]);
+                    else setScrapingSources(scrapingSources.filter(s => s !== "google-maps"));
                   }}
                   className="w-4 h-4 rounded border-gray-300"
                 />
@@ -306,15 +324,48 @@ export default function DashboardPage() {
                   type="checkbox"
                   checked={scrapingSources.includes("google-search")}
                   onChange={(e) => {
-                    if (e.target.checked) {
-                      setScrapingSources([...scrapingSources, "google-search"]);
-                    } else {
-                      setScrapingSources(scrapingSources.filter((s: string) => s !== "google-search"));
-                    }
+                    if (e.target.checked) setScrapingSources([...scrapingSources, "google-search"]);
+                    else setScrapingSources(scrapingSources.filter(s => s !== "google-search"));
                   }}
                   className="w-4 h-4 rounded border-gray-300"
                 />
                 <span className="text-sm">🔍 Google Search</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={scrapingSources.includes("linkedin")}
+                  onChange={(e) => {
+                    if (e.target.checked) setScrapingSources([...scrapingSources, "linkedin"]);
+                    else setScrapingSources(scrapingSources.filter(s => s !== "linkedin"));
+                  }}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-sm">💼 LinkedIn</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={scrapingSources.includes("facebook")}
+                  onChange={(e) => {
+                    if (e.target.checked) setScrapingSources([...scrapingSources, "facebook"]);
+                    else setScrapingSources(scrapingSources.filter(s => s !== "facebook"));
+                  }}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-sm">👥 Facebook</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={scrapingSources.includes("instagram")}
+                  onChange={(e) => {
+                    if (e.target.checked) setScrapingSources([...scrapingSources, "instagram"]);
+                    else setScrapingSources(scrapingSources.filter(s => s !== "instagram"));
+                  }}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span className="text-sm">📸 Instagram</span>
               </label>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -357,7 +408,8 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {loadingStats || !stats ? (
           Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}>
+            <AnimatedContainer key={i} delay={0.1 + (i * 0.1)}>
+              <Card>
               <CardHeader>
                 <div className="h-4 w-24 bg-muted animate-pulse rounded"></div>
               </CardHeader>
@@ -365,76 +417,65 @@ export default function DashboardPage() {
                 <div className="h-8 w-16 bg-muted animate-pulse rounded"></div>
               </CardContent>
             </Card>
+            </AnimatedContainer>
           ))
         ) : (
                 <>
+              <AnimatedContainer delay={0.2}>
                   <StatCard
                     title="Total Businesses"
                     value={stats.totalBusinesses}
                     icon={Users}
                   />
+              </AnimatedContainer>
+              <AnimatedContainer delay={0.3}>
                   <StatCard
                     title="Emails Sent"
                     value={stats.emailsSent}
                     icon={Mail}
                   />
+              </AnimatedContainer>
+              <AnimatedContainer delay={0.4}>
                   <StatCard
                     title="Emails Opened"
                     value={stats.emailsOpened}
                     icon={CheckCircle2}
                   />
+              </AnimatedContainer>
+              <AnimatedContainer delay={0.5}>
                   <StatCard
                     title="Open Rate"
                     value={`${stats.openRate}% `}
                     icon={TrendingUp}
                   />
+              </AnimatedContainer>
                 </>
               )}
             </div>
 
             {/* Chart */}
+      <AnimatedContainer delay={0.6}>
             <Card>
               <CardHeader>
                 <CardTitle>Email Performance (Last 7 Days)</CardTitle>
               </CardHeader>
-        <CardContent>
-          {loadingStats || chartData.length === 0 ? (
-                  <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              {loadingStats ? <Loader2 className="animate-spin h-6 w-6" /> : "No data available"}
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Line
-                        type="monotone"
-                        dataKey="sent"
-                        stroke="#3b82f6"
-                        strokeWidth={2}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="opened"
-                        stroke="#10b981"
-                        strokeWidth={2}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
+          <CardContent>
+            <EmailChart data={chartData} loading={loadingStats} />
               </CardContent>
             </Card>
+      </AnimatedContainer>
 
             {/* Business Table */}
             <Card>
-              <CardHeader>
-                <CardTitle>Businesses ({businesses.length})</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Recent Leads ({businesses.length})</CardTitle>
+          <Button variant="outline" asChild>
+            <a href="/dashboard/businesses">View All</a>
+          </Button>
               </CardHeader>
               <CardContent>
                 <BusinessTable
-                  businesses={businesses}
+            businesses={businesses.slice(0, 10)}
                   onViewDetails={handleViewDetails}
                   onSendEmail={handleSendEmail}
                 />

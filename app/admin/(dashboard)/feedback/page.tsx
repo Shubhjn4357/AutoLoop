@@ -4,13 +4,14 @@ import { desc, eq } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FeedbackActions } from "@/components/admin/feedback-actions";
 
 export default async function FeedbackPage() {
     // Fetch feedback with user details if possible
     // Drizzle relations would make this easier. 
     // Manual join or separate fetch.
     // For now, let's fetch feedback and map user info if needed or just show basic info.
-    
+
     // We can do a join:
     const feedbacks = await db
         .select({
@@ -29,7 +30,7 @@ export default async function FeedbackPage() {
 
     return (
         <div className="space-y-6">
-             <div>
+            <div>
                 <h2 className="text-3xl font-bold tracking-tight">Feedback</h2>
                 <p className="text-muted-foreground">User reports and suggestions</p>
             </div>
@@ -52,9 +53,8 @@ export default async function FeedbackPage() {
                                 <Badge variant={item.type === "bug" ? "destructive" : "default"}>
                                     {item.type}
                                 </Badge>
-                                <Badge variant="outline">
-                                    {item.status}
-                                </Badge>
+                                <Badge>{item.status}</Badge>
+                                <FeedbackActions id={item.id} status={item.status} />
                             </div>
                         </CardHeader>
                         <CardContent className="p-4 pt-2">
@@ -66,6 +66,6 @@ export default async function FeedbackPage() {
                     </Card>
                 ))}
             </div>
-        </div>
+        </div >
     )
 }

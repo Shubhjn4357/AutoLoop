@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { businesses } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { rateLimit } from "@/lib/rate-limit";
 
 interface SessionUser {
@@ -22,6 +22,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
     const status = searchParams.get("status");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const offset = (page - 1) * limit;
 
     // Build where conditions
     const conditions = [eq(businesses.userId, userId)];
@@ -34,14 +37,29 @@ export async function GET(request: Request) {
       conditions.push(eq(businesses.emailStatus, status));
     }
 
+    // Get total count
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(businesses)
+      .where(and(...conditions));
+
+    const totalPages = Math.ceil(count / limit);
+
     const results = await db
       .select()
       .from(businesses)
       .where(and(...conditions))
       .orderBy(businesses.createdAt)
-      .limit(100);
+      .limit(limit)
+      .offset(offset);
 
-    return NextResponse.json({ businesses: results });
+    return NextResponse.json({
+      businesses: results,
+      page,
+      limit,
+      total: count,
+      totalPages
+    });
   } catch (error) {
     console.error("Error fetching businesses:", error);
     return NextResponse.json(

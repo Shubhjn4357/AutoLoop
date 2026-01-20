@@ -25,7 +25,7 @@ export default function AdminLoginPage() {
 
     try {
       const result = await signIn("credentials", {
-        email,
+        email:email.toLowerCase(),
         password,
         redirect: false,
       });
@@ -39,6 +39,7 @@ export default function AdminLoginPage() {
       }
     } catch (error) {
       toast.error("An error occurred");
+      console.log(`error: ${error}`);
     } finally {
       setLoading(false);
     }

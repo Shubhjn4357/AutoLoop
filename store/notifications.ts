@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { ExternalToast, toast } from "sonner";
 
 export type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
@@ -11,6 +12,8 @@ export interface Notification {
   read: boolean;
   autoClose?: boolean;
   duration?: number;
+  link?: string;
+  actionLabel?: string;
 }
 
 interface NotificationStore {
@@ -42,14 +45,24 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
       unreadCount: state.unreadCount + 1,
     }));
 
-    // Auto-remove after duration if autoClose is true
-    if (newNotification.autoClose && newNotification.duration) {
-      setTimeout(() => {
-        set((state) => ({
-          notifications: state.notifications.filter((n) => n.id !== newNotification.id),
-        }));
-      }, newNotification.duration);
+    // Trigger Sonner toast
+    // Map internal types to Sonner equivalent if needed
+    const { type, title, message, link, actionLabel } = notification;
+    const toastOptions: ExternalToast = { description: message };
+
+    // Add action if link is provided
+    if (link) {
+      toastOptions.action = {
+        label: actionLabel || "View",
+        onClick: () => window.location.href = link
+      };
     }
+
+    if (type === 'success') toast.success(title, toastOptions);
+    else if (type === 'error') toast.error(title, toastOptions);
+    else if (type === 'warning') toast.warning(title, toastOptions);
+    else if (type === 'info') toast.info(title, toastOptions);
+    else toast(title, toastOptions);
   },
 
   removeNotification: (id) =>

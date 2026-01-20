@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,75 +9,34 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useNotificationStore } from "@/store/notifications";
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: "info" | "success" | "warning" | "error";
-  timestamp: Date;
-  read: boolean;
-}
+
 
 export function NotificationBell() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [showBadge, setShowBadge] = useState(false);
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    clearAll
+  } = useNotificationStore();
+
   const [animate, setAnimate] = useState(false);
+  const prevCount = useRef(unreadCount);
 
   useEffect(() => {
-    // Load notifications from localStorage
-    const saved = localStorage.getItem("autoloop-notifications");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setNotifications(parsed.map((n: Notification) => ({
-        ...n,
-        timestamp: new Date(n.timestamp)
-      })));
+    // Only animate if unread count INCREASED
+    if (unreadCount > prevCount.current) {
+      // Defer animation trigger to avoid synchronous state update warning
+      const timer = setTimeout(() => {
+        setAnimate(true);
+        setTimeout(() => setAnimate(false), 1000);
+      }, 0);
+      return () => clearTimeout(timer);
     }
-
-    // Listen for new notifications
-    const handleNewNotification = (event: CustomEvent<Notification>) => {
-      const newNotification = event.detail;
-      setNotifications(prev => [newNotification, ...prev]);
-      
-      // Trigger badge animation
-      setShowBadge(true);
-      setAnimate(true);
-      setTimeout(() => setAnimate(false), 1000);
-
-      // Save to localStorage
-      const updated = [newNotification, ...notifications];
-      localStorage.setItem("autoloop-notifications", JSON.stringify(updated.slice(0, 50)));
-    };
-
-    window.addEventListener('new-notification' as any, handleNewNotification as any);
-    return () => {
-      window.removeEventListener('new-notification' as any, handleNewNotification as any);
-    };
-  }, [notifications]);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const markAsRead = (id: string) => {
-    const updated = notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    );
-    setNotifications(updated);
-    localStorage.setItem("autoloop-notifications", JSON.stringify(updated));
-  };
-
-  const markAllAsRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    setNotifications(updated);
-    localStorage.setItem("autoloop-notifications", JSON.stringify(updated));
-    setShowBadge(false);
-  };
-
-  const clearAll = () => {
-    setNotifications([]);
-    localStorage.removeItem("autoloop-notifications");
-    setShowBadge(false);
-  };
+    prevCount.current = unreadCount;
+  }, [unreadCount]);
 
   return (
     <Popover>
@@ -132,15 +91,18 @@ export function NotificationBell() {
               <p className="text-sm">No notifications yet</p>
             </div>
           ) : (
-            <div className="divide-y">
+              <div className="divide-y relative">
               {notifications.map((notification) => (
                 <div
                   key={notification.id}
                   className={cn(
-                    "p-4 hover:bg-accent cursor-pointer transition-colors",
+                    "p-4 hover:bg-accent cursor-pointer transition-colors relative",
                     !notification.read && "bg-blue-50 dark:bg-blue-950/20"
                   )}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => {
+                    markAsRead(notification.id);
+                    if (notification.link) window.location.href = notification.link;
+                  }}
                 >
                   <div className="flex items-start gap-3">
                     <div className={cn(
@@ -183,14 +145,14 @@ function formatTimestamp(date: Date): string {
 }
 
 // Helper function to trigger notifications from anywhere in the app
-export function sendNotification(notification: Omit<Notification, "id" | "timestamp" | "read">) {
-  const event = new CustomEvent('new-notification', {
-    detail: {
-      ...notification,
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      read: false,
-    }
-  });
-  window.dispatchEvent(event);
+export function sendNotification(notification: {
+  title: string;
+  message: string;
+  type: "info" | "success" | "warning" | "error";
+  autoClose?: boolean;
+  duration?: number;
+  link?: string;
+  actionLabel?: string;
+}) {
+  useNotificationStore.getState().addNotification(notification);
 }

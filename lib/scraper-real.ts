@@ -1,4 +1,4 @@
-import puppeteer from "puppeteer";
+import puppeteer, { ElementHandle } from "puppeteer";
 import { Business } from "@/types";
 import { db } from "@/db";
 import { businesses, scrapingJobs } from "@/db/schema";
@@ -85,9 +85,11 @@ export async function scrapeGoogleMapsReal(
           // Try to find email and website by clicking on the business
           try {
             const businessName = business.name;
-            const businessLink = await page.$(
-              `a:has-text("${businessName}")`
-            );
+            const handle = await page.evaluateHandle((name) => {
+              const links = Array.from(document.querySelectorAll("a"));
+              return links.find((el) => el.textContent?.includes(name)) || null;
+            }, businessName);
+            const businessLink = handle.asElement() as ElementHandle<Element> | null;
             
             if (businessLink) {
               await businessLink.click();
@@ -95,12 +97,15 @@ export async function scrapeGoogleMapsReal(
 
               // Extract additional details
               const details = await page.evaluate(() => {
-                const websiteEl = document.querySelector(
-                  'a[data-item-id="authority"]'
-                );
-                const phoneEl = document.querySelector(
-                  'button[data-item-id^="phone"]'
-                );
+                const websiteEl =
+                  document.querySelector('a[data-item-id="authority"]') ||
+                  document.querySelector('a[data-tooltip="Open website"]') ||
+                  document.querySelector('a[aria-label*="Website"]');
+
+                const phoneEl =
+                  document.querySelector('button[data-item-id^="phone"]') ||
+                  document.querySelector('button[data-tooltip="Copy phone number"]') ||
+                  document.querySelector('button[aria-label*="Phone"]');
 
                 return {
                   website: websiteEl?.getAttribute("href") || null,

@@ -13,7 +13,8 @@ export async function POST(request: Request) {
     }
 
     const userId = (session.user as SessionUser).id;
-    const { jobId, action } = await request.json();
+    const body = await request.json();
+    const { jobId, action } = body;
 
     if (!jobId || !action) {
       return NextResponse.json(
@@ -22,9 +23,10 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!["pause", "resume", "stop"].includes(action)) {
+    const allowedActions = ["pause", "resume", "stop", "set-priority"];
+    if (!allowedActions.includes(action)) {
       return NextResponse.json(
-        { error: "Invalid action. Must be 'pause', 'resume', or 'stop'" },
+        { error: "Invalid action. Must be 'pause', 'resume', 'stop', or 'set-priority'" },
         { status: 400 }
       );
     }
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
       }
     } else if (action === "set-priority") {
       // Handle priority update
-      const { priority } = await request.json();
+      const { priority } = body;
       if (!priority || !["low", "medium", "high"].includes(priority)) {
         return NextResponse.json({ error: "Invalid priority" }, { status: 400 });
       }

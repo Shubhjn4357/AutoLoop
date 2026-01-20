@@ -15,6 +15,8 @@ export function DemoNotifications() {
         message: "Your dashboard is ready. Start by creating your first campaign.",
         autoClose: true,
         duration: 6000,
+        link: "/dashboard/tasks",
+        actionLabel: "Get Started"
       });
     }, 2000);
 

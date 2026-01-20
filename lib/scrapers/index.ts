@@ -6,14 +6,17 @@ import { googleSearchScraper } from "./google-search";
  * Scraper Manager - orchestrates multiple scraping sources
  */
 
+import { linkedinScraper } from "./linkedin";
+import { facebookScraper } from "./facebook";
+import { instagramScraper } from "./instagram";
+
 // Registry of all available scrapers
 const scrapers = {
     "google-maps": googleMapsScraper,
     "google-search": googleSearchScraper,
-    // Future scrapers:
-    // "linkedin": linkedinScraper,
-    // "facebook": facebookScraper,
-    // "instagram": instagramScraper,
+    "linkedin": linkedinScraper,
+    "facebook": facebookScraper,
+    "instagram": instagramScraper,
 };
 
 export interface MultiSourceScrapingOptions extends ScrapingOptions {

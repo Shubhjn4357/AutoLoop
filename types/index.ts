@@ -6,6 +6,7 @@ export interface SessionUser {
   name?: string;
   image?: string;
   role?: "user" | "admin";
+  accessToken?: string;
 }
 
 export interface UserProfile {
@@ -94,4 +95,16 @@ export interface ScrapingJob {
   completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  status: "pending" | "in-progress" | "completed" | "processing" | "paused" | "failed" | "running";
+  priority: "low" | "medium" | "high";
+  type?: "scraping" | "workflow";
+  businessesFound?: number;
+  workflowName?: string;
+  createdAt: Date;
 }

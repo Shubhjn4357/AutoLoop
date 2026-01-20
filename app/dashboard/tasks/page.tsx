@@ -2,18 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Check, Clock, AlertCircle, Pause, Play, StopCircle, RefreshCw } from "lucide-react";
+import { Plus, Clock, AlertCircle, Check, RefreshCw } from "lucide-react";
 import { useApi } from "@/hooks/use-api";
 import { toast } from "sonner";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   DndContext,
   DragOverlay,
@@ -26,34 +18,30 @@ import {
   DragEndEvent
 } from "@dnd-kit/core";
 import {
-  SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: "pending" | "in-progress" | "completed" | "processing" | "paused" | "failed" | "running";
-  priority: "low" | "medium" | "high";
-  type?: "scraping" | "workflow";
-  businessesFound?: number;
-  workflowName?: string;
-  createdAt: Date;
-}
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { TaskColumn } from "@/components/dashboard/tasks/task-column";
+import { TaskCard } from "@/components/dashboard/tasks/task-card";
+import { Task } from "@/types";
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [controllingTaskId, setControllingTaskId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [confirmStopId, setConfirmStopId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<{ id: string, type: "scraping" | "workflow" } | null>(null);
+
+  // Drag state
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+
   const router = useRouter();
 
   const { get: getTasks, loading } = useApi<Task[]>();
   const { post: controlScraping } = useApi();
   const { patch: updateWorkflow } = useApi();
+  const { del: deleteTask } = useApi();
 
   // Fetch tasks function
   const fetchTasks = useCallback(async () => {
@@ -104,9 +92,20 @@ export default function TasksPage() {
     }
   };
 
+  const handleControlRequest = (taskId: string, action: "pause" | "resume" | "stop") => {
+    if (action === "stop") {
+      setConfirmStopId(taskId);
+    } else {
+      handleControl(taskId, action);
+    }
+  };
+
   const handlePriorityChange = async (taskId: string, priority: "low" | "medium" | "high") => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
+
+    // Optimistic UI update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, priority } : t));
 
     try {
       let result;
@@ -125,40 +124,53 @@ export default function TasksPage() {
 
       if (result) {
         toast.success(`Priority updated to ${priority}`);
-        await fetchTasks();
+        // No need to fetch if optimistic update matches, but safe to fetch
+        // await fetchTasks(); 
       }
     } catch (error) {
       toast.error("Failed to update priority");
       console.error("Error updating priority:", error);
+      // Revert optimistic update
+      await fetchTasks();
     }
   };
 
-  // Removed local storage logic and manual task creation
+  const handleDeleteRequest = (taskId: string, type: "scraping" | "workflow" = "scraping") => {
+    setConfirmDeleteId({ id: taskId, type });
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return;
+
+    try {
+      await deleteTask(`/api/tasks?id=${confirmDeleteId.id}&type=${confirmDeleteId.type}`);
+      toast.success("Task deleted successfully");
+      await fetchTasks();
+    } catch (error) {
+      toast.error("Failed to delete task");
+      console.error("Error deleting task:", error);
+    } finally {
+      setConfirmDeleteId(null);
+    }
+  };
 
   const pendingTasks = tasks.filter((t) => t.status === "pending");
   const inProgressTasks = tasks.filter((t) =>
     t.status === "in-progress" ||
     t.status === "processing" ||
-    t.status === "paused"
+    t.status === "paused" ||
+    t.status === "running"
   );
   const completedTasks = tasks.filter((t) =>
     t.status === "completed" ||
     t.status === "failed"
   );
 
-  const priorityColors = {
-    low: "bg-blue-500",
-    medium: "bg-yellow-500",
-    high: "bg-red-500",
-  };
-
   /* Drag and Drop State */
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Requires 8px movement to start drag, allowing button clicks
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -184,7 +196,7 @@ export default function TasksPage() {
     const overId = over.id as string;
     const activeTask = tasks.find((t) => t.id === activeId);
 
-    // Determine target column based on overId (which could be a task ID or column ID)
+    // Determine target column based on overId
     let targetStatus: Task["status"] | null = null;
 
     if (overId === "pending-column" || overId === "in-progress-column" || overId === "completed-column") {
@@ -195,9 +207,8 @@ export default function TasksPage() {
       // Dropped over another task
       const overTask = tasks.find((t) => t.id === overId);
       if (overTask) {
-        // Map task status to column group
         if (overTask.status === "processing" || overTask.status === "paused" || overTask.status === "running") {
-          targetStatus = "in-progress"; // Group these under in-progress
+          targetStatus = "in-progress"; 
         } else {
           targetStatus = overTask.status;
         }
@@ -228,33 +239,35 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="p-6 space-y-8 max-w-[1600px] mx-auto">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Task Management</h1>
-          <p className="text-muted-foreground">
-            Track your automated scraping and outreach jobs
+          <h1 className="text-3xl font-bold tracking-tight bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">Task Management</h1>
+          <p className="text-muted-foreground mt-1">
+            Track and manage your automated scraping and outreach jobs
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <Button
             onClick={fetchTasks}
             variant="outline"
             disabled={refreshing || loading}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto shadow-sm"
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button onClick={() => router.push("/dashboard/workflows?create=true")} className="w-full sm:w-auto">
+          <Button onClick={() => router.push("/dashboard/workflows?create=true")} className="w-full sm:w-auto shadow-md hover:shadow-lg transition-all">
             <Plus className="mr-2 h-4 w-4" />
             New Automation
           </Button>
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center p-12">Loading tasks...</div>
+      {loading && tasks.length === 0 ? (
+        <div className="flex justify-center p-12">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        </div>
       ) : (
           <DndContext
             sensors={sensors}
@@ -262,63 +275,52 @@ export default function TasksPage() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-3 h-full">
               {/* Pending Column */}
-              <SortableContext
+              <TaskColumn
                 id="pending-column"
-                items={pendingTasks.map(t => t.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <TaskColumn
-                  id="pending-column"
-                  title="Pending"
-                  icon={<Clock className="h-5 w-5" />}
-                  tasks={pendingTasks}
-                  count={pendingTasks.length}
-                  priorityColors={priorityColors}
-                />
-              </SortableContext>
+                title="Pending"
+                icon={<Clock className="h-5 w-5 text-pending-foreground" />}
+                tasks={pendingTasks}
+                count={pendingTasks.length}
+                onControl={handleControlRequest}
+                onPriorityChange={handlePriorityChange}
+                onDelete={handleDeleteRequest}
+                controllingTaskId={controllingTaskId}
+              />
 
               {/* In Progress Column */}
-              <SortableContext
+              <TaskColumn
                 id="in-progress-column"
-                items={inProgressTasks.map(t => t.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <TaskColumn
-                  id="in-progress-column"
-                  title="In Progress"
-                  icon={<AlertCircle className="h-5 w-5" />}
-                  tasks={inProgressTasks}
-                  count={inProgressTasks.length}
-                  priorityColors={priorityColors}
-                  onControl={handleControl}
-                  controllingTaskId={controllingTaskId}
-                />
-              </SortableContext>
+                title="In Progress"
+                icon={<AlertCircle className="h-5 w-5 text-blue-500" />}
+                tasks={inProgressTasks}
+                count={inProgressTasks.length}
+                onControl={handleControlRequest}
+                onPriorityChange={handlePriorityChange}
+                onDelete={handleDeleteRequest}
+                controllingTaskId={controllingTaskId}
+                contentClassName="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar"
+              />
 
               {/* Completed Column */}
-              <SortableContext
+              <TaskColumn
                 id="completed-column"
-                items={completedTasks.map(t => t.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <TaskColumn
-                  id="completed-column"
-                  title="Completed"
-                  icon={<Check className="h-5 w-5" />}
-                  tasks={completedTasks}
-                  count={completedTasks.length}
-                  priorityColors={priorityColors}
-                />
-              </SortableContext>
+                title="Completed"
+                icon={<Check className="h-5 w-5 text-green-500" />}
+                tasks={completedTasks}
+                count={completedTasks.length}
+                onControl={handleControlRequest}
+                onPriorityChange={handlePriorityChange}
+                onDelete={handleDeleteRequest}
+                controllingTaskId={controllingTaskId}
+              />
             </div>
+
             <DragOverlay>
               {activeTask ? (
                 <TaskCard
                   task={activeTask}
-                  priorityColors={priorityColors}
-                  // Hide controls during drag for cleaner look, or keep them
                   onControl={handleControl}
                   onPriorityChange={handlePriorityChange}
                   controllingTaskId={controllingTaskId}
@@ -327,187 +329,29 @@ export default function TasksPage() {
           </DragOverlay>
         </DndContext>
       )}
+
+      <ConfirmDialog
+        open={!!confirmStopId}
+        onOpenChange={(open) => !open && setConfirmStopId(null)}
+        title="Stop Task?"
+        description="Are you sure you want to stop this task? This action cannot be undone and the task will be marked as failed/stopped."
+        confirmText="Stop Task"
+        onConfirm={() => {
+          if (confirmStopId) handleControl(confirmStopId, "stop");
+          setConfirmStopId(null);
+        }}
+        variant="destructive"
+      />
+
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        onOpenChange={(open) => !open && setConfirmDeleteId(null)}
+        title="Delete Task?"
+        description="Are you sure you want to delete this task? This action cannot be undone."
+        confirmText="Delete"
+        onConfirm={handleDelete}
+        variant="destructive"
+      />
     </div>
-  );
-}
-
-// Separate Column Component to handle dropping
-interface TaskColumnProps {
-  id: string;
-  title: string;
-  icon: React.ReactNode;
-  tasks: Task[];
-  count: number;
-  priorityColors: Record<string, string>;
-  onControl?: (jobId: string, action: "pause" | "resume" | "stop") => void;
-  onPriorityChange?: (taskId: string, priority: "low" | "medium" | "high") => void;
-  controllingTaskId?: string | null;
-}
-
-function TaskColumn({ id, title, icon, tasks, count, priorityColors, onControl, onPriorityChange, controllingTaskId }: TaskColumnProps) {
-  const { setNodeRef } = useSortable({ id });
-
-  return (
-    <div ref={setNodeRef} className="space-y-4 bg-muted/50 p-4 rounded-lg min-h-[500px]">
-      <h3 className="font-semibold text-lg flex items-center gap-2">
-        {icon}
-        {title} ({count})
-      </h3>
-      <div className="space-y-3">
-        {tasks.map((task: Task) => (
-          <SortableTaskCard
-            key={task.id}
-            task={task}
-            priorityColors={priorityColors}
-            onControl={onControl}
-            onPriorityChange={onPriorityChange}
-            controllingTaskId={controllingTaskId}
-          />
-        ))}
-        {tasks.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            No tasks
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-interface SortableTaskCardProps {
-  task: Task;
-  priorityColors: Record<string, string>;
-  onControl?: (jobId: string, action: "pause" | "resume" | "stop") => void;
-  onPriorityChange?: (taskId: string, priority: "low" | "medium" | "high") => void;
-  controllingTaskId?: string | null;
-}
-
-function SortableTaskCard(props: SortableTaskCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: props.task.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <TaskCard {...props} />
-    </div>
-  );
-}
-
-function TaskCard({
-  task,
-  priorityColors,
-  onControl,
-  onPriorityChange,
-  controllingTaskId,
-}: {
-  task: Task;
-  priorityColors: Record<string, string>;
-    onControl?: (jobId: string, action: "pause" | "resume" | "stop") => void;
-    onPriorityChange?: (taskId: string, priority: "low" | "medium" | "high") => void;
-    controllingTaskId?: string | null;
-}) {
-  const showControls = ["running", "processing", "paused", "pending", "in-progress"].includes(task.status);
-  const isControlling = controllingTaskId === task.id;
-
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h4 className="font-medium flex items-center gap-2">
-              {task.title}
-              {task.type === "workflow" && (
-                <Badge variant="secondary" className="text-[10px] h-5">Workflow</Badge>
-              )}
-            </h4>
-            {task.description && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {task.description}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Badge variant="outline" className="text-xs cursor-pointer hover:bg-accent transition-colors">
-                <div className={`h-2 w-2 rounded-full ${priorityColors[task.priority]} mr-1`} />
-                {task.priority || "medium"}
-              </Badge>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => onPriorityChange?.(task.id, "low")}>
-                <div className={`h-2 w-2 rounded-full ${priorityColors.low} mr-2`} />
-                Low
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onPriorityChange?.(task.id, "medium")}>
-                <div className={`h-2 w-2 rounded-full ${priorityColors.medium} mr-2`} />
-                Medium
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onPriorityChange?.(task.id, "high")}>
-                <div className={`h-2 w-2 rounded-full ${priorityColors.high} mr-2`} />
-                High
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <div className="text-xs text-muted-foreground">
-            {new Date(task.createdAt).toLocaleDateString()}
-          </div>
-
-          {showControls && onControl && (
-            <div className="ml-auto flex gap-2">
-              {(task.status === "in-progress" || task.status === "processing" || task.status === "running") && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onControl(task.id, "pause")}
-                  disabled={isControlling}
-                  className="h-7 w-7 p-0"
-                >
-                  <Pause className="h-4 w-4" />
-                </Button>
-              )}
-
-              {task.status === "paused" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onControl(task.id, "resume")}
-                  disabled={isControlling}
-                  className="h-7 w-7 p-0"
-                >
-                  <Play className="h-4 w-4" />
-                </Button>
-              )}
-
-              {/* Stop Button */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onControl(task.id, "stop")}
-                disabled={isControlling}
-                className="text-red-500 hover:text-red-600 h-7 w-7 p-0"
-              >
-                <StopCircle className="h-4 w-4" />
-              </Button>
-                 
-            
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   );
 }

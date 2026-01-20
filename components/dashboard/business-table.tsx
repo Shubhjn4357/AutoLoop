@@ -23,7 +23,12 @@ export function BusinessTable({
   businesses,
   onViewDetails,
   onSendEmail,
-}: BusinessTableProps) {
+  selectedIds = [],
+  onSelectionChange,
+}: BusinessTableProps & {
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+}) {
   const getStatusBadge = (status: Business["emailStatus"]) => {
     if (!status || status === "pending")
       return <Badge variant="default">Pending</Badge>;
@@ -35,11 +40,42 @@ export function BusinessTable({
     return <Badge variant="default">Unknown</Badge>;
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (onSelectionChange) {
+      if (checked) {
+        onSelectionChange(businesses.map((b) => b.id));
+      } else {
+        onSelectionChange([]);
+      }
+    }
+  };
+
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (onSelectionChange) {
+      if (checked) {
+        onSelectionChange([...selectedIds, id]);
+      } else {
+        onSelectionChange(selectedIds.filter((sid) => sid !== id));
+      }
+    }
+  };
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
+          {onSelectionChange && (
+            <TableHead className="w-[50px]">
+              <input
+                type="checkbox"
+                className="w-4 h-4 rounded border-gray-300"
+                checked={businesses.length > 0 && selectedIds.length === businesses.length}
+                onChange={(e) => handleSelectAll(e.target.checked)}
+              />
+            </TableHead>
+          )}
           <TableHead>Business Name</TableHead>
+          <TableHead>Website</TableHead>
           <TableHead>Email</TableHead>
           <TableHead>Phone</TableHead>
           <TableHead>Category</TableHead>
@@ -50,7 +86,31 @@ export function BusinessTable({
       <TableBody>
         {businesses.map((business) => (
           <TableRow key={business.id}>
+            {onSelectionChange && (
+              <TableCell>
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded border-gray-300"
+                  checked={selectedIds.includes(business.id)}
+                  onChange={(e) => handleSelectOne(business.id, e.target.checked)}
+                />
+              </TableCell>
+            )}
             <TableCell className="font-medium">{business.name}</TableCell>
+            <TableCell>
+              {business.website ? (
+                <a
+                  href={business.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 text-sm"
+                >
+                  Visit <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : (
+                <span className="text-muted-foreground text-sm">-</span>
+              )}
+            </TableCell>
             <TableCell>
               {business.email || (
                 <span className="text-muted-foreground">No email</span>
