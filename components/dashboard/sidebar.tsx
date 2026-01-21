@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
+  Bell,
   LayoutDashboard,
   Building2,
   Mail,
@@ -19,6 +20,8 @@ import { useState } from "react";
 import { BuyCoffeeWidget } from "@/components/buy-coffee-widget";
 import { SignOutModal } from "@/components/sign-out-modal";
 import { useSidebar } from "./sidebar-provider";
+
+import { toast } from "sonner";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -60,6 +63,23 @@ export function Sidebar() {
             </div>
           )}
         </div>
+
+
+
+        {/* Test Notification Button (Temporary/Demo) */}
+        {!isCollapsed && (
+          <div className="px-4 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start text-xs h-7 border-dashed border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+              onClick={() => toast.success("Glassmorphic Notification", { description: "This is a test notification to verify the new theme styles." })}
+            >
+              <Bell className="h-3 w-3 mr-2" />
+              Test Notification
+            </Button>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 p-4">

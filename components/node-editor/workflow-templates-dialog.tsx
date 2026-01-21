@@ -147,6 +147,164 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     ],
     edges: [],
   },
+  {
+    id: "lead-qualification",
+    name: "Lead Qualification",
+    description: "Score leads based on email domain and enrich data",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "Start", type: "start" }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Check Corporate Email", type: "condition", config: { condition: "!email.includes('gmail.com')" } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Enrich Company Data", type: "apiRequest", config: { url: "https://api.enrichment.com/v1/company", method: "GET" } }, position: { x: -100, y: 300 } },
+      { id: "4", type: "workflowNode", data: { label: "Low Priority Tag", type: "set", config: { setVariables: { priority: "low" } } }, position: { x: 200, y: 300 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3", label: "Yes" },
+      { id: "e2-4", source: "2", target: "4", label: "No" },
+    ]
+  },
+  {
+    id: "customer-onboarding",
+    name: "Customer Onboarding",
+    description: "Multi-step onboarding drip campaign",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "New User Signup", type: "webhook", config: { webhookMethod: "POST" } }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Welcome Email", type: "template", config: { templateId: "welcome" } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Wait 1 Day", type: "delay", config: { delayHours: 24 } }, position: { x: 50, y: 250 } },
+      { id: "4", type: "workflowNode", data: { label: "Check Activation", type: "condition", config: { condition: "user.activated" } }, position: { x: 50, y: 350 } },
+      { id: "5", type: "workflowNode", data: { label: "Getting Started Guide", type: "template", config: { templateId: "guide" } }, position: { x: -100, y: 450 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+      { id: "e3-4", source: "3", target: "4" },
+      { id: "e4-5", source: "4", target: "5", label: "No" },
+    ]
+  },
+  {
+    id: "feedback-collection",
+    name: "Feedback Collection",
+    description: "Collect feedback after service delivery",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "Service Completed", type: "start" }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Wait 2 Hours", type: "delay", config: { delayHours: 2 } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Send Survey", type: "template", config: { templateId: "survey" } }, position: { x: 50, y: 250 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+    ]
+  },
+  {
+    id: "abandoned-cart",
+    name: "Abandoned Cart Recovery",
+    description: "Recover lost sales with automated reminders",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "Cart Abandoned", type: "webhook" }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Wait 1 Hour", type: "delay", config: { delayHours: 1 } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Reminder Email", type: "template", config: { templateId: "cart_reminder" } }, position: { x: 50, y: 250 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+    ]
+  },
+  {
+    id: "weekly-report",
+    name: "Weekly Report Generator",
+    description: "Generate and email weekly summaries every Monday",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "Every Monday 9AM", type: "schedule", config: { scheduleCron: "0 9 * * 1" } }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Fetch Analytics", type: "apiRequest", config: { url: "/api/stats", method: "GET" } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Generate Summary (AI)", type: "gemini", config: { aiPrompt: "Summarize these stats: {data}" } }, position: { x: 50, y: 250 } },
+      { id: "4", type: "workflowNode", data: { label: "Email Team", type: "template", config: { templateId: "weekly_report" } }, position: { x: 50, y: 350 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+      { id: "e3-4", source: "3", target: "4" },
+    ]
+  },
+  {
+    id: "social-media-post",
+    name: "Social Media Auto-Post",
+    description: "Post new blog articles to social media automatically",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "New Blog Post", type: "webhook" }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Generate Tweet", type: "gemini", config: { aiPrompt: "Write a tweet for this article: {title}" } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Post to Twitter", type: "apiRequest", config: { url: "https://api.twitter.com/post", method: "POST" } }, position: { x: 50, y: 250 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+    ]
+  },
+  {
+    id: "invoice-processing",
+    name: "Invoice Processing Agent",
+    description: "Extract data from invoices and update accounting",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "New Invoice Email", type: "webhook" }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Extract Details", type: "agent", config: { agentPrompt: "Extract amount, date, vendor" } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Wait for Approval", type: "delay", config: { delayHours: 4 } }, position: { x: 50, y: 250 } },
+      { id: "4", type: "workflowNode", data: { label: "Update CRM", type: "apiRequest", config: { url: "/api/crm", method: "POST" } }, position: { x: 50, y: 350 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+      { id: "e3-4", source: "3", target: "4" },
+    ]
+  },
+  {
+    id: "webinar-reminder",
+    name: "Webinar Attendance Reminder",
+    description: "Remind registrants 1 hour before event",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "1 Hour Before", type: "schedule", config: { scheduleCron: "0 10 * * *" } }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Get Registrants", type: "apiRequest", config: { url: "/api/webinar/users", method: "GET" } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Process List", type: "splitInBatches" }, position: { x: 50, y: 250 } },
+      { id: "4", type: "workflowNode", data: { label: "Send Reminder", type: "template", config: { templateId: "webinar_start" } }, position: { x: 50, y: 350 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+      { id: "e3-4", source: "3", target: "4" },
+    ]
+  },
+  {
+    id: "support-ticket-routing",
+    name: "Support Ticket Routing",
+    description: "Route support tickets based on keyword analysis",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "New Ticket", type: "webhook" }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Analyze Sentiment", type: "gemini", config: { aiPrompt: "Is this urgent? {message}" } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Urgent?", type: "condition", config: { condition: "analysis.contains('urgent')" } }, position: { x: 50, y: 250 } },
+      { id: "4", type: "workflowNode", data: { label: "Alert Manager", type: "apiRequest", config: { url: "/api/slack/alert", method: "POST" } }, position: { x: -50, y: 350 } },
+      { id: "5", type: "workflowNode", data: { label: "Auto-Reply", type: "template", config: { templateId: "received" } }, position: { x: 150, y: 350 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+      { id: "e3-4", source: "3", target: "4", label: "Yes" },
+      { id: "e3-5", source: "3", target: "5", label: "No" },
+    ]
+  },
+  {
+    id: "data-enrichment",
+    name: "Data Enrichment Pipeline",
+    description: "Enrich user profiles from Clearbit/Apollo",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "Start", type: "start" }, position: { x: 50, y: 50 } },
+      { id: "2", type: "workflowNode", data: { label: "Fetch Clearbit", type: "apiRequest", config: { url: "https://person.clearbit.com/v2/people/find", method: "GET" } }, position: { x: 50, y: 150 } },
+      { id: "3", type: "workflowNode", data: { label: "Merge Data", type: "merge" }, position: { x: 50, y: 250 } },
+      { id: "4", type: "workflowNode", data: { label: "Update Profile", type: "apiRequest", config: { url: "/api/profile", method: "PUT" } }, position: { x: 50, y: 350 } },
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+      { id: "e3-4", source: "3", target: "4" },
+    ]
+  }
 ];
 
 interface WorkflowTemplatesDialogProps {

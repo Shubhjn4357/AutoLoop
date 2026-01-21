@@ -10,6 +10,14 @@ const nodeColors = {
   delay: "#8b5cf6",
   custom: "#ec4899",
   gemini: "#06b6d4",
+  apiRequest: "#6366f1",
+  agent: "#10b981",
+  webhook: "#ef4444",
+  schedule: "#14b8a6",
+  merge: "#f97316",
+  splitInBatches: "#8b5cf6",
+  filter: "#eab308",
+  set: "#64748b",
 };
 
 const nodeIcons = {
@@ -19,6 +27,14 @@ const nodeIcons = {
   delay: "⏱️",
   custom: "⚙️",
   gemini: "🤖",
+  apiRequest: "🔗",
+  agent: "📊",
+  webhook: "🎣",
+  schedule: "📅",
+  merge: "⑃",
+  splitInBatches: "🔁",
+  filter: "🔍",
+  set: "📝",
 };
 
 export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
@@ -48,6 +64,10 @@ export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
           <div className="font-bold text-sm" style={{ color }}>
             {data.label}
           </div>
+          <div className="flex items-center gap-1 mt-1">
+            <div className={`h-2 w-2 rounded-full ${data.isConnected ? 'bg-green-500' : 'bg-gray-300'}`} title={data.isConnected ? "Connected" : "Not Connected"} />
+            <span className="text-[10px] text-muted-foreground">{data.isConnected ? "Active" : "Disconnected"}</span>
+          </div>
           {data.config && Object.keys(data.config).length > 0 && (
             <div className="text-xs text-gray-500 mt-1">
               <Settings className="inline h-3 w-3 mr-1" />
@@ -57,12 +77,14 @@ export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
         </div>
       </div>
 
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="w-3 h-3"
-        style={{ background: color }}
-      />
+      {data.type !== "end" && (
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="w-3 h-3"
+          style={{ background: color }}
+        />
+      )}
     </div>
   );
 });

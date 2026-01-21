@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Play, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +16,7 @@ interface NodeConfigDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     node: Node<NodeData>;
-    onSave: (config: NodeData["config"]) => void;
+    onSave: (config: NodeData["config"], label?: string) => void;
 }
 
 interface EmailTemplate {
@@ -23,37 +26,37 @@ interface EmailTemplate {
 
 export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfigDialogProps) {
     const [config, setConfig] = useState<NodeData["config"]>(node.data.config || {});
+    const [label, setLabel] = useState(node.data.label);
     const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+    const [testInput, setTestInput] = useState("{}");
+    const [testOutput, setTestOutput] = useState("");
+    const [isTesting, setIsTesting] = useState(false);
+    const [activeTab, setActiveTab] = useState("config");
 
     const { get, loading: loadingTemplates } = useApi<{ templates: EmailTemplate[] }>();
-
-    useEffect(() => {
-        setConfig(node.data.config || {});
-    }, [node]);
-
-    const fetchTemplates = useCallback(async () => {
-        const result = await get('/api/templates');
-        if (result) {
-            setTemplates(result.templates || []);
-        } else {
-            // Fallback to default templates if API fails or returns null
-            setTemplates([
-                { id: 'template-1', name: 'Welcome Email' },
-                { id: 'template-2', name: 'Follow-up Email' },
-                { id: 'template-3', name: 'Custom Pitch' },
-             ]);
-        }
-    }, [get]);
 
     // Fetch templates when dialog opens and node is template type
     useEffect(() => {
         if (open && node.data.type === "template") {
+            const fetchTemplates = async () => {
+                const result = await get('/api/templates');
+                if (result) {
+                    setTemplates(result.templates || []);
+                } else {
+                    // Fallback to default templates if API fails or returns null
+                    setTemplates([
+                        { id: 'template-1', name: 'Welcome Email' },
+                        { id: 'template-2', name: 'Follow-up Email' },
+                        { id: 'template-3', name: 'Custom Pitch' },
+                    ]);
+                }
+            };
             fetchTemplates();
         }
-    }, [open, node.data.type, fetchTemplates]);
+    }, [open, node.data.type, get]);
 
     const handleSave = () => {
-        onSave(config);
+        onSave(config, label);
     };
 
     const renderConfigForm = () => {
@@ -62,7 +65,7 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                 return (
                     <div className="space-y-4">
                         <p className="text-sm text-muted-foreground">
-                            This is the starting point of your workflow. No configuration needed.
+                            This is the starting point of your workflow.
                         </p>
                     </div>
                 );
@@ -154,8 +157,7 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                             />
                             <div className="text-xs text-muted-foreground">
                                 <p>Write custom JavaScript code. Return true to continue, false to stop.</p>
-                                <p className="mt-1">Variables available as global objects: <code className="bg-muted px-1 rounded">company</code></p>
-                                <p>Properties: name, email, phone, website, address, rating</p>
+                                <p className="mt-1">Variables available: <code className="bg-muted px-1 rounded">company</code></p>
                             </div>
                         </div>
                     </div>
@@ -181,6 +183,256 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                     </div>
                 );
 
+            case "apiRequest":
+                return (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-4 gap-4">
+                            <div className="col-span-1 space-y-2">
+                                <Label htmlFor="method">Method</Label>
+                                <Select
+                                    value={config?.method || "GET"}
+                                    onValueChange={(value: "GET" | "POST" | "PUT" | "DELETE") => setConfig({ ...config, method: value })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="GET" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="GET">GET</SelectItem>
+                                        <SelectItem value="POST">POST</SelectItem>
+                                        <SelectItem value="PUT">PUT</SelectItem>
+                                        <SelectItem value="DELETE">DELETE</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="col-span-3 space-y-2">
+                                <Label htmlFor="url">URL</Label>
+                                <Input
+                                    id="url"
+                                    placeholder="https://api.example.com/v1/resource"
+                                    value={config?.url || ""}
+                                    onChange={(e) => setConfig({ ...config, url: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="headers">Headers (JSON)</Label>
+                            <Textarea
+                                id="headers"
+                                placeholder='{ "Authorization": "Bearer KEY", "Content-Type": "application/json" }'
+                                rows={3}
+                                value={config?.headers || ""}
+                                onChange={(e) => setConfig({ ...config, headers: e.target.value })}
+                                className="font-mono text-sm"
+                            />
+                        </div>
+                        {(config?.method === "POST" || config?.method === "PUT") && (
+                            <div className="space-y-2">
+                                <Label htmlFor="body">Body (JSON)</Label>
+                                <Textarea
+                                    id="body"
+                                    placeholder='{ "key": "value" }'
+                                    rows={4}
+                                    value={config?.body || ""}
+                                    onChange={(e) => setConfig({ ...config, body: e.target.value })}
+                                    className="font-mono text-sm"
+                                />
+                            </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                            Make external API requests. Useful for webhooks or data enrichment.
+                        </p>
+                    </div>
+                );
+
+            case "merge":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label>Merge Logic</Label>
+                            <Select disabled value="any">
+                                <SelectTrigger><SelectValue placeholder="Wait for ANY branch" /></SelectTrigger>
+                                <SelectContent><SelectItem value="any">Wait for ANY branch</SelectItem></SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">Currently supports merging when any input arrives.</p>
+                        </div>
+                    </div>
+                );
+
+            case "splitInBatches":
+                return (
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            loops through an array of items from the previous node. The &apos;Done&apos; output triggers when finished.
+                        </p>
+                        <div className="bg-muted p-2 rounded text-xs">
+                            Ensure the previous node returns an array (e.g., API List or CSV).
+                        </div>
+                    </div>
+                );
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="agentPrompt">Agent Instructions</Label>
+                            <Textarea
+                                id="agentPrompt"
+                                placeholder="Analyze the rows in the excel sheet and extract..."
+                                rows={3}
+                                value={config?.agentPrompt || ""}
+                                onChange={(e) => setConfig({ ...config, agentPrompt: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="agentContext">Excel Data / Context (CSV)</Label>
+                            <Textarea
+                                id="agentContext"
+                                placeholder="Paste CSV content here or data context..."
+                                rows={6}
+                                value={config?.agentContext || ""}
+                                onChange={(e) => setConfig({ ...config, agentContext: e.target.value })}
+                                className="font-mono text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Paste the content of your Excel sheet (as CSV) here for the agent to process.
+                            </p>
+                        </div>
+                    </div>
+                );
+            case "webhook":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="webhookMethod">Webhook Method</Label>
+                            <Select
+                                value={config?.webhookMethod || "POST"}
+                                onValueChange={(value: "GET" | "POST") => setConfig({ ...config, webhookMethod: value })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="POST" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="GET">GET</SelectItem>
+                                    <SelectItem value="POST">POST</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                This node triggers when the workflow URL is called with this method.
+                            </p>
+                        </div>
+                    </div>
+                );
+            case "schedule":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="scheduleCron">Cron Expression</Label>
+                            <Input
+                                id="scheduleCron"
+                                placeholder="0 9 * * 1 (Every Monday at 9AM)"
+                                value={config?.scheduleCron || ""}
+                                onChange={(e) => setConfig({ ...config, scheduleCron: e.target.value })}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Standard Cron format.
+                            </p>
+                        </div>
+                    </div>
+                );
+            case "merge":
+                return (
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            Merges multiple input branches into a single output. No configuration needed usually.
+                        </p>
+                    </div>
+                );
+            case "splitInBatches":
+                return (
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            loops through an array of items from the previous node. The &apos;Done&apos; output triggers when finished.
+                        </p>
+                        {/* Could add batch size config here later */}
+                    </div>
+                );
+            case "filter":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="filterCondition">Filter Condition</Label>
+                            <Input
+                                id="filterCondition"
+                                placeholder="item.price > 100"
+                                value={config?.filterCondition || ""}
+                                onChange={(e) => setConfig({ ...config, filterCondition: e.target.value })}
+                            />
+                            <div className="text-xs text-muted-foreground">
+                                <p>Expression that returns true/false. Use <code>item</code> to access current data.</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            case "set":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="setVariables">Variables (JSON)</Label>
+                            <Textarea
+                                id="setVariables"
+                                placeholder='{ "myVar": "value", "count": 1 }'
+                                rows={4}
+                                value={JSON.stringify(config?.setVariables || {}, null, 2)}
+                                onChange={(e) => {
+                                    try {
+                                        const parsed = JSON.parse(e.target.value);
+                                        setConfig({ ...config, setVariables: parsed });
+                                    } catch {
+                                        // Allow editing invalid JSON transiently or use string
+                                    }
+                                }}
+                                className="font-mono text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Define variables to append to the workflow execution context.
+                            </p>
+                        </div>
+                    </div>
+                );
+
+            case "scraper":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="scraperAction">Scraper Action</Label>
+                            <Select
+                                value={config?.scraperAction || "extract-emails"}
+                                onValueChange={(value) => setConfig({ ...config, scraperAction: value as "summarize" | "extract-emails" | "clean-html" | "markdown" })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select Action" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="extract-emails">Extract Emails</SelectItem>
+                                    <SelectItem value="summarize">Summarize Content</SelectItem>
+                                    <SelectItem value="clean-html">Clean HTML / Remove Tags</SelectItem>
+                                    <SelectItem value="markdown">Convert to Markdown</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="scraperInputField">Input Variable</Label>
+                            <Input
+                                id="scraperInputField"
+                                placeholder="{scrapedContent}"
+                                value={config?.scraperInputField || ""}
+                                onChange={(e) => setConfig({ ...config, scraperInputField: e.target.value })}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                The variable containing the raw text or HTML to process.
+                            </p>
+                        </div>
+                    </div>
+                );
+
             default:
                 return null;
         }
@@ -188,19 +440,85 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Configure {node.data.label}</DialogTitle>
                     <DialogDescription>
-                        Set up the configuration for this workflow node
+                        Set up the configuration and test logic for this node.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="py-4">
-                    {renderConfigForm()}
-                </div>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col overflow-hidden">
+                    <div className="px-6 border-b">
+                        <TabsList className="bg-transparent p-0 gap-6">
+                            <TabsTrigger value="config" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 py-3">Configuration</TabsTrigger>
+                            <TabsTrigger value="test" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-2 py-3">Test & Preview</TabsTrigger>
+                        </TabsList>
+                    </div>
 
-                <DialogFooter>
+                    <ScrollArea className="flex-1 p-6 max-h-[60vh]">
+                        <TabsContent value="config" className="mt-0 space-y-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="nodeLabel">Node Name</Label>
+                                <Input
+                                    id="nodeLabel"
+                                    value={label}
+                                    onChange={(e) => setLabel(e.target.value)}
+                                />
+                            </div>
+
+                            {renderConfigForm()}
+                        </TabsContent>
+
+                        <TabsContent value="test" className="mt-0 space-y-4">
+                            <div className="space-y-2">
+                                <Label>Test Input (JSON Context)</Label>
+                                <Textarea
+                                    className="font-mono text-xs"
+                                    rows={5}
+                                    placeholder='{ "email": "test@example.com", "price": 150 }'
+                                    value={testInput}
+                                    onChange={(e) => setTestInput(e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">Mock the variables available to this node.</p>
+                            </div>
+
+                            <Button size="sm" onClick={async () => {
+                                setIsTesting(true);
+                                try {
+                                    const input = JSON.parse(testInput || "{}");
+                                    const response = await fetch("/api/workflows/test-node", {
+                                        method: "POST",
+                                        body: JSON.stringify({
+                                            nodeType: node.data.type,
+                                            config,
+                                            inputContext: input
+                                        })
+                                    });
+                                    const result = await response.json();
+                                    setTestOutput(JSON.stringify(result, null, 2));
+                                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                } catch (e) {
+                                    setTestOutput("Error: Invalid JSON Input or Test Failed");
+                                } finally {
+                                    setIsTesting(false);
+                                }
+                            }} disabled={isTesting}>
+                                {isTesting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}
+                                Run Test
+                            </Button>
+
+                            <div className="space-y-2">
+                                <Label>Test Result</Label>
+                                <div className="bg-slate-950 text-slate-50 p-3 rounded-md font-mono text-xs whitespace-pre-wrap min-h-[100px]">
+                                    {testOutput || "Run a test to see the output..."}
+                                </div>
+                            </div>
+                        </TabsContent>
+                    </ScrollArea>
+                </Tabs>
+
+                <DialogFooter className="mr-6 mb-4">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>
