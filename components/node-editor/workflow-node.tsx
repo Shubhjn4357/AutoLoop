@@ -18,6 +18,7 @@ const nodeColors = {
   splitInBatches: "#8b5cf6",
   filter: "#eab308",
   set: "#64748b",
+  scraper: "#c026d3",
 };
 
 const nodeIcons = {
@@ -35,6 +36,7 @@ const nodeIcons = {
   splitInBatches: "🔁",
   filter: "🔍",
   set: "📝",
+  scraper: "🕸️",
 };
 
 export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
@@ -77,7 +79,7 @@ export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
         </div>
       </div>
 
-      {data.type !== "end" && (
+      {true && (
         <Handle
           type="source"
           position={Position.Bottom}
