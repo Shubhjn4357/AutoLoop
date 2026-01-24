@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { automationWorkflows } from "@/db/schema";
+import { automationWorkflows, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { SessionUser } from "@/types";
 
@@ -14,10 +14,24 @@ export async function GET() {
 
     const userId = (session.user as SessionUser).id;
 
+    let queryUserId = userId;
+
+    if (userId === "admin-user") {
+      const adminEmail = process.env.ADMIN_EMAIL;
+      if (adminEmail) {
+        const existingUserByEmail = await db.query.users.findFirst({
+          where: eq(users.email, adminEmail)
+        });
+        if (existingUserByEmail) {
+          queryUserId = existingUserByEmail.id;
+        }
+      }
+    }
+
     const workflows = await db
       .select()
       .from(automationWorkflows)
-      .where(eq(automationWorkflows.userId, userId))
+      .where(eq(automationWorkflows.userId, queryUserId))
       .orderBy(automationWorkflows.createdAt);
 
     return NextResponse.json({ workflows });
@@ -48,10 +62,44 @@ export async function POST(request: Request) {
       isActive,
     } = body;
 
+    // Fail-safe: Ensure admin user exists if this is the admin
+    let finalUserId = userId;
+
+    if (userId === "admin-user") {
+      // 1. Try to find by ID first
+      const existingUserById = await db.query.users.findFirst({
+        where: eq(users.id, userId)
+      });
+
+      if (!existingUserById) {
+        const adminEmail = process.env.ADMIN_EMAIL;
+        if (adminEmail) {
+          // 2. Try to find by Email
+          const existingUserByEmail = await db.query.users.findFirst({
+            where: eq(users.email, adminEmail)
+          });
+
+          if (existingUserByEmail) {
+            // Use the existing user's ID
+            finalUserId = existingUserByEmail.id;
+          } else {
+            // Create new admin user if absolutely disconnected
+            await db.insert(users).values({
+              id: userId,
+              name: "Admin",
+              email: adminEmail,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+          }
+        }
+      }
+    }
+
     const [workflow] = await db
       .insert(automationWorkflows)
       .values({
-        userId,
+        userId: finalUserId,
         name,
         targetBusinessType: targetBusinessType || "",
         keywords: keywords || [],

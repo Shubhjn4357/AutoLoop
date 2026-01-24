@@ -12,7 +12,7 @@ export function ThemeSwitch() {
             variant="ghost"
             size="icon"
             onClick={(e) => toggleTheme(e)}
-            className="relative cursor-pointer transition-colors hover:bg-accent"
+            className="relative cursor-pointer hover:scale-110 transition-colors hover:bg-accent"
             aria-label="Toggle theme"
         >
             <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getEffectiveUserId } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -22,7 +23,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = session.user.id;
+    const userId = await getEffectiveUserId(session.user.id);
 
     // Fetch user with API keys
     const [user] = await db
@@ -81,7 +82,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = session.user.id;
+    const userId = await getEffectiveUserId(session.user.id);
     const body = await request.json();
 
     const updateData: UpdateUserData = {

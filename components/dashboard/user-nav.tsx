@@ -8,7 +8,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,7 @@ export function UserNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full cursor-pointer">
+        <Button variant="ghost" className="relative h-8 w-8 hover:scale-110 rounded-full cursor-pointer">
           <Avatar className="h-8 w-8">
             <AvatarImage src={user?.image || ""} alt={user?.name || ""} />
             <AvatarFallback>{user?.name?.charAt(0) || "U"}</AvatarFallback>
@@ -55,7 +54,7 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => signOut()} className="cursor-pointer">
+        <DropdownMenuItem onClick={() => signOut()} className="cursor-pointer text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>

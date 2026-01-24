@@ -44,8 +44,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           credentials.email === adminEmail &&
           credentials.password === adminPassword
         ) {
+          // Ensure admin user exists in DB
+          const adminId = "admin-user";
+
+          try {
+            const existingAdmin = await db.query.users.findFirst({
+              where: eq(users.id, adminId)
+            });
+
+            if (!existingAdmin) {
+              await db.insert(users).values({
+                id: adminId,
+                name: "Admin",
+                email: adminEmail!,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+            }
+          } catch (error) {
+            console.error("Failed to ensure admin user exists:", error);
+            // Fallback to memory-only, but this might cause FK issues as seen
+          }
+
           return {
-            id: "admin-user",
+            id: adminId,
             name: "Admin",
             email: adminEmail,
             role: "admin",

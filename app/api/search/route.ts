@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getEffectiveUserId } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { businesses, emailTemplates, automationWorkflows } from "@/db/schema";
 import { ilike, or, eq, and } from "drizzle-orm";
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
             return NextResponse.json({ results: [] });
         }
 
-        const userId = session.user.id;
+        const userId = await getEffectiveUserId(session.user.id);
         const searchPattern = `%${query}%`;
 
         // Parallelize queries for better performance

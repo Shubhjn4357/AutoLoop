@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getEffectiveUserId } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const userId = session.user.id;
+        const userId = await getEffectiveUserId(session.user.id);
         const { businessType, purpose } = await request.json();
 
         if (!businessType || !purpose) {

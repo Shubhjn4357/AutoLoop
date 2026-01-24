@@ -91,7 +91,7 @@ export default function WorkflowBuilderPage() {
     }
 
     return (
-        <div className="flex flex-col h-screen w-full bg-background">
+        <div className="flex flex-col h-screen w-full bg-background overflow-y-auto">
             {/* Header for Back button and Name (Immersive Mode) */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border-b shrink-0 gap-4">
                 <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -124,7 +124,7 @@ export default function WorkflowBuilderPage() {
             </div>
 
             {/* Editor Area */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden h-screen">
                 <NodeEditor
                     initialNodes={(workflow.nodes as Node<NodeData>[]) || []}
                     initialEdges={(workflow.edges as Edge[]) || []}

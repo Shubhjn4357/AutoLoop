@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { scrapingJobs, automationWorkflows } from "@/db/schema";
+import { scrapingJobs, automationWorkflows, users } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 
 export async function GET() {
@@ -12,6 +12,19 @@ export async function GET() {
         }
 
         const userId = session.user.id;
+        let queryUserId = userId;
+
+        if (userId === "admin-user") {
+            const adminEmail = process.env.ADMIN_EMAIL;
+            if (adminEmail) {
+                const existingUserByEmail = await db.query.users.findFirst({
+                    where: eq(users.email, adminEmail)
+                });
+                if (existingUserByEmail) {
+                    queryUserId = existingUserByEmail.id;
+                }
+            }
+        }
 
         // Fetch scraping jobs
         const jobs = await db
@@ -27,7 +40,7 @@ export async function GET() {
             })
             .from(scrapingJobs)
             .leftJoin(automationWorkflows, eq(scrapingJobs.workflowId, automationWorkflows.id))
-            .where(eq(scrapingJobs.userId, userId))
+            .where(eq(scrapingJobs.userId, queryUserId))
             .orderBy(desc(scrapingJobs.createdAt))
             .limit(100); // Limit results for performance
 
@@ -41,7 +54,7 @@ export async function GET() {
                 createdAt: automationWorkflows.createdAt,
             })
             .from(automationWorkflows)
-            .where(eq(automationWorkflows.userId, userId))
+            .where(eq(automationWorkflows.userId, queryUserId))
             .orderBy(desc(automationWorkflows.createdAt))
             .limit(100);
 
@@ -95,6 +108,19 @@ export async function DELETE(request: Request) {
         const id = searchParams.get("id");
         const type = searchParams.get("type");
         const userId = session.user.id;
+        let queryUserId = userId;
+
+        if (userId === "admin-user") {
+            const adminEmail = process.env.ADMIN_EMAIL;
+            if (adminEmail) {
+                const existingUserByEmail = await db.query.users.findFirst({
+                    where: eq(users.email, adminEmail)
+                });
+                if (existingUserByEmail) {
+                    queryUserId = existingUserByEmail.id;
+                }
+            }
+        }
 
         if (!id || !type) {
             return NextResponse.json({ error: "ID and type required" }, { status: 400 });
@@ -103,11 +129,11 @@ export async function DELETE(request: Request) {
         if (type === "workflow") {
             await db
                 .delete(automationWorkflows)
-                .where(and(eq(automationWorkflows.id, id), eq(automationWorkflows.userId, userId)));
+                .where(and(eq(automationWorkflows.id, id), eq(automationWorkflows.userId, queryUserId)));
         } else {
             await db
                 .delete(scrapingJobs)
-                .where(and(eq(scrapingJobs.id, id), eq(scrapingJobs.userId, userId)));
+                .where(and(eq(scrapingJobs.id, id), eq(scrapingJobs.userId, queryUserId)));
         }
 
         return NextResponse.json({ success: true });

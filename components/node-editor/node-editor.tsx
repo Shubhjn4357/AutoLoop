@@ -18,7 +18,8 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Save, Play, Copy, Trash2, Undo, Redo, FileText, Loader2, Download, Upload, HelpCircle, BookOpen, Hand, MousePointer2 } from "lucide-react";
+import { Plus, Save, Play, Copy, Trash2, Undo, Redo, FileText, Loader2, Download, Upload, HelpCircle, BookOpen, Hand, MousePointer2, Sparkles } from "lucide-react";
+import { AiWorkflowDialog } from "./ai-workflow-dialog";
 import { ImportWorkflowDialog } from "./import-workflow-dialog";
 import { NodeConfigDialog } from "./node-config-dialog";
 import { WorkflowNode } from "./workflow-node";
@@ -106,8 +107,10 @@ export function NodeEditor({
   const [selectedNodes, setSelectedNodes] = useState<Node<NodeData>[]>([]);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -441,6 +444,16 @@ export function NodeEditor({
     setIsTemplatesOpen(false);
   }, [setNodes, setEdges, saveToHistory]);
 
+  const handleAiGenerate = useCallback((generatedNodes: Node<NodeData>[], generatedEdges: Edge[]) => {
+    setNodes(generatedNodes);
+    setEdges(generatedEdges);
+    saveToHistory();
+    toast({
+      title: "Workflow Generated",
+      description: "AI successfully created the workflow structure.",
+    });
+  }, [setNodes, setEdges, saveToHistory, toast]);
+
   // Close context menu when clicking outside
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
@@ -459,6 +472,22 @@ export function NodeEditor({
             <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <span>Workflow Editor</span>
               <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => setIsAiDialogOpen(true)}
+                      variant="outline"
+                      className="gap-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      AI Generate
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Generate workflow with AI</TooltipContent>
+                </Tooltip>
+
+                <div className="w-px h-6 bg-border mx-1 self-center" />
+
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -777,6 +806,11 @@ export function NodeEditor({
             saveToHistory();
             setIsImportOpen(false);
           }}
+        />
+        <AiWorkflowDialog
+          open={isAiDialogOpen}
+          onOpenChange={setIsAiDialogOpen}
+          onGenerate={handleAiGenerate}
         />
     </div>
     </TooltipProvider>

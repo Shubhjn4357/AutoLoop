@@ -1,8 +1,9 @@
 import { toast as sonnerToast } from "sonner";
 
+import { useCallback } from "react";
+
 export function useToast() {
-  return {
-    toast: ({ title, description, variant = "default" }: { title: string; description?: string; variant?: "default" | "destructive" }) => {
+  const toast = useCallback(({ title, description, variant = "default" }: { title: string; description?: string; variant?: "default" | "destructive" }) => {
       if (variant === "destructive") {
         sonnerToast.error(title, {
           description,
@@ -12,6 +13,7 @@ export function useToast() {
           description,
         });
       }
-    },
-  };
+  }, []);
+
+  return { toast };
 }

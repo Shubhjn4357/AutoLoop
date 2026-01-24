@@ -1,6 +1,7 @@
 
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { getEffectiveUserId } from "@/lib/auth-utils";
 import { db } from "@/db";
 import { emailTemplates } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -16,7 +17,7 @@ export async function PATCH(
     }
 
     const { templateId } = await params;
-    const userId = session.user.id;
+    const userId = await getEffectiveUserId(session.user.id);
     const body = await request.json();
     const { name, subject, body: emailBody, isDefault } = body;
 
@@ -72,7 +73,7 @@ export async function DELETE(
     }
 
     const { templateId } = await params;
-    const userId = session.user.id;
+    const userId = await getEffectiveUserId(session.user.id);
 
     if (!templateId) {
       return NextResponse.json({ error: "Template ID required" }, { status: 400 });

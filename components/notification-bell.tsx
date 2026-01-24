@@ -44,7 +44,7 @@ export function NotificationBell() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative"
+          className="relative hover:scale-110"
         >
           <Bell className={cn(
             "h-5 w-5",

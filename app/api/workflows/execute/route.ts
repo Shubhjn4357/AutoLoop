@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { executeWorkflowLoop } from "@/lib/workflow-executor";
+import { getEffectiveUserId } from "@/lib/auth-utils";
 import { NextResponse } from "next/server";
 
 export const POST = async (req: Request) => {
@@ -17,7 +18,8 @@ export const POST = async (req: Request) => {
       return new NextResponse("Workflow ID is required", { status: 400 });
     }
 
-    const result = await executeWorkflowLoop(workflowId, session.user.id);
+    const userId = await getEffectiveUserId(session.user.id);
+    const result = await executeWorkflowLoop(workflowId, userId);
 
     return NextResponse.json(result);
   } catch (error) {
