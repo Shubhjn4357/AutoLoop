@@ -94,6 +94,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             .set({
               accessToken: account?.access_token,
               refreshToken: account?.refresh_token,
+              name: user.name,
+              image: user.image,
               updatedAt: new Date(),
             })
             .where(eq(users.id, existingUser.id));
@@ -115,21 +117,34 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
     },
     async session({ session, token }) {
-      if (session.user) {
-        if (token.role === "admin") {
-          session.user.role = "admin";
-          session.user.id = "admin-user";
-        } else if (session.user.email) {
+     // console.log("🔐 Session Callback - Token:", JSON.stringify(token, null, 2));
+
+      // Always prioritize DB lookup for logged in users
+      if (session.user && session.user.email) {
+        try {
           const dbUser = await db.query.users.findFirst({
             where: eq(users.email, session.user.email),
           });
 
-          if (dbUser) {
-            session.user.id = dbUser.id;
-            session.user.accessToken = dbUser.accessToken || undefined;
-            session.user.role = "user";
+            console.log("👤 DB User found:", dbUser ? dbUser.id : "null");
+
+            if (dbUser) {
+              // Use Database Truth (which is synced from Google on login)
+              session.user.id = dbUser.id;
+              session.user.name = dbUser.name || session.user.name;
+              session.user.image = dbUser.image || session.user.image;
+              session.user.role = "user"; 
+              session.user.accessToken = dbUser.accessToken || undefined;
+            } else {
+              // Only use admin fallback if NOT found in DB (unlikely for Google login)
+              if (token.role === "admin") {
+                session.user.role = "admin";
+                session.user.id = "admin-user";
+              }
+            }
+          } catch (error) {
+            console.error("Error seeking DB user in session:", error);
           }
-        }
       }
       return session;
     },

@@ -222,15 +222,18 @@ export const scrapingWorker = new Worker(
             ...b,
             userId,
             category: b.category || "Unknown",
-            emailStatus: null,
+            emailStatus: b.emailStatus || null,
           }));
 
           // Use INSERT ON CONFLICT DO NOTHING approach
           try {
             await db.insert(businesses).values(businessesToInsert).onConflictDoNothing();
-          } catch {
+          } catch (e: any) {
+            console.error("  ❌ Failed to insert businesses (onConflictDoNothing):", e.message);
             // Fallback if onConflictDoNothing is not supported by driver or schema setup
-            await db.insert(businesses).values(businessesToInsert).catch(() => { });
+            await db.insert(businesses).values(businessesToInsert).catch((err) => {
+              console.error("  ❌ Fallback insert also failed:", err.message);
+            });
           }
 
           totalFound += results.length;

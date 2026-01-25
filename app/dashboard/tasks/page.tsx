@@ -83,6 +83,8 @@ export default function TasksPage() {
       if (result) {
         toast.success(`Task ${action}d successfully`);
         await fetchTasks();
+      } else {
+        throw new Error("API returned null");
       }
     } catch (error) {
       toast.error(`Failed to ${action} task`);
@@ -126,6 +128,8 @@ export default function TasksPage() {
         toast.success(`Priority updated to ${priority}`);
         // No need to fetch if optimistic update matches, but safe to fetch
         // await fetchTasks(); 
+      } else {
+        throw new Error("API returned null");
       }
     } catch (error) {
       toast.error("Failed to update priority");
@@ -143,9 +147,13 @@ export default function TasksPage() {
     if (!confirmDeleteId) return;
 
     try {
-      await deleteTask(`/api/tasks?id=${confirmDeleteId.id}&type=${confirmDeleteId.type}`);
-      toast.success("Task deleted successfully");
-      await fetchTasks();
+      const result = await deleteTask(`/api/tasks?id=${confirmDeleteId.id}&type=${confirmDeleteId.type}`);
+      if (result !== null) {
+        toast.success("Task deleted successfully");
+        await fetchTasks();
+      } else {
+        throw new Error("Failed to delete task");
+      }
     } catch (error) {
       toast.error("Failed to delete task");
       console.error("Error deleting task:", error);

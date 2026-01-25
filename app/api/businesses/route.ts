@@ -37,11 +37,16 @@ export async function GET(request: Request) {
       conditions.push(eq(businesses.emailStatus, status));
     }
 
+    console.log(`🔍 Fetching businesses for UserID: ${userId}`);
+    console.log(`   Filters - Category: ${category}, Status: ${status}, Page: ${page}, Limit: ${limit}`);
+
     // Get total count
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(businesses)
       .where(and(...conditions));
+
+    console.log(`   Found ${count} total businesses matching criteria`);
 
     const totalPages = Math.ceil(count / limit);
 

@@ -39,6 +39,8 @@ export function ActiveTaskCard({
       if (result) {
         toast.success(`Task ${action}d successfully`);
         onStatusChange?.();
+      } else {
+        throw new Error("Failed to control task");
       }
     } catch (error) {
       toast.error(`Failed to ${action} task`);

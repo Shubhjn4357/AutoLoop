@@ -30,6 +30,7 @@ export const googleMapsScraper: ScraperSource = {
         imageUrl: undefined, // Not available from scraper
         source: "google-maps",
         sourceUrl: business.website || undefined,
+        emailStatus: business.emailStatus || "pending",
       }));
 
       console.log(`✅ Google Maps: Found ${businesses.length} businesses`);

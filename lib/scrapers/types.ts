@@ -28,6 +28,7 @@ export interface BusinessData {
   };
   source: string; // Source where this data was found
   sourceUrl?: string; // Original listing URL
+  emailStatus?: string | null;
 }
 
 export interface ScraperSource {

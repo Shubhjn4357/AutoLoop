@@ -151,7 +151,12 @@ export default function DashboardPage() {
   const handleSendEmail = async (business: Business) => {
     const toastId = toast.loading(`Sending email to ${business.name}...`);
     try {
-      await sendEmailApi("/api/email/send", { businessId: business.id });
+      const result = await sendEmailApi("/api/email/send", { businessId: business.id });
+
+      if (!result) {
+        throw new Error("Failed to send email");
+      }
+
       toast.success(`Email sent to ${business.email}`, { id: toastId });
 
       setBusinesses(prev => prev.map(b =>
