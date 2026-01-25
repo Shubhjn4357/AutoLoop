@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { businesses, emailTemplates, emailLogs } from "@/db/schema";
+import { businesses, emailTemplates, emailLogs, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { sendColdEmail, interpolateTemplate } from "@/lib/email";
 import { SessionUser } from "@/types";
@@ -59,8 +59,13 @@ export async function POST(request: Request) {
             );
         }
 
+        // Fetch user details for variable interpolation
+        const dbUser = await db.query.users.findFirst({
+            where: eq(users.id, user.id),
+        });
+
         // Send email
-        const success = await sendColdEmail(business, template, user.accessToken);
+        const { success, error } = await sendColdEmail(business, template, user.accessToken, dbUser);
 
         // Update business status
         await db
@@ -78,15 +83,17 @@ export async function POST(request: Request) {
             userId: user.id,
             businessId: business.id,
             templateId: template.id,
-            subject: interpolateTemplate(template.subject, business),
-            body: interpolateTemplate(template.body, business),
+            subject: interpolateTemplate(template.subject, business, dbUser),
+            body: interpolateTemplate(template.body, business, dbUser),
             status: success ? "sent" : "failed",
+            errorMessage: error, // Log the error message
             sentAt: success ? new Date() : null,
         });
 
         if (!success) {
+            console.error("Email send failed:", error);
             return NextResponse.json(
-                { error: "Failed to send email via Gmail API" },
+                { error: error || "Failed to send email via Gmail API" },
                 { status: 500 }
             );
         }

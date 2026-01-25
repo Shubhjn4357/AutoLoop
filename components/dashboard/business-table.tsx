@@ -12,6 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Mail, ExternalLink, MoreHorizontal } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+
 
 interface BusinessTableProps {
   businesses: Business[];
@@ -66,11 +68,10 @@ export function BusinessTable({
         <TableRow>
           {onSelectionChange && (
             <TableHead className="w-[50px]">
-              <input
-                type="checkbox"
-                className="w-4 h-4 rounded border-gray-300"
+              <Checkbox
                 checked={businesses.length > 0 && selectedIds.length === businesses.length}
-                onChange={(e) => handleSelectAll(e.target.checked)}
+                onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                aria-label="Select all"
               />
             </TableHead>
           )}
@@ -88,12 +89,12 @@ export function BusinessTable({
           <TableRow key={business.id}>
             {onSelectionChange && (
               <TableCell>
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded border-gray-300"
+                
+                <Checkbox
                   checked={selectedIds.includes(business.id)}
-                  onChange={(e) => handleSelectOne(business.id, e.target.checked)}
-                />
+                  onCheckedChange={(checked) => handleSelectOne(business.id, checked as boolean)}
+                  />
+                
               </TableCell>
             )}
             <TableCell className="font-medium">{business.name}</TableCell>

@@ -27,6 +27,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Moon, Sun, LogOut, Trash2, AlertTriangle, Palette } from "lucide-react";
+import { MailSettings } from "@/components/mail/mail-settings";
 
 interface StatusResponse {
   database: boolean;
@@ -42,13 +43,17 @@ export default function SettingsPage() {
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
 
   // API Hooks
-  const { get: getSettings, patch: patchSettings, loading: settingsLoading } = useApi<{ user: UserProfile & { isGeminiKeySet: boolean } }>();
+  const { get: getSettings, patch: patchSettings, loading: settingsLoading } = useApi<{ user: UserProfile & { isGeminiKeySet: boolean, isGmailConnected: boolean } }>();
   const { get: getStatus, loading: statusLoading } = useApi<StatusResponse>();
   const { del: deleteUserFn, loading: deletingUser } = useApi<void>();
+  const { del: deleteDataFn, loading: deletingData } = useApi<void>();
+
+  const [isDeleteDataModalOpen, setIsDeleteDataModalOpen] = useState(false);
 
   // API Key State
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [isGeminiKeySet, setIsGeminiKeySet] = useState(false);
+  const [isGmailConnected, setIsGmailConnected] = useState(false);
 
   // Connection Status State
   const [connectionStatus, setConnectionStatus] = useState({ database: false, redis: false });
@@ -88,6 +93,7 @@ export default function SettingsPage() {
           setCustomVariables(vars);
         }
         setIsGeminiKeySet(settingsData.user.isGeminiKeySet);
+        setIsGmailConnected(settingsData.user.isGmailConnected);
         }
 
         // Fetch Connection Status
@@ -186,6 +192,25 @@ export default function SettingsPage() {
         variant: "destructive",
       });
       setIsDeleteModalOpen(false);
+    }
+  };
+
+  const handleDeleteData = async () => {
+    const result = await deleteDataFn("/api/settings/delete-data");
+
+    if (result !== null) {
+      toast({
+        title: "Data Deleted",
+        description: "All scraped businesses and jobs have been permanently deleted.",
+      });
+      setIsDeleteDataModalOpen(false);
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to delete data. Please try again.",
+        variant: "destructive",
+      });
+      setIsDeleteDataModalOpen(false);
     }
   };
 
@@ -445,6 +470,23 @@ export default function SettingsPage() {
 
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
                 <div className="space-y-1">
+                  <div className="font-medium text-destructive">Delete Scraped Data</div>
+                  <div className="text-sm text-muted-foreground">
+                    Permanently delete all scraped businesses and jobs
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDeleteDataModalOpen(true)}
+                  className="cursor-pointer border-destructive/50 text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Data
+                </Button>
+              </div>
+
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                <div className="space-y-1">
                   <div className="font-medium text-destructive">Delete Account</div>
                   <div className="text-sm text-muted-foreground">
                     Permanently delete your account and all data
@@ -467,23 +509,15 @@ export default function SettingsPage() {
         <TabsContent value="api" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>API Keys</CardTitle>
+              <CardTitle>API Keys & Integrations</CardTitle>
               <CardDescription>
-                Manage your API keys for integrations
+                Manage your connections and API keys.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Google OAuth */}
+              {/* Mail Settings (Gmail) */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Google OAuth</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Connected via OAuth 2.0
-                    </p>
-                  </div>
-                  <Badge variant="default">Active</Badge>
-                </div>
+                <MailSettings isConnected={isGmailConnected} email={session?.user?.email} />
               </div>
 
               {/* Database URL */}
@@ -499,7 +533,7 @@ export default function SettingsPage() {
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Neon PostgreSQL database
+                  Database
                 </p>
               </div>
 
@@ -725,6 +759,41 @@ export default function SettingsPage() {
                 </>
               ) : (
                 "Delete Account"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDataModalOpen} onOpenChange={setIsDeleteDataModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete All Scraped Data</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete all scraped businesses and jobs? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDataModalOpen(false)}
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteData}
+              disabled={deletingData}
+              className="cursor-pointer"
+            >
+              {deletingData ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Data"
               )}
             </Button>
           </DialogFooter>

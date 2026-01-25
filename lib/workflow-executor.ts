@@ -55,11 +55,22 @@ export class WorkflowExecutor {
       case "condition":
         const conditionResult = this.evaluateCondition(node.data.config?.condition || "");
         logs.push(`Condition "${node.data.config?.condition}" evaluated to: ${conditionResult}`);
-        if (!conditionResult) {
-          logs.push("Condition failed, stopping branch");
+
+        const handleToFollow = conditionResult ? "true" : "false";
+        const relevantEdges = this.edges.filter(e => e.source === node.id && e.sourceHandle === handleToFollow);
+
+        if (relevantEdges.length === 0) {
+          logs.push(`No path found for result ${conditionResult} (handle: ${handleToFollow})`);
           return;
         }
-        break;
+
+        for (const edge of relevantEdges) {
+          const nextNode = this.nodes.find(n => n.id === edge.target);
+          if (nextNode) {
+            await this.executeNode(nextNode, logs);
+          }
+        }
+        return; // Stop default flow, we handled it explicitly
 
       case "template":
         const templateId = node.data.config?.templateId;
@@ -101,6 +112,10 @@ export class WorkflowExecutor {
       case "apiRequest":
         await this.executeApiRequest(node.data.config, logs);
         break;
+
+      case "scraper":
+        await this.executeScraperTask(node.data.config, logs);
+        break;
     }
 
     // Find and execute next nodes
@@ -110,19 +125,72 @@ export class WorkflowExecutor {
     }
   }
 
+  private resolveValue(path: string): unknown {
+    // Strip curly braces if present
+    const cleanPath = path.replace(/^\{|\}$/g, "");
+
+    // Check for explicit "business." prefix
+    if (cleanPath.startsWith("business.")) {
+      const field = cleanPath.split(".")[1];
+      return this.context.businessData[field];
+    }
+
+    // Check for "variables." prefix (custom workflow variables)
+    if (cleanPath.startsWith("variables.") || cleanPath.startsWith("variable.")) {
+      const field = cleanPath.split(".")[1];
+      return this.context.variables[field];
+    }
+
+    // Fallback: Check business data first, then variables
+    if (cleanPath in this.context.businessData) {
+      return this.context.businessData[cleanPath];
+    }
+
+    return this.context.variables[cleanPath];
+  }
+
+  // Helper to replace all {variables} in a string
+  private interpolateString(text: string): string {
+    if (!text) return "";
+    return text.replace(/\{([^}]+)\}/g, (match, path) => {
+      const value = this.resolveValue(path);
+      return value !== undefined && value !== null ? String(value) : "";
+    });
+  }
+
   private evaluateCondition(condition: string): boolean {
+    if (!condition) return false;
+
     try {
+      // 1. Handle Negation "!"
       if (condition.startsWith("!")) {
-        const field = condition.slice(1);
-        const value = this.context.businessData[field];
+        const path = condition.slice(1).trim();
+        const value = this.resolveValue(path);
         return !value || value === "";
       }
+
+      // 2. Handle Equality "=="
       if (condition.includes("==")) {
-        const [field, expectedValue] = condition.split("==").map(s => s.trim().replace(/"/g, ""));
-        return String(this.context.businessData[field]) === expectedValue;
+        const [left, right] = condition.split("==").map(s => s.trim());
+        const leftValue = String(this.resolveValue(left));
+        // Handle quoted string on the right side
+        const rightValue = right.replace(/^["']|["']$/g, "");
+        return leftValue === rightValue;
       }
-      const value = this.context.businessData[condition];
+
+      // 3. Handle Inequality "!="
+      if (condition.includes("!=")) {
+        const [left, right] = condition.split("!=").map(s => s.trim());
+        const leftValue = String(this.resolveValue(left));
+        const rightValue = right.replace(/^["']|["']$/g, "");
+        return leftValue !== rightValue;
+      }
+
+      // 4. Handle truthiness (just the variable name)
+      const value = this.resolveValue(condition);
+      console.log(`[Condition Debug] checking truthiness of "${condition}", resolved value:`, value);
       return !!value && value !== "";
+
     } catch (error) {
       console.error("Condition evaluation error:", error);
       return false;
@@ -207,13 +275,12 @@ export class WorkflowExecutor {
   }
 
   private async executeAITask(prompt: string, contextData: string | undefined, logs: string[]): Promise<void> {
-    let processedPrompt = prompt;
-    for (const [key, value] of Object.entries(this.context.businessData)) {
-      processedPrompt = processedPrompt.replace(`{${key}}`, String(value || ""));
-    }
+    // Interpolate the prompt with all available variables
+    let processedPrompt = this.interpolateString(prompt);
 
     if (contextData) {
-      processedPrompt += `\n\nContext Data:\n${contextData}`;
+      // Also interpolate context data if needed, or just append
+      processedPrompt += `\n\nContext Data:\n${this.interpolateString(contextData)}`;
     }
 
     // Try to get API key from user in DB (assuming stored in env or user record)
@@ -241,18 +308,42 @@ export class WorkflowExecutor {
   private async executeApiRequest(config: NodeData["config"], logs: string[]): Promise<void> {
     if (!config?.url) return;
 
-    logs.push(`Making ${config.method} request to ${config.url}`);
-    try {
-      const headers = config.headers ? JSON.parse(config.headers) : {};
-      const body = config.body ? config.body : undefined;
+    // Interpolate URL, Headers, and Body
+    const url = this.interpolateString(config.url);
+    const method = config.method || "GET";
 
-      const response = await fetch(config.url, {
-        method: config.method || "GET",
+    logs.push(`Making ${method} request to ${url}`);
+
+    try {
+      let headers = {};
+      if (config.headers) {
+        const interpolatedHeaders = this.interpolateString(config.headers);
+        try {
+          headers = JSON.parse(interpolatedHeaders);
+        } catch {
+          logs.push("Warning: Failed to parse headers JSON");
+        }
+      }
+
+      let body = undefined;
+      if (config.body && method !== "GET") {
+        const interpolatedBody = this.interpolateString(config.body);
+        // Try to parse if proper JSON, otherwise send as string possibly? 
+        // Usually API expects JSON object for body if content-type is json
+        try {
+          body = JSON.parse(interpolatedBody);
+        } catch {
+          body = interpolatedBody;
+        }
+      }
+
+      const response = await fetch(url, {
+        method,
         headers: {
           ...headers,
           "Content-Type": "application/json"
         },
-        body: config.method !== "GET" ? body : undefined
+        body: body ? JSON.stringify(body) : undefined
       });
 
       const text = await response.text();
@@ -261,6 +352,61 @@ export class WorkflowExecutor {
     } catch (e) {
       logs.push(`API Request Failed: ${e}`);
     }
+  }
+
+  private async executeScraperTask(config: NodeData["config"], logs: string[]): Promise<void> {
+    const action = config?.scraperAction || "extract-emails";
+    const inputVar = config?.scraperInputField || "";
+
+    // Resolve input content
+    const content = this.resolveValue(inputVar); // Can be a string or object
+    const textContent = content === undefined || content === null ? "" : (typeof content === "string" ? content : JSON.stringify(content));
+
+    logs.push(`Running Scraper Action: ${action}`);
+    logs.push(`> Input Content Length: ${textContent.length} chars (Source: ${inputVar || "Direct Input"})`);
+
+    if (!textContent) {
+      logs.push("> Warning: Input content is empty. Skipping extraction.");
+      this.context.variables.scrapedData = null;
+      return;
+    }
+
+    let result: unknown = null;
+
+    if (action === "fetch-url") {
+      let url = textContent.trim();
+      if (!url.startsWith("http")) url = "https://" + url;
+
+      try {
+        logs.push(`> Fetching URL: ${url}`);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Status ${response.status}`);
+        const html = await response.text();
+        result = html;
+        logs.push(`> Success: Fetched ${html.length} chars from URL`);
+      } catch (e) {
+        logs.push(`> Error: Failed to fetch URL: ${e}`);
+        result = null;
+      }
+    } else if (action === "extract-emails") {
+      const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+      const matches = textContent.match(emailRegex);
+      const emails = matches ? [...new Set(matches)] : [];
+      result = emails;
+      logs.push(`> Success: Extracted ${emails.length} unique emails: ${emails.slice(0, 3).join(", ")}${emails.length > 3 ? "..." : ""}`);
+    } else if (action === "clean-html") {
+      result = textContent.replace(/<[^>]*>/g, "");
+      logs.push(`> Success: Cleaned HTML tags. New length: ${String(result).length}`);
+    } else if (action === "markdown") {
+      // Simple mock markdown conversion
+      result = textContent.replace(/<[^>]*>/g, "").replace(/\n\s*\n/g, "\n\n");
+      logs.push(`> Success: Converted to Markdown. New length: ${String(result).length}`);
+    } else if (action === "summarize") {
+      result = textContent.substring(0, 200) + "...";
+      logs.push(`> Success: Summarized content (Truncated to 200 chars)`);
+    }
+
+    this.context.variables.scrapedData = result;
   }
 
   private getNextNodes(nodeId: string): Node<NodeData>[] {

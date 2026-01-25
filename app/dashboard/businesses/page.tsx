@@ -20,6 +20,13 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 export default function BusinessesPage() {
     const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -33,13 +40,34 @@ export default function BusinessesPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [limit] = useState(10); // Or make this adjustable
 
+    const [filterCategory, setFilterCategory] = useState("all");
+    const [filterStatus, setFilterStatus] = useState("all");
+    const [categories, setCategories] = useState<string[]>([]);
+
     const { get: getBusinessesApi } = useApi<{ businesses: Business[], totalPages: number, page: number }>();
+    const { get: getCategoriesApi } = useApi<{ categories: string[] }>();
+
+    // Fetch categories on mount
+    useEffect(() => {
+        const fetchCategories = async () => {
+            const data = await getCategoriesApi("/api/businesses/categories");
+            if (data?.categories) {
+                setCategories(data.categories);
+            }
+        };
+        fetchCategories();
+    }, [getCategoriesApi]);
 
     useEffect(() => {
         let mounted = true;
         const load = async () => {
-            // Append query params manually or via options if useApi supported it, but template literal is fine here
-            const data = await getBusinessesApi(`/api/businesses?page=${currentPage}&limit=${limit}`);
+            const params = new URLSearchParams();
+            params.append("page", currentPage.toString());
+            params.append("limit", limit.toString());
+            if (filterCategory !== "all") params.append("category", filterCategory);
+            if (filterStatus !== "all") params.append("status", filterStatus);
+
+            const data = await getBusinessesApi(`/api/businesses?${params.toString()}`);
             if (mounted && data) {
                 setBusinesses(data.businesses);
                 setTotalPages(data.totalPages || 1);
@@ -47,7 +75,7 @@ export default function BusinessesPage() {
         };
         load();
         return () => { mounted = false; };
-    }, [getBusinessesApi, currentPage, limit]);
+    }, [getBusinessesApi, currentPage, limit, filterCategory, filterStatus]);
 
     const handleConfirmDelete = async () => {
         try {
@@ -71,11 +99,7 @@ export default function BusinessesPage() {
     const handleSendEmail = async (business: Business) => {
         const toastId = toast.loading(`Sending email to ${business.name}...`);
         try {
-            const result = await sendEmailApi("/api/email/send", { businessId: business.id });
-
-            if (!result) {
-                throw new Error("Failed to send email");
-            }
+            await sendEmailApi("/api/email/send", { businessId: business.id }, { throwOnError: true });
 
             toast.success(`Email sent to ${business.email}`, { id: toastId });
 
@@ -85,25 +109,20 @@ export default function BusinessesPage() {
                     ? { ...b, emailStatus: "sent", emailSent: true }
                     : b
             ));
-        } catch (error) {
-            toast.error("Failed to send email", { id: toastId });
-            console.error(error);
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to send email";
+            toast.error(errorMessage, { id: toastId });
         }
     };
 
     return (
         <div className="space-y-6 pt-6">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-start items-center">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Your Businesses</h2>
                     <p className="text-muted-foreground">Manage all your collected leads</p>
                 </div>
-                {selectedIds.length > 0 && (
-                    <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete ({selectedIds.length})
-                    </Button>
-                )}
+                
             </div>
 
             <Card>
@@ -111,6 +130,48 @@ export default function BusinessesPage() {
                     <CardTitle>All Leads ({businesses.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
+                    <div className="flex justify-between items-center mb-4">
+                       <div className="flex gap-4">
+
+                        <Select
+                            value={filterStatus}
+                            onValueChange={setFilterStatus}
+                        >
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="All Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Status</SelectItem>
+                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="sent">Sent</SelectItem>
+                                <SelectItem value="failed">Failed</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <Select
+                            value={filterCategory}
+                            onValueChange={setFilterCategory}
+                        >
+                            <SelectTrigger className="w-[200px]">
+                                <SelectValue placeholder="All Categories" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Categories</SelectItem>
+                                {categories.map((category) => (
+                                    <SelectItem key={category} value={category}>
+                                        {category}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        </div>
+                        {selectedIds.length > 0 && (
+                            <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete ({selectedIds.length})
+                            </Button>
+                        )}
+                    </div>
                     <BusinessTable
                         businesses={businesses}
                         onViewDetails={handleViewDetails}

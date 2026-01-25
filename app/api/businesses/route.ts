@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { businesses } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, or, isNull } from "drizzle-orm";
 import { rateLimit } from "@/lib/rate-limit";
 
 interface SessionUser {
@@ -34,19 +34,18 @@ export async function GET(request: Request) {
     }
 
     if (status) {
-      conditions.push(eq(businesses.emailStatus, status));
+      if (status === "pending") {
+        conditions.push(or(eq(businesses.emailStatus, "pending"), isNull(businesses.emailStatus))!);
+      } else {
+        conditions.push(eq(businesses.emailStatus, status));
+      }
     }
-
-    console.log(`🔍 Fetching businesses for UserID: ${userId}`);
-    console.log(`   Filters - Category: ${category}, Status: ${status}, Page: ${page}, Limit: ${limit}`);
 
     // Get total count
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(businesses)
       .where(and(...conditions));
-
-    console.log(`   Found ${count} total businesses matching criteria`);
 
     const totalPages = Math.ceil(count / limit);
 

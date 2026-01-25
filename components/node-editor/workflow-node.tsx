@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import { memo } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import { Settings } from "lucide-react";
 import { NodeData } from "./node-editor";
@@ -79,7 +79,30 @@ export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
         </div>
       </div>
 
-      {true && (
+      {data.type === "condition" ? (
+        <div className="flex justify-between w-full mt-2 relative">
+          <div className="relative">
+            <Handle
+              type="source"
+              id="true"
+              position={Position.Bottom}
+              className="w-3 h-3 left-2"
+              style={{ background: "#22c55e" }}
+            />
+            <span className="text-[10px] text-green-600 absolute top-3 left-0 font-bold">True</span>
+          </div>
+          <div className="relative">
+            <Handle
+              type="source"
+              id="false"
+              position={Position.Bottom}
+              className="w-3 h-3 left-auto right-2"
+              style={{ background: "#ef4444" }}
+            />
+            <span className="text-[10px] text-red-600 absolute top-3 right-0 font-bold">False</span>
+          </div>
+        </div>
+      ) : (
         <Handle
           type="source"
           position={Position.Bottom}

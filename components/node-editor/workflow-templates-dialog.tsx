@@ -15,6 +15,30 @@ interface WorkflowTemplate {
 
 const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
+    id: "scraped-email-automation",
+    name: "Auto Email from Scraper",
+    description: "Process scraped data, cleaner info, check for website, and send specific email.",
+    nodes: [
+      { id: "1", type: "workflowNode", data: { label: "Start", type: "start", config: {} }, position: { x: 300, y: 50 }, },
+      { id: "cond", type: "workflowNode", data: { label: "Has Website?", type: "condition", config: { condition: "business.website" } }, position: { x: 300, y: 150 }, },
+      // Yes Path: Fetch -> Extract -> Send
+      { id: "fetch", type: "workflowNode", data: { label: "Fetch Website", type: "scraper", config: { scraperAction: "fetch-url", scraperInputField: "{business.website}" } }, position: { x: 100, y: 300 }, },
+      { id: "extract", type: "workflowNode", data: { label: "Extract Info", type: "scraper", config: { scraperAction: "extract-emails", scraperInputField: "{variables.scrapedData}" } }, position: { x: 100, y: 450 }, },
+      { id: "send-custom", type: "workflowNode", data: { label: "Send Personalized", type: "template", config: { templateId: "template-1" } }, position: { x: 100, y: 600 }, },
+      // No Path: Generic Send
+      { id: "send-generic", type: "workflowNode", data: { label: "Send Generic", type: "template", config: { templateId: "template-2" } }, position: { x: 500, y: 300 }, },
+    ],
+    edges: [
+      { id: "e1-cond", source: "1", target: "cond" },
+      // Yes branch
+      { id: "e-yes-1", source: "cond", target: "fetch", sourceHandle: "true", label: "Yes" },
+      { id: "e-yes-2", source: "fetch", target: "extract" },
+      { id: "e-yes-3", source: "extract", target: "send-custom" },
+      // No branch
+      { id: "e-no-1", source: "cond", target: "send-generic", sourceHandle: "false", label: "No" },
+    ],
+  },
+  {
     id: "simple-follow-up",
     name: "Simple Follow-up",
     description: "Send an initial email, wait 3 days, then send a follow-up",

@@ -1,7 +1,11 @@
+
 import { useMemo, useRef, useState } from "react";
 import { EmailTemplate, Business, UserProfile } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -204,6 +208,16 @@ export function EmailEditor({
                 onChange({ ...template, name: e.target.value })
               }
             />
+            <div className="flex items-center space-x-2 pt-2">
+              <div className="flex items-center space-x-2 pt-2">
+                <Checkbox
+                  id="isDefault"
+                  checked={template.isDefault || false}
+                  onCheckedChange={(checked) => onChange({ ...template, isDefault: checked as boolean })}
+                />
+                <Label htmlFor="isDefault">Set as Default Template</Label>
+              </div>
+            </div>
           </div>
 
           {/* Subject */}

@@ -14,11 +14,12 @@ import ReactFlow, {
   BackgroundVariant,
   NodeMouseHandler,
   SelectionMode,
+  ReactFlowInstance,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Save, Play, Copy, Trash2, Undo, Redo, FileText, Loader2, Download, Upload, HelpCircle, BookOpen, Hand, MousePointer2, Sparkles } from "lucide-react";
+import { Plus, Save, Play, Copy, Trash2, Undo, Redo, FileText, Loader2, Download, Upload, HelpCircle, BookOpen, Hand, MousePointer2, Sparkles, TerminalIcon, X } from "lucide-react";
 import { AiWorkflowDialog } from "./ai-workflow-dialog";
 import { ImportWorkflowDialog } from "./import-workflow-dialog";
 import { NodeConfigDialog } from "./node-config-dialog";
@@ -56,7 +57,7 @@ export interface NodeData {
     filterCondition?: string;
     setVariables?: Record<string, string>;
     // Scraper config
-    scraperAction?: "summarize" | "extract-emails" | "clean-html" | "markdown";
+    scraperAction?: "summarize" | "extract-emails" | "clean-html" | "markdown" | "fetch-url";
     scraperInputField?: string;
   };
   isConnected?: boolean;
@@ -114,10 +115,13 @@ export function NodeEditor({
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    nodeId: string;
+    nodeId?: string;
+    edgeId?: string;
   } | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [copiedNodes, setCopiedNodes] = useState<Node<NodeData>[]>([]);
+  const [executionLogs, setExecutionLogs] = useState<string[]>([]);
+  const [showTerminal, setShowTerminal] = useState(false);
   const [canvasMode, setCanvasMode] = useState<'drag' | 'select'>('drag');
   const { toast } = useToast();
 
@@ -258,12 +262,14 @@ export function NodeEditor({
     [setEdges, saveToHistory]
   );
 
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
+
   const addNode = useCallback(
     (type: NodeData["type"]) => {
       const nodeLabels = {
         start: "Start",
         condition: "Condition",
-        template: "Email Template",
+        template: "Send Email",
         delay: "Delay",
         custom: "Custom Function",
         gemini: "AI Task",
@@ -278,6 +284,21 @@ export function NodeEditor({
         scraper: "Scraper Action",
       };
 
+      // Calculate center position
+      let position = { x: 250, y: 250 };
+      if (rfInstance) {
+        const { x, y, zoom } = rfInstance.getViewport();
+        // Assuming a container width/height or using window as approximation if unknown, 
+        // but reactflow usually fills parent. 
+        // A safer bet is just center of the viewport - translation
+        // Viewport x/y is the transformation. 
+        // Center X in flow = (-viewportX + containerHalfWidth) / zoom
+        // We'll approximate container as 1000x800 if not easily accessible, or use window/2
+        const centerX = (-x + (window.innerWidth / 2)) / zoom;
+        const centerY = (-y + (window.innerHeight / 2)) / zoom;
+        position = { x: centerX - 100 + (Math.random() * 50), y: centerY - 50 + (Math.random() * 50) };
+      }
+
       const newNode: Node<NodeData> = {
         id: `${type}-${Date.now()}`,
         type: "workflowNode",
@@ -286,16 +307,13 @@ export function NodeEditor({
           type,
           config: {},
         },
-        position: {
-          x: Math.random() * 400 + 100,
-          y: Math.random() * 400 + 100,
-        },
+        position,
       };
 
       setNodes((nds) => [...nds, newNode]);
       saveToHistory();
     },
-    [setNodes, saveToHistory]
+    [setNodes, saveToHistory, rfInstance]
   );
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node<NodeData>) => {
@@ -313,6 +331,18 @@ export function NodeEditor({
     });
   }, []);
 
+  const onEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      event.preventDefault();
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        edgeId: edge.id,
+      });
+    },
+    []
+  );
+
   const onPaneContextMenu = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
     setContextMenu({
@@ -322,12 +352,18 @@ export function NodeEditor({
     });
   }, []);
 
-  const handleDeleteNode = useCallback(() => {
+  const handleDeleteItem = useCallback(() => {
     if (!contextMenu) return;
-    setNodes((nds) => nds.filter((n) => n.id !== contextMenu.nodeId));
-    setEdges((eds) =>
-      eds.filter((e) => e.source !== contextMenu.nodeId && e.target !== contextMenu.nodeId)
-    );
+
+    if (contextMenu.nodeId) {
+      setNodes((nds) => nds.filter((n) => n.id !== contextMenu.nodeId));
+      setEdges((eds) =>
+        eds.filter((e) => e.source !== contextMenu.nodeId && e.target !== contextMenu.nodeId)
+      );
+    } else if (contextMenu.edgeId) {
+      setEdges((eds) => eds.filter((e) => e.id !== contextMenu.edgeId));
+    }
+
     setContextMenu(null);
     saveToHistory();
   }, [contextMenu, setNodes, setEdges, saveToHistory]);
@@ -411,19 +447,20 @@ export function NodeEditor({
 
       const data = await response.json();
 
+      setExecutionLogs(data.logs || []);
+      setShowTerminal(true);
+
       if (data.success) {
         toast({
           title: "Execution Completed",
-          description: `Processed ${data.totalProcessed} businesses.`,
+          description: `Processed ${data.totalProcessed} businesses. Check terminal for details.`,
         });
-        console.log("Execution Logs:", data.logs);
       } else {
         toast({
           title: "Execution Failed",
-          description: "Check console for logs.",
+          description: "Check terminal for logs.",
           variant: "destructive",
         });
-        console.error("Execution Logs:", data.logs);
       }
     } catch (error) {
       toast({
@@ -485,7 +522,19 @@ export function NodeEditor({
                   </TooltipTrigger>
                   <TooltipContent>Generate workflow with AI</TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => setShowTerminal(true)}
+                      size="icon"
+                      variant="ghost"
 
+                    >
+                      <TerminalIcon className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Terminal</TooltipContent>
+                </Tooltip>
                 <div className="w-px h-6 bg-border mx-1 self-center" />
 
                 <Tooltip>
@@ -698,11 +747,13 @@ export function NodeEditor({
           nodes={nodes}
           edges={edges}
 
+            onInit={setRfInstance}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
           onNodeContextMenu={onNodeContextMenu}
+            onEdgeContextMenu={onEdgeContextMenu}
             onPaneContextMenu={onPaneContextMenu}
           nodeTypes={nodeTypes}
           fitView
@@ -751,13 +802,21 @@ export function NodeEditor({
                     Duplicate Node
                   </button>
                   <button
-                    onClick={handleDeleteNode}
+                    onClick={handleDeleteItem}
                     className="w-full px-4 py-2 text-left hover:bg-destructive/10 text-destructive flex items-center gap-2 text-sm"
                   >
                     <Trash2 className="h-4 w-4" />
                     Delete Node
                   </button>
                 </>
+              ) : contextMenu.edgeId ? (
+                <button
+                  onClick={handleDeleteItem}
+                  className="w-full px-4 py-2 text-left hover:bg-destructive/10 text-destructive flex items-center gap-2 text-sm"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Connection
+                </button>
               ) : (
                 <>
                   <button
@@ -787,6 +846,13 @@ export function NodeEditor({
               updateNodeConfig(selectedNode.id, config, label);
             setIsConfigOpen(false);
           }}
+            onDelete={() => {
+              setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
+              setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
+              setSelectedNode(null);
+              setIsConfigOpen(false);
+              saveToHistory();
+            }}
         />
       )}
 
@@ -812,6 +878,64 @@ export function NodeEditor({
           onOpenChange={setIsAiDialogOpen}
           onGenerate={handleAiGenerate}
         />
+        {/* Terminal Panel */}
+        {showTerminal && (
+          <div className="fixed bottom-0 left-0 right-0 h-72 bg-slate-950 border-t border-slate-800 shadow-2xl flex flex-col z-200 animate-in slide-in-from-bottom duration-300">
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
+              <div className="flex items-center gap-3 text-slate-200">
+                <TerminalIcon className="h-5 w-5 text-indigo-400" />
+                <span className="text-sm font-mono font-bold tracking-tight">SYSTEM TERMINAL</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                  {executionLogs.length} Lines
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+                  onClick={() => setExecutionLogs([])}
+                  title="Clear Logs"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+                  onClick={() => setShowTerminal(false)}
+                  title="Close Terminal"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-4 font-mono text-xs md:text-sm text-slate-300 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+              {executionLogs.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
+                  <TerminalIcon className="h-8 w-8 opacity-20" />
+                  <p>Waiting for execution...</p>
+                </div>
+              ) : (
+                executionLogs.map((log, i) => (
+                  <div key={i} className="flex gap-3 border-b border-slate-900/50 pb-1 last:border-0 font-medium">
+                    <span className="text-slate-600 select-none min-w-[24px] text-right">{(i + 1).toString().padStart(2, '0')}</span>
+                    <span className={
+                      log.toLowerCase().includes("error") ? "text-red-400 bg-red-950/20 px-1 rounded" :
+                        log.toLowerCase().includes("warning") ? "text-amber-400 bg-amber-950/20 px-1 rounded" :
+                          log.toLowerCase().includes("success") || log.toLowerCase().includes("completed") ? "text-emerald-400" :
+                            log.toLowerCase().includes("sending") || log.toLowerCase().includes("running") ? "text-blue-400" :
+                              log.toLowerCase().includes("response") ? "text-cyan-400" :
+                                "text-slate-300"
+                    }>
+                      {log}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
     </div>
     </TooltipProvider>
   );

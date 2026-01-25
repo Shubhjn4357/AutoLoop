@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Play, Loader2 } from "lucide-react";
+import { Play, Loader2, Info, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +23,7 @@ interface NodeConfigDialogProps {
     onOpenChange: (open: boolean) => void;
     node: Node<NodeData>;
     onSave: (config: NodeData["config"], label?: string) => void;
+    onDelete?: () => void;
 }
 
 interface EmailTemplate {
@@ -24,7 +31,84 @@ interface EmailTemplate {
     name: string;
 }
 
-export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfigDialogProps) {
+const ALL_VARIABLES = [
+    "business.name",
+    "business.email",
+    "business.website",
+    "business.phone",
+    "business.address",
+    "business.rating",
+    "business.reviewCount",
+    "variables.aiResult",
+    "variables.apiResponse",
+    "variables.scrapedData",
+    "variables.customVar"
+];
+
+const NODE_HELPERS = {
+    start: {
+        description: "The starting point of your workflow.",
+        variables: []
+    },
+    condition: {
+        description: "Checks a condition to decide which path to take (True/False).",
+        variables: ALL_VARIABLES
+    },
+    template: {
+        description: "Sends an automated email using a selected template.",
+        variables: ALL_VARIABLES
+    },
+    delay: {
+        description: "Pauses the workflow for a specified duration.",
+        variables: []
+    },
+    custom: {
+        description: "Executes custom JavaScript code for advanced logic.",
+        variables: ["business", "variables", "context"]
+    },
+    gemini: {
+        description: "Uses AI to generate text. Result saved to {variables.aiResult}.",
+        variables: ALL_VARIABLES
+    },
+    apiRequest: {
+        description: "Makes an HTTP request. Response saved to {variables.apiResponse}.",
+        variables: ALL_VARIABLES
+    },
+    webhook: {
+        description: "Triggers the workflow via an external HTTP call.",
+        variables: ["query", "body"]
+    },
+    schedule: {
+        description: "Runs the workflow repeatedly on a cron schedule.",
+        variables: []
+    },
+    scraper: {
+        description: "Processes scraped data. Result saved to {variables.scrapedData}.",
+        variables: ALL_VARIABLES
+    },
+    filter: {
+        description: "Filters items based on a condition; stops execution if false.",
+        variables: ["item", ...ALL_VARIABLES]
+    },
+    set: {
+        description: "Defines or updates variables in the workflow context.",
+        variables: []
+    },
+    merge: {
+        description: "Merges multiple execution branches back into one.",
+        variables: []
+    },
+    splitInBatches: {
+        description: "Iterates over a list of items (Loop).",
+        variables: ["items"]
+    },
+    agent: {
+        description: "AI Agent that processes Excel/CSV data. Result saved to {variables.aiResult}.",
+        variables: ["row", "context", ...ALL_VARIABLES]
+    }
+};
+
+export function NodeConfigDialog({ open, onOpenChange, node, onSave, onDelete }: NodeConfigDialogProps) {
     const [config, setConfig] = useState<NodeData["config"]>(node.data.config || {});
     const [label, setLabel] = useState(node.data.label);
     const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -34,6 +118,16 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
     const [activeTab, setActiveTab] = useState("config");
 
     const { get, loading: loadingTemplates } = useApi<{ templates: EmailTemplate[] }>();
+
+    // Reset state when node changes or dialog opens
+    useEffect(() => {
+        if (open) {
+            setConfig(node.data.config || {});
+            setLabel(node.data.label);
+            setTestInput(JSON.stringify(node.data.config || {}, null, 2));
+            setTestOutput("");
+        }
+    }, [open, node.id, node.data.config, node.data.label]);
 
     // Fetch templates when dialog opens and node is template type
     useEffect(() => {
@@ -59,7 +153,30 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
         onSave(config, label);
     };
 
+    const VariableInsert = ({ onInsert, variables }: { onInsert: (v: string) => void, variables: string[] }) => {
+        if (!variables || variables.length === 0) return null;
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs ml-auto">
+                        <Plus className="h-3 w-3" /> Insert Variable
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    {variables.map((v) => (
+                        <DropdownMenuItem key={v} onClick={() => onInsert(`{${v}}`)}>
+                            {`{${v}}`}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+    };
+
     const renderConfigForm = () => {
+        const nodeHelpers = NODE_HELPERS[node.data.type as keyof typeof NODE_HELPERS];
+        const variables = nodeHelpers?.variables || [];
+
         switch (node.data.type) {
             case "start":
                 return (
@@ -74,7 +191,13 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                 return (
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="condition">Condition Expression</Label>
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="condition">Condition Expression</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, condition: (config?.condition || "") + v })}
+                                />
+                            </div>
                             <Input
                                 id="condition"
                                 placeholder="!website"
@@ -83,7 +206,6 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                             />
                             <div className="text-xs text-muted-foreground">
                                 <p>Examples: !website (no website), email (has email), category == &quot;restaurant&quot;</p>
-                                <p className="mt-1 font-medium">Available variables: website, email, phone, rating, reviewCount</p>
                             </div>
                         </div>
                     </div>
@@ -146,7 +268,13 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                 return (
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="customCode">Custom Function Code</Label>
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="customCode">Custom Function Code</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, customCode: (config?.customCode || "") + v })}
+                                />
+                            </div>
                             <Textarea
                                 id="customCode"
                                 placeholder="// JavaScript code here&#10;return true;"
@@ -157,7 +285,6 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                             />
                             <div className="text-xs text-muted-foreground">
                                 <p>Write custom JavaScript code. Return true to continue, false to stop.</p>
-                                <p className="mt-1">Variables available: <code className="bg-muted px-1 rounded">company</code></p>
                             </div>
                         </div>
                     </div>
@@ -167,7 +294,13 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                 return (
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="aiPrompt">AI Prompt</Label>
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="aiPrompt">AI Prompt</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, aiPrompt: (config?.aiPrompt || "") + v })}
+                                />
+                            </div>
                             <Textarea
                                 id="aiPrompt"
                                 placeholder="Generate a personalized email subject line for {name}"
@@ -177,7 +310,6 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                             />
                             <div className="text-xs text-muted-foreground">
                                 <p>Enter a prompt for Gemini AI.</p>
-                                <p className="mt-1">Use variables: {"{name}, {category}, {notes}, {website}, {address}"}</p>
                             </div>
                         </div>
                     </div>
@@ -206,12 +338,18 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                             </div>
                             <div className="col-span-3 space-y-2">
                                 <Label htmlFor="url">URL</Label>
-                                <Input
-                                    id="url"
-                                    placeholder="https://api.example.com/v1/resource"
-                                    value={config?.url || ""}
-                                    onChange={(e) => setConfig({ ...config, url: e.target.value })}
-                                />
+                                <div className="flex gap-2">
+                                    <Input
+                                        id="url"
+                                        placeholder="https://api.example.com/v1/resource"
+                                        value={config?.url || ""}
+                                        onChange={(e) => setConfig({ ...config, url: e.target.value })}
+                                    />
+                                    <VariableInsert
+                                        variables={variables}
+                                        onInsert={(v) => setConfig({ ...config, url: (config?.url || "") + v })}
+                                    />
+                                </div>
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -227,7 +365,13 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                         </div>
                         {(config?.method === "POST" || config?.method === "PUT") && (
                             <div className="space-y-2">
-                                <Label htmlFor="body">Body (JSON)</Label>
+                                <div className="flex justify-between items-center">
+                                    <Label htmlFor="body">Body (JSON)</Label>
+                                    <VariableInsert
+                                        variables={variables}
+                                        onInsert={(v) => setConfig({ ...config, body: (config?.body || "") + v })}
+                                    />
+                                </div>
                                 <Textarea
                                     id="body"
                                     placeholder='{ "key": "value" }'
@@ -269,10 +413,18 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                         </div>
                     </div>
                 );
+
+            case "agent": // Fixed duplicated case structure
                 return (
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="agentPrompt">Agent Instructions</Label>
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="agentPrompt">Agent Instructions</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, agentPrompt: (config?.agentPrompt || "") + v })}
+                                />
+                            </div>
                             <Textarea
                                 id="agentPrompt"
                                 placeholder="Analyze the rows in the excel sheet and extract..."
@@ -337,28 +489,18 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                         </div>
                     </div>
                 );
-            case "merge":
-                return (
-                    <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                            Merges multiple input branches into a single output. No configuration needed usually.
-                        </p>
-                    </div>
-                );
-            case "splitInBatches":
-                return (
-                    <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                            loops through an array of items from the previous node. The &apos;Done&apos; output triggers when finished.
-                        </p>
-                        {/* Could add batch size config here later */}
-                    </div>
-                );
+
             case "filter":
                 return (
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="filterCondition">Filter Condition</Label>
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="filterCondition">Filter Condition</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, filterCondition: (config?.filterCondition || "") + v })}
+                                />
+                            </div>
                             <Input
                                 id="filterCondition"
                                 placeholder="item.price > 100"
@@ -405,12 +547,13 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                             <Label htmlFor="scraperAction">Scraper Action</Label>
                             <Select
                                 value={config?.scraperAction || "extract-emails"}
-                                onValueChange={(value) => setConfig({ ...config, scraperAction: value as "summarize" | "extract-emails" | "clean-html" | "markdown" })}
+                                onValueChange={(value) => setConfig({ ...config, scraperAction: value as "fetch-url" | "summarize" | "extract-emails" | "clean-html" | "markdown" })}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select Action" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem value="fetch-url">Fetch URL Content</SelectItem>
                                     <SelectItem value="extract-emails">Extract Emails</SelectItem>
                                     <SelectItem value="summarize">Summarize Content</SelectItem>
                                     <SelectItem value="clean-html">Clean HTML / Remove Tags</SelectItem>
@@ -419,15 +562,21 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="scraperInputField">Input Variable</Label>
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="scraperInputField">Input Variable (or URL)</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, scraperInputField: (config?.scraperInputField || "") + v })}
+                                />
+                            </div>
                             <Input
                                 id="scraperInputField"
-                                placeholder="{scrapedContent}"
+                                placeholder="{scrapedContent} or {business.website}"
                                 value={config?.scraperInputField || ""}
                                 onChange={(e) => setConfig({ ...config, scraperInputField: e.target.value })}
                             />
                             <p className="text-xs text-muted-foreground">
-                                The variable containing the raw text or HTML to process.
+                                The variable or URL to process. Use <code>{`{business.website}`}</code> for fetching.
                             </p>
                         </div>
                     </div>
@@ -467,20 +616,52 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                                 />
                             </div>
 
+                            {/* Helper Section */}
+                            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800">
+                                <h4 className="text-sm font-semibold flex items-center gap-2 mb-1">
+                                    <Info className="h-4 w-4 text-blue-500" />
+                                    How to use this node
+                                </h4>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                    {NODE_HELPERS[node.data.type as keyof typeof NODE_HELPERS]?.description || "Configure this node's settings below."}
+                                </p>
+                                {NODE_HELPERS[node.data.type as keyof typeof NODE_HELPERS]?.variables?.length > 0 && (
+                                    <div className="text-xs">
+                                        <span className="font-medium text-blue-600 dark:text-blue-400">Available Variables:</span>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                            {NODE_HELPERS[node.data.type as keyof typeof NODE_HELPERS]?.variables.map((v) => (
+                                                <code key={v} className="bg-background px-1.5 py-0.5 rounded border text-muted-foreground">
+                                                    {`{${v}}`}
+                                                </code>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             {renderConfigForm()}
                         </TabsContent>
 
                         <TabsContent value="test" className="mt-0 space-y-4">
                             <div className="space-y-2">
-                                <Label>Test Input (JSON Context)</Label>
+                                <div className="flex justify-between items-center">
+                                    <Label>Test Input (JSON Context)</Label>
+                                    <VariableInsert
+                                        variables={NODE_HELPERS[node.data.type as keyof typeof NODE_HELPERS]?.variables || []}
+                                        onInsert={(v) => setTestInput((prev) => {
+                                            // Try to insert cleanly if possible, otherwise append
+                                            return prev + ` "${v}"`;
+                                        })}
+                                    />
+                                </div>
                                 <Textarea
                                     className="font-mono text-xs"
-                                    rows={5}
-                                    placeholder='{ "email": "test@example.com", "price": 150 }'
+                                    rows={8}
+                                    placeholder={'{\n  "business": {\n    "name": "Test Business",\n    "website": "example.com",\n    "email": "test@example.com"\n  },\n  "variables": {\n    "scrapedData": "<html>...</html>"\n  }\n}'}
                                     value={testInput}
                                     onChange={(e) => setTestInput(e.target.value)}
                                 />
-                                <p className="text-xs text-muted-foreground">Mock the variables available to this node.</p>
+                                <p className="text-xs text-muted-foreground">Mock the variables available to this node. Defines <code>business</code>, <code>variables</code> etc.</p>
                             </div>
 
                             <Button size="sm" onClick={async () => {
@@ -518,13 +699,21 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave }: NodeConfi
                     </ScrollArea>
                 </Tabs>
 
-                <DialogFooter className="mr-6 mb-4">
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancel
-                    </Button>
-                    <Button onClick={handleSave}>
-                        Save Configuration
-                    </Button>
+                <DialogFooter className="mr-6 mb-4 flex justify-between sm:justify-between">
+                    {onDelete && (
+                        <Button variant="destructive" onClick={onDelete} className="mr-auto">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Node
+                        </Button>
+                    )}
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => onOpenChange(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleSave}>
+                            Save Configuration
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

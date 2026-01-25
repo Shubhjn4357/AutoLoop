@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Business } from "@/types";
 import {
   Users,
@@ -313,62 +314,52 @@ export default function DashboardPage() {
             <Label>Scraping Sources</Label>
             <div className="flex flex-wrap gap-3">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={scrapingSources.includes("google-maps")}
-                  onChange={(e) => {
-                    if (e.target.checked) setScrapingSources([...scrapingSources, "google-maps"]);
+                  onCheckedChange={(checked) => {
+                    if (checked) setScrapingSources([...scrapingSources, "google-maps"]);
                     else setScrapingSources(scrapingSources.filter(s => s !== "google-maps"));
                   }}
-                  className="w-4 h-4 rounded border-gray-300"
                 />
                 <span className="text-sm">📍 Google Maps</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={scrapingSources.includes("google-search")}
-                  onChange={(e) => {
-                    if (e.target.checked) setScrapingSources([...scrapingSources, "google-search"]);
+                  onCheckedChange={(checked) => {
+                    if (checked) setScrapingSources([...scrapingSources, "google-search"]);
                     else setScrapingSources(scrapingSources.filter(s => s !== "google-search"));
                   }}
-                  className="w-4 h-4 rounded border-gray-300"
                 />
                 <span className="text-sm">🔍 Google Search</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={scrapingSources.includes("linkedin")}
-                  onChange={(e) => {
-                    if (e.target.checked) setScrapingSources([...scrapingSources, "linkedin"]);
+                  onCheckedChange={(checked) => {
+                    if (checked) setScrapingSources([...scrapingSources, "linkedin"]);
                     else setScrapingSources(scrapingSources.filter(s => s !== "linkedin"));
                   }}
-                  className="w-4 h-4 rounded border-gray-300"
                 />
                 <span className="text-sm">💼 LinkedIn</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={scrapingSources.includes("facebook")}
-                  onChange={(e) => {
-                    if (e.target.checked) setScrapingSources([...scrapingSources, "facebook"]);
+                  onCheckedChange={(checked) => {
+                    if (checked) setScrapingSources([...scrapingSources, "facebook"]);
                     else setScrapingSources(scrapingSources.filter(s => s !== "facebook"));
                   }}
-                  className="w-4 h-4 rounded border-gray-300"
                 />
                 <span className="text-sm">👥 Facebook</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={scrapingSources.includes("instagram")}
-                  onChange={(e) => {
-                    if (e.target.checked) setScrapingSources([...scrapingSources, "instagram"]);
+                  onCheckedChange={(checked) => {
+                    if (checked) setScrapingSources([...scrapingSources, "instagram"]);
                     else setScrapingSources(scrapingSources.filter(s => s !== "instagram"));
                   }}
-                  className="w-4 h-4 rounded border-gray-300"
                 />
                 <span className="text-sm">📸 Instagram</span>
               </label>

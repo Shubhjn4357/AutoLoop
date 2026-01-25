@@ -6,13 +6,24 @@ interface SendEmailOptions {
   subject: string;
   body: string;
   accessToken: string;
+  refreshToken?: string;
 }
 
-export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
-  const { to, subject, body, accessToken } = options;
+export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean; error?: string }> {
+  const { to, subject, body, accessToken, refreshToken } = options;
 
   try {
-    const gmail = google.gmail({ version: "v1" });
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET
+    );
+
+    oauth2Client.setCredentials({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
     // Create email message
     const message = [
@@ -36,51 +47,87 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
       requestBody: {
         raw: encodedMessage,
       },
-      auth: new google.auth.OAuth2({
-        credentials: {
-          access_token: accessToken,
-        },
-      }),
     });
 
-    return true;
+    return { success: true };
   } catch (error) {
     console.error("Error sending email:", error);
-    return false;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return { success: false, error: errorMessage };
   }
 }
 
 export function interpolateTemplate(
   template: string,
-  business: Business
+  business: Business,
+  sender?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    company?: string | null;
+    website?: string | null;
+    jobTitle?: string | null;
+    customVariables?: Record<string, string | number | boolean | null> | null;
+  }
 ): string {
-  return template
+  let result = template
     .replace(/\{brand_name\}/g, business.name)
     .replace(/\{email\}/g, business.email || "")
     .replace(/\{phone\}/g, business.phone || "")
     .replace(/\{website\}/g, business.website || "")
     .replace(/\{address\}/g, business.address || "")
     .replace(/\{category\}/g, business.category);
+
+  if (sender) {
+    result = result
+      .replace(/\{sender_name\}/g, sender.name || "")
+      .replace(/\{sender_email\}/g, sender.email || "")
+      .replace(/\{sender_phone\}/g, sender.phone || "")
+      .replace(/\{sender_company\}/g, sender.company || "")
+      .replace(/\{sender_website\}/g, sender.website || "")
+      .replace(/\{sender_job_title\}/g, sender.jobTitle || "");
+
+    // Custom Sender Variables
+    if (sender.customVariables) {
+      Object.entries(sender.customVariables).forEach(([key, value]) => {
+        const regex = new RegExp(`\\{${key}\\}`, "g");
+        result = result.replace(regex, typeof value === 'string' ? value : String(value));
+      });
+    }
+  }
+
+  return result;
 }
 
 export async function sendColdEmail(
   business: Business,
   template: EmailTemplate,
-  accessToken: string
-): Promise<boolean> {
+  accessToken: string,
+  sender?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    company?: string | null;
+    website?: string | null;
+    jobTitle?: string | null;
+    customVariables?: Record<string, string | number | boolean | null> | null;
+    refreshToken?: string | null;
+  }
+): Promise<{ success: boolean; error?: string }> {
   if (!business.email) {
     console.log(`No email for business ${business.name}`);
-    return false;
+    return { success: false, error: "No email address" };
   }
 
-  const subject = interpolateTemplate(template.subject, business);
-  const body = interpolateTemplate(template.body, business);
+  const subject = interpolateTemplate(template.subject, business, sender);
+  const body = interpolateTemplate(template.body, business, sender);
 
   return await sendEmail({
     to: business.email,
     subject,
     body,
     accessToken,
+    refreshToken: sender?.refreshToken || undefined,
   });
 }
 
@@ -132,7 +179,6 @@ export class EmailService {
       });
 
       if (pendingBusinesses.length === 0) {
-        console.log("No pending emails");
         return;
       }
 
@@ -151,7 +197,7 @@ export class EmailService {
 
       // Send emails
       for (const business of pendingBusinesses) {
-        const success = await sendColdEmail(
+        const { success, error } = await sendColdEmail(
           business,
           defaultTemplate,
           accessToken
@@ -177,6 +223,7 @@ export class EmailService {
           subject: interpolateTemplate(defaultTemplate.subject, business),
           body: interpolateTemplate(defaultTemplate.body, business),
           status: success ? "sent" : "failed",
+          errorMessage: error,
           sentAt: success ? new Date() : null,
         });
 

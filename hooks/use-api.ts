@@ -1,8 +1,12 @@
 'use client'
 import { useState, useCallback } from "react";
+import { useNotification } from "@/hooks/use-notification";
 
 interface ApiOptions extends RequestInit {
   headers?: Record<string, string>;
+  throwOnError?: boolean;
+  skipNotification?: boolean;
+  successMessage?: string;
 }
 
 interface ApiResponse<T> {
@@ -26,6 +30,7 @@ export function useApi<T = unknown>(): ApiResponse<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const { notify } = useNotification();
 
   const request = useCallback(
     async <R = T>(
@@ -75,11 +80,45 @@ export function useApi<T = unknown>(): ApiResponse<T> {
           // For now, let's keep setData best-effort if R extends T, usually users rely on return value for one-offs
           // safely ignore setData type mismatch or cast to any
           setData(result as unknown as T);
+
+          // Success Notification for mutations
+          if (!options?.skipNotification && (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE")) {
+            const title = "Success";
+            let message = "Operation completed successfully";
+
+            if (options?.successMessage) {
+              message = options.successMessage;
+            } else {
+              if (method === "POST") message = "Created successfully";
+              if (method === "PUT" || method === "PATCH") message = "Updated successfully";
+              if (method === "DELETE") message = "Deleted successfully";
+            }
+
+            notify(title, message, "success");
+          }
+
           return result as R;
         } catch {
             // If strictly typed as T, this might be an issue if T isn't void/null compliant
             // but for generic generic use usage, returning null on empty body is often handled
             setData(null);
+
+          // Success Notification for empty body mutations (like 204 No Content)
+          if (!options?.skipNotification && (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE")) {
+            const title = "Success";
+            let message = "Operation completed successfully";
+
+            if (options?.successMessage) {
+              message = options.successMessage;
+            } else {
+              if (method === "POST") message = "Created successfully";
+              if (method === "PUT" || method === "PATCH") message = "Updated successfully";
+              if (method === "DELETE") message = "Deleted successfully";
+            }
+
+            notify(title, message, "success");
+          }
+
             return null;
         }
 
@@ -89,12 +128,16 @@ export function useApi<T = unknown>(): ApiResponse<T> {
           message = err.message;
         }
         setError(message);
+        notify("Error", message, "error");
+        if (options?.throwOnError) {
+          throw err;
+        }
         return null;
       } finally {
         setLoading(false);
       }
     },
-    []
+    [notify]
   );
 
   const get = useCallback(<R = T>(url: string, options?: ApiOptions) => request<R>(url, "GET", undefined, options), [request]);

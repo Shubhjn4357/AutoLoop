@@ -3,9 +3,9 @@
 import { Queue, Worker, Job } from "bullmq";
 import Redis from "ioredis";
 import { db } from "@/db";
-import { emailLogs, businesses, emailTemplates } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { sendColdEmail } from "./email";
+import { emailLogs, businesses, emailTemplates, users } from "@/db/schema";
+import { eq, sql, and, gte, lt } from "drizzle-orm";
+import { interpolateTemplate, sendColdEmail } from "./email";
 import type { ScraperSourceName } from "./scrapers/types";
 
 // Redis connection
@@ -94,24 +94,80 @@ export const emailWorker = new Worker(
       if (!template) {
         throw new Error("Template not found");
       }
+      // Check daily limit (50 emails/day)
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
 
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const [usage] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(emailLogs)
+        .where(
+          and(
+            eq(emailLogs.userId, userId),
+            eq(emailLogs.status, "sent"),
+            gte(emailLogs.sentAt, startOfDay),
+            lt(emailLogs.sentAt, endOfDay)
+          )
+        );
+
+      if (usage && usage.count >= 50) {
+        // Calculate time until next day
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        const delay = tomorrow.getTime() - now.getTime() + 60000; // 1 min buffer
+
+        console.log(`⚠️ Daily email limit reached (${usage.count}/50). Delaying job ${job.id} by ${Math.round(delay / 1000 / 60)} minutes.`);
+
+        await job.moveToDelayed(Date.now() + delay, job.token);
+        return { delayed: true, reason: "Daily limit reached" };
+      }
+
+      const sender = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+
+      if (!sender) throw new Error("Sender not found");
+
+      // Send emails
       // Send email
-      await sendColdEmail(
+      const { success, error } = await sendColdEmail(
         business,
         template,
-        accessToken
+        accessToken,
+        sender
       );
 
-      // Log success
+      // Update business
+      await db
+        .update(businesses)
+        .set({
+          emailSent: true,
+          emailSentAt: new Date(),
+          emailStatus: success ? "sent" : "failed",
+          updatedAt: new Date(),
+        })
+        .where(eq(businesses.id, business.id));
+
+      // Log email
       await db.insert(emailLogs).values({
         userId,
-        businessId,
-        templateId,
-        subject: "Cold Outreach",
-        body: "Email sent via workflow",
-        status: "sent",
-        sentAt: new Date(),
+        businessId: business.id,
+        templateId: template.id,
+        subject: interpolateTemplate(template.subject, business, sender),
+        body: interpolateTemplate(template.body, business, sender),
+        status: success ? "sent" : "failed",
+        errorMessage: error,
+        sentAt: success ? new Date() : null,
       });
+
+      if (!success) {
+        throw new Error(error || "Failed to send email");
+      }
 
       return { success: true, businessId };
     } catch (error: any) {

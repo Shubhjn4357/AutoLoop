@@ -88,16 +88,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
 
         if (existingUser) {
-          // Update tokens
-          await db
-            .update(users)
-            .set({
-              accessToken: account?.access_token,
-              refreshToken: account?.refresh_token,
+          // Update user details
+          const updateData: Record<string, unknown> = {
               name: user.name,
               image: user.image,
               updatedAt: new Date(),
-            })
+          };
+
+          // Only update tokens if logging in with Google (to preserve Gmail permissions)
+          if (account?.provider === "google") {
+            updateData.accessToken = account.access_token;
+            updateData.refreshToken = account.refresh_token;
+          }
+
+          await db
+            .update(users)
+            .set(updateData)
             .where(eq(users.id, existingUser.id));
         } else {
           // Create new user
@@ -105,8 +111,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email: user.email,
             name: user.name,
             image: user.image,
-            accessToken: account?.access_token,
-            refreshToken: account?.refresh_token,
+            // If first login is GitHub, these will be null/undefined, which is correct
+            accessToken: account?.provider === "google" ? account?.access_token : null,
+            refreshToken: account?.provider === "google" ? account?.refresh_token : null,
           });
         }
 
@@ -125,8 +132,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           const dbUser = await db.query.users.findFirst({
             where: eq(users.email, session.user.email),
           });
-
-            console.log("👤 DB User found:", dbUser ? dbUser.id : "null");
 
             if (dbUser) {
               // Use Database Truth (which is synced from Google on login)

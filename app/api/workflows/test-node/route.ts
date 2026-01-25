@@ -12,7 +12,7 @@ export async function POST(req: Request) {
 
         // Simulate execution logic
         let outputContext = { ...inputContext };
-        let logs: string[] = [];
+        const logs: string[] = [];
         let status = "success";
 
         try {
@@ -34,8 +34,9 @@ export async function POST(req: Request) {
                            const result = check(...values);
                            logs.push(`Condition '${condition}' evaluated to: ${result}`);
                            outputContext._conditionResult = !!result;
-                        } catch (e: any) {
-                             logs.push(`Error evaluating condition: ${e.message}`);
+                        } catch (e) {
+                            const errorMessage = e instanceof Error ? e.message : String(e);
+                             logs.push(`Error evaluating condition: ${errorMessage}`);
                              status = "error";
                         }
                     }
@@ -57,8 +58,9 @@ export async function POST(req: Request) {
                             } else {
                                 logs.push("Filter passed (true).");
                             }
-                        } catch (e: any) {
-                             logs.push(`Error evaluating filter: ${e.message}`);
+                        } catch (e) {
+                            const errorMessage = e instanceof Error ? e.message : String(e);
+                             logs.push(`Error evaluating filter: ${errorMessage}`);
                              status = "error";
                         }
                      }
@@ -97,6 +99,54 @@ export async function POST(req: Request) {
                     logs.push("Merge node passed.");
                     break;
 
+                case "scraper":
+                    const action = config?.scraperAction || "extract-emails";
+                    const inputVar = config?.scraperInputField || "";
+
+                    // Simple variable resolution for test: check if inputVar is a key in inputContext, else use raw string
+                    // This matches the simplified eval logic of this test endpoint
+                    const cleanVar = inputVar.replace(/^\{|\}$/g, "");
+                    let content = inputContext[cleanVar] !== undefined ? inputContext[cleanVar] : inputVar;
+                    // handle nested like business.website
+                    if (cleanVar.includes(".")) {
+                        const parts = cleanVar.split(".");
+                        if (parts[0] === "business" && inputContext.business) {
+                            content = inputContext.business[parts[1]];
+                        } else if (parts[0] === "variables") {
+                            content = inputContext[parts[1]];
+                        }
+                    }
+
+                    const textContent = typeof content === "string" ? content : JSON.stringify(content || "");
+                    logs.push(`Running Scraper Action: ${action}`);
+
+                    if (action === "fetch-url") {
+                        let url = textContent.trim();
+                        if (!url.startsWith("http")) url = "https://" + url;
+                        logs.push(`Fetching URL: ${url}`);
+                        try {
+                            const response = await fetch(url);
+                            if (!response.ok) throw new Error(`Status ${response.status}`);
+                            const html = await response.text();
+                            outputContext.scrapedData = html;
+                            logs.push(`Success: Fetched ${html.length} chars.`);
+                        } catch (e) {
+                            const errorMessage = e instanceof Error ? e.message : String(e);
+                            logs.push(`Error fetching URL: ${errorMessage}`);
+                            status = "error";
+                        }
+                    } else if (action === "extract-emails") {
+                        const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+                        const matches = textContent.match(emailRegex);
+                        const emails = matches ? [...new Set(matches)] : [];
+                        outputContext.scrapedData = emails;
+                        logs.push(`Extracted ${emails.length} emails: ${emails.slice(0, 3).join(", ")}...`);
+                    } else {
+                        logs.push(`Action ${action} simulated.`);
+                        outputContext.scrapedData = "Simulated Result";
+                    }
+                    break;
+
                  case "splitInBatches":
                      logs.push("Loop node passed (mock).");
                      break;
@@ -106,9 +156,10 @@ export async function POST(req: Request) {
                     break;
             }
 
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             status = "error";
-            logs.push(`Runtime Error: ${error.message}`);
+            logs.push(`Runtime Error: ${errorMessage}`);
         }
 
         return NextResponse.json({

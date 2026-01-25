@@ -6,7 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmailTemplate, UserProfile } from "@/types";
-import { Plus, Trash2, Star, Loader2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Trash2, Star, Loader2, MoreVertical, Edit, Check, ArrowLeft } from "lucide-react";
 
 import { useTemplates } from "@/hooks/use-templates";
 import { useToast } from "@/hooks/use-toast";
@@ -23,8 +31,9 @@ export default function TemplatesPage() {
   const { get: getUser } = useApi<{ user: UserProfile }>();
   const { post: generateAiTemplate } = useApi<{ subject: string; body: string }>();
 
+  // ... (existing useEffect) ...
+
   useEffect(() => {
-    // Fetch user profile for variables
     const fetchProfile = async () => {
       const data = await getUser("/api/settings");
       if (data?.user) {
@@ -71,10 +80,28 @@ export default function TemplatesPage() {
     }
   };
 
+  const handleSetDefault = async (template: EmailTemplate, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const success = await saveTemplate({ id: template.id, isDefault: true });
+    if (success) {
+      toast({
+        title: "Success",
+        description: "Default template updated",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to set default template",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleGenerateWithAI = async (prompt: string) => {
+    // ... (existing logic) ...
     setIsGenerating(true);
     const generated = await generateAiTemplate("/api/templates/generate", {
-      businessType: "businesses", // Generic fallback
+      businessType: "businesses",
       purpose: prompt
     });
 
@@ -101,7 +128,6 @@ export default function TemplatesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">Email Templates</h1>
@@ -117,6 +143,12 @@ export default function TemplatesPage() {
 
       {isCreating ? (
         <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setIsCreating(false)}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          </div>
           <EmailEditor
             template={selectedTemplate}
             onChange={setSelectedTemplate}
@@ -149,45 +181,55 @@ export default function TemplatesPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {templates.map((template) => (
-            <Card key={template.id} className="group cursor-pointer hover:shadow-lg transition-all">
+            <Card key={template.id} className="group hover:shadow-lg transition-all relative">
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <CardTitle className="line-clamp-1">{template.name}</CardTitle>
-                  {template.isDefault && (
-                    <Badge variant="default">
-                      <Star className="mr-1 h-3 w-3 fill-current" />
-                      Default
-                    </Badge>
-                  )}
+                  <div className="flex-1 mr-2">
+                    <CardTitle className="line-clamp-1">{template.name}</CardTitle>
+                    {template.isDefault && (
+                      <div className="mt-2">
+                        <Badge variant="default" className="bg-yellow-500/15 text-yellow-700 hover:bg-yellow-500/25 border-yellow-500/50 dark:text-yellow-400">
+                          <Star className="mr-1 h-3 w-3 fill-current" />
+                          Default
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => {
+                        setSelectedTemplate(template);
+                        setIsCreating(true);
+                      }}>
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => handleSetDefault(template, e)} disabled={template.isDefault}>
+                        <Check className="mr-2 h-4 w-4" /> Set as Default
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={(e) => handleDelete(template.id, e)}
+                        className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/50"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardHeader>
               <CardContent>
                 <div
-                  className="text-sm text-muted-foreground line-clamp-3 mb-4 prose prose-sm dark:prose-invert max-h-18 overflow-hidden"
+                  className="text-sm text-muted-foreground line-clamp-3 mb-2 prose prose-sm dark:prose-invert max-h-18 overflow-hidden"
                   dangerouslySetInnerHTML={{ __html: template.body || template.subject || "No content" }}
                 />
-                <div className="flex gap-2 transition-all">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedTemplate(template);
-                      setIsCreating(true);
-                    }}
-                    className="hover:scale-105 transition-transform"
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={(e) => handleDelete(template.id, e)}
-                    disabled={template.isDefault}
-                    className="hover:scale-105 transition-transform"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
               </CardContent>
             </Card>
           ))}
