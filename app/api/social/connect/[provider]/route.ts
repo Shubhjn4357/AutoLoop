@@ -13,8 +13,18 @@ export async function GET(
 
   if (provider === "facebook" || provider === "instagram") {
     // Both use Facebook Login
+    // Dynamic Base URL Detection for Spaces/Docker
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const protocol = req.headers.get("x-forwarded-proto") || "https"; // Default to https for safety in prod
+    const baseUrl = host ? `${protocol}://${host}` : process.env.NEXT_PUBLIC_APP_URL;
+
+    // Fallback if configured explicitly, otherwise dynamic
+    const effectiveBaseUrl = (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes("0.0.0.0"))
+      ? process.env.NEXT_PUBLIC_APP_URL
+      : baseUrl;
+
     const clientId = process.env.FACEBOOK_CLIENT_ID;
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/callback/facebook`;
+    const redirectUri = `${effectiveBaseUrl}/api/social/callback/facebook`;
     const state = JSON.stringify({ userId: session.user.id, provider }); // Pass provider to know intent if needed
 
     // Scopes for Business Suite

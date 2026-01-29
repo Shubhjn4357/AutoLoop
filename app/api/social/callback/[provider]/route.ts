@@ -22,12 +22,21 @@ export async function GET(
     const error = searchParams.get("error");
     const { provider } = await params;
 
+    // Dynamic Base URL Detection
+    const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const protocol = req.headers.get("x-forwarded-proto") || "https";
+    const baseUrl = host ? `${protocol}://${host}` : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+    const effectiveBaseUrl = (process.env.NEXT_PUBLIC_APP_URL && !process.env.NEXT_PUBLIC_APP_URL.includes("0.0.0.0"))
+        ? process.env.NEXT_PUBLIC_APP_URL
+        : baseUrl;
+
     if (error) {
-        return NextResponse.redirect(new URL(`/dashboard/social?error=${error}`, req.url));
+        return NextResponse.redirect(new URL(`/dashboard/social?error=${error}`, effectiveBaseUrl));
     }
 
     if (!code) {
-        return NextResponse.redirect(new URL("/dashboard/social?error=no_code", req.url));
+        return NextResponse.redirect(new URL("/dashboard/social?error=no_code", effectiveBaseUrl));
     }
 
     try {
@@ -35,13 +44,14 @@ export async function GET(
         const userId = session?.user?.id || state.userId;
 
         if (!userId) {
-            return NextResponse.redirect(new URL("/auth/signin", req.url));
+            return NextResponse.redirect(new URL("/auth/signin", effectiveBaseUrl));
         }
 
         if (provider === "facebook" || provider === "instagram") {
             const clientId = process.env.FACEBOOK_CLIENT_ID;
             const clientSecret = process.env.FACEBOOK_CLIENT_SECRET;
-            const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/callback/facebook`;
+
+            const redirectUri = `${effectiveBaseUrl}/api/social/callback/facebook`;
 
             // 1. Exchange User Code for Short-Lived Token
             const tokenUrl = `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${clientId}&redirect_uri=${redirectUri}&client_secret=${clientSecret}&code=${code}`;
@@ -102,14 +112,14 @@ export async function GET(
                 });
             }
 
-            return NextResponse.redirect(new URL("/dashboard/social?success=connected", req.url));
+            return NextResponse.redirect(new URL("/dashboard/social?success=connected", effectiveBaseUrl));
         }
 
     } catch (err) {
         console.error("Social Auth Error:", err);
         const errorMessage = err instanceof Error ? err.message : "Unknown error";
-        return NextResponse.redirect(new URL(`/dashboard/social?error=${encodeURIComponent(errorMessage)}`, req.url));
+        return NextResponse.redirect(new URL(`/dashboard/social?error=${encodeURIComponent(errorMessage)}`, effectiveBaseUrl));
     }
 
-    return NextResponse.redirect(new URL("/dashboard/social", req.url));
+    return NextResponse.redirect(new URL("/dashboard/social", effectiveBaseUrl));
 }

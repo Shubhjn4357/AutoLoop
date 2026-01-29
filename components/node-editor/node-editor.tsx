@@ -86,7 +86,7 @@ export interface NodeData {
 interface NodeEditorProps {
   initialNodes?: Node<NodeData>[];
   initialEdges?: Edge[];
-  onSave?: (nodes: Node<NodeData>[], edges: Edge[]) => void;
+  onSave?: (nodes: Node<NodeData>[], edges: Edge[], options?: { isAutoSave?: boolean }) => void;
   isSaving?: boolean;
   workflowId?: string;
 }
@@ -203,7 +203,7 @@ export function NodeEditor({
     // Capture changes for auto-save
     setIsAutoSaving(true);
     saveTimeoutRef.current = setTimeout(() => {
-      onSave(nodes, edges);
+      onSave(nodes, edges, { isAutoSave: true });
       setIsAutoSaving(false);
     }, 2000); // 2 second debounce
 
