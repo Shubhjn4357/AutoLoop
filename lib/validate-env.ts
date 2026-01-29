@@ -6,7 +6,6 @@ export function validateEnvironmentVariables() {
         "NEXTAUTH_SECRET",
         "GOOGLE_CLIENT_ID",
         "GOOGLE_CLIENT_SECRET",
-        "GEMINI_API_KEY",
     ];
 
     const missing = required.filter(v => !process.env[v]);

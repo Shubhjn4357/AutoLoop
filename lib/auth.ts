@@ -181,7 +181,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               session.user.id = dbUser.id;
               session.user.name = dbUser.name || session.user.name;
               session.user.image = dbUser.image || session.user.image;
-              session.user.role = "user"; 
+              // START FIX: Check if this is the admin user
+              if (dbUser.id === "admin-user") {
+                session.user.role = "admin";
+              } else {
+                session.user.role = "user";
+              }
+              // END FIX
               session.user.accessToken = dbUser.accessToken || undefined;
             } else {
               // Only use admin fallback if NOT found in DB (unlikely for Google login)

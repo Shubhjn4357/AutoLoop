@@ -1,7 +1,29 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Node, Edge } from "reactflow";
+import { auth } from "@/auth"; // Validate path is correct or adjust
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
+async function getEffectiveApiKey(providedKey?: string): Promise<string | undefined> {
+  if (providedKey) return providedKey;
+  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+
+  try {
+    const session = await auth();
+    if (session?.user?.id) {
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, session.user.id),
+        columns: { geminiApiKey: true }
+      });
+      if (user?.geminiApiKey) return user.geminiApiKey;
+    }
+  } catch (error) {
+    console.warn("Failed to fetch Gemini API key from DB:", error);
+  }
+  return undefined;
+}
 
 export async function generateEmailTemplate(
   businessType: string,
