@@ -15,6 +15,20 @@
       "when": 1769441834407,
       "tag": "0001_complex_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769679184490,
+      "tag": "0002_lush_luckman",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1769679428671,
+      "tag": "0003_flaky_landau",
+      "breakpoints": true
     }
   ]
 }

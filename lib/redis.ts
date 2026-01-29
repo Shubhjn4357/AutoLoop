@@ -23,8 +23,8 @@ if (process.env.NODE_ENV === "production" || !globalForRedis.redis) {
       console.log("Initializing Redis...");
       redis = new Redis(process.env.REDIS_URL, redisConfig);
     } else {
-      console.warn("REDIS_URL is not defined. Using default localhost:6379");
-      redis = new Redis({ ...redisConfig, host: 'localhost', port: 6379 });
+      console.warn("REDIS_URL is not defined. Using default localhost:6379 with lazyConnect");
+      redis = new Redis({ ...redisConfig, host: 'localhost', port: 6379, lazyConnect: true });
     }
 
     redis.on('error', (err) => {

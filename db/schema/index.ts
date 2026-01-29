@@ -38,6 +38,14 @@ export const businesses = pgTable("businesses", {
   emailStatus: varchar("email_status", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("businesses_user_idx").on(table.userId),
+    emailIdx: index("businesses_email_idx").on(table.email),
+    emailStatusIdx: index("businesses_email_status_idx").on(table.emailStatus),
+    createdAtIdx: index("businesses_created_at_idx").on(table.createdAt),
+    userStatusIdx: index("businesses_user_status_idx").on(table.userId, table.emailStatus),
+  };
 });
 
 export const emailTemplates = pgTable("email_templates", {
@@ -49,6 +57,11 @@ export const emailTemplates = pgTable("email_templates", {
   isDefault: boolean("is_default").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("email_templates_user_idx").on(table.userId),
+    isDefaultIdx: index("email_templates_default_idx").on(table.isDefault),
+  };
 });
 
 export const automationWorkflows = pgTable("automation_workflows", {
@@ -89,6 +102,13 @@ export const emailLogs = pgTable("email_logs", {
   openedAt: timestamp("opened_at"),
   clickedAt: timestamp("clicked_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    businessIdIdx: index("email_logs_business_idx").on(table.businessId),
+    statusIdx: index("email_logs_status_idx").on(table.status),
+    sentAtIdx: index("email_logs_sent_at_idx").on(table.sentAt),
+    businessStatusIdx: index("email_logs_business_status_idx").on(table.businessId, table.status),
+  };
 });
 
 export const scrapingJobs = pgTable("scraping_jobs", {
@@ -193,7 +213,7 @@ export const workflowTriggerExecutions = pgTable("workflow_trigger_executions", 
 }, (table) => {
   return {
     execTriggerIdIdx: index("exec_trigger_id_idx").on(table.triggerId),
-    execWorkflowIdIdx: index("exec_workflow_id_idx").on(table.workflowId),
+    triggerExecWorkflowIdIdx: index("trigger_exec_workflow_id_idx").on(table.workflowId),
   };
 });
 
