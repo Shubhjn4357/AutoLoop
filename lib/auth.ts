@@ -75,6 +75,49 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
         return null;
       }
+    }),
+    Credentials({
+      id: "whatsapp-otp",
+      name: "WhatsApp OTP",
+      credentials: {
+        phoneNumber: { label: "Phone Number", type: "text" },
+        code: { label: "OTP Code", type: "text" }
+      },
+      async authorize(credentials) {
+        const phoneNumber = credentials.phoneNumber as string;
+        const code = credentials.code as string;
+
+        if (!phoneNumber || !code) return null;
+
+        // Import dynamically to avoid circular deps if any
+        const { redis } = await import("@/lib/redis");
+
+        // Verify Code
+        const storedCode = await redis.get(`otp:${phoneNumber}`);
+        if (!storedCode || storedCode !== code) {
+          throw new Error("Invalid or expired OTP");
+        }
+
+        // Find User
+        const user = await db.query.users.findFirst({
+          where: eq(users.phone, phoneNumber)
+        });
+
+        if (!user) {
+          throw new Error("User not found");
+        }
+
+        // Clear OTP
+        await redis.del(`otp:${phoneNumber}`);
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          role: "user" // Or fetch role if stored
+        };
+      }
     })
   ],
   callbacks: {

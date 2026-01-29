@@ -47,7 +47,7 @@ export function FeedbackButton() {
       setOpen(false);
       setMessage("");
       setType("general");
-    } catch (error) {
+    } catch {
       toast.error("Failed to submit feedback");
     } finally {
       setIsSubmitting(false);

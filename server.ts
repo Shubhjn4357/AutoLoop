@@ -5,6 +5,7 @@ import { parse } from "url";
 import { Socket } from "net";
 import next from "next";
 import { emailWorker, scrapingWorker } from "./lib/queue";
+import { validateEnvironmentVariables } from "./lib/validate-env";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "0.0.0.0";
@@ -14,7 +15,16 @@ const port = parseInt(process.env.PORT || "7860", 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
+import { startTriggerProcessor } from "./lib/workflow-triggers";
+
 console.log("🚀 Starting Custom Server (Next.js + Workers)...");
+
+validateEnvironmentVariables();
+
+// Start the workflow trigger processor (checks every minute)
+if (process.env.NODE_ENV === "production" || process.env.ENABLE_TRIGGERS === "true") {
+    startTriggerProcessor();
+}
 
 app.prepare().then(async () => {
     // 1. Try to start Local Redis (if available and not connecting to external)

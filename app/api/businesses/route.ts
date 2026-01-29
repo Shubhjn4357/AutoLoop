@@ -22,6 +22,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
     const status = searchParams.get("status");
+    const minRating = searchParams.get("minRating");
+    const location = searchParams.get("location");
+    const keyword = searchParams.get("keyword");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const offset = (page - 1) * limit;
@@ -29,16 +32,33 @@ export async function GET(request: Request) {
     // Build where conditions
     const conditions = [eq(businesses.userId, userId)];
 
-    if (category) {
+    if (category && category !== "all") {
       conditions.push(eq(businesses.category, category));
     }
 
-    if (status) {
+    if (status && status !== "all") {
       if (status === "pending") {
         conditions.push(or(eq(businesses.emailStatus, "pending"), isNull(businesses.emailStatus))!);
       } else {
         conditions.push(eq(businesses.emailStatus, status));
       }
+    }
+
+    if (minRating) {
+      conditions.push(sql`${businesses.rating} >= ${minRating}`);
+    }
+
+    if (location) {
+      conditions.push(sql`${businesses.address} ILIKE ${`%${location}%`}`);
+    }
+
+    if (keyword) {
+      conditions.push(
+        or(
+          sql`${businesses.name} ILIKE ${`%${keyword}%`}`,
+          sql`${businesses.category} ILIKE ${`%${keyword}%`}`
+        )!
+      );
     }
 
     // Get total count

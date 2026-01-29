@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   FileText,
   CheckSquare,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -30,6 +31,7 @@ const navigation = [
   { name: "Templates", href: "/dashboard/templates", icon: Mail },
   { name: "Analytics", href: "/dashboard/analytics", icon: FileText },
   { name: "Tasks", href: "/dashboard/tasks", icon: CheckSquare },
+  { name: "Social Suite", href: "/dashboard/social", icon: Share2 },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

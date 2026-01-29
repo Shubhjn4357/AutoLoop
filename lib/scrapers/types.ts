@@ -35,7 +35,7 @@ export interface ScraperSource {
   name: string;
   displayName: string;
   enabled: boolean;
-  scrape(options: ScrapingOptions, userId: string): Promise<BusinessData[]>;
+  scrape(options: ScrapingOptions, userId?: string): Promise<BusinessData[]>;
 }
 
 export type ScraperSourceName = 

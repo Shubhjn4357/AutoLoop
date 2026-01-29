@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { emailLogs, businesses } from "@/db/schema";
-import { eq, sql, and, inArray } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -74,8 +74,9 @@ export async function GET() {
       clickRate: Math.round(clickRate * 10) / 10,
       replyRate: Math.round(replyRate * 10) / 10,
     });
-  } catch (error) {
-    console.error("Error fetching analytics:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`Error fetching analytics: ${errorMessage}`, error);
     return NextResponse.json(
       { error: "Failed to fetch analytics" },
       { status: 500 }

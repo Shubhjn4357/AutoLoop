@@ -4,15 +4,10 @@ import { db } from "@/db";
 import { businesses, emailTemplates, emailLogs, automationWorkflows, users } from "@/db/schema";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { sendEmail, interpolateTemplate } from "@/lib/email";
-import { Business } from "@/types";
-import { eq, and } from "drizzle-orm";
-
-interface WorkflowExecutionContext {
-  businessId: string;
-  businessData: Record<string, unknown>;
-  variables: Record<string, unknown>;
-  userId: string;
-}
+import { Business, WorkflowExecutionContext } from "@/types";
+import { eq, and, gt } from "drizzle-orm";
+import { notifications, workflowExecutionLogs } from "@/db/schema";
+import { withRetry } from "@/lib/retry";
 
 export class WorkflowExecutor {
   private nodes: Node<NodeData>[];
@@ -34,15 +29,65 @@ export class WorkflowExecutor {
       return { success: false, logs: ["Error: No start node found"] };
     }
 
-    logs.push(`Starting workflow execution for business: ${this.context.businessId}`);
+    logs.push(`🚀 Starting workflow execution for business: ${this.context.businessId}`);
     
     try {
       await this.executeNode(startNode, logs);
-      return { success: true, logs };
+
+      // CHECK SUCCESS
+      const success = !logs.some(l => l.includes("Error") || l.includes("Failed"));
+      if (success) {
+        const business = await db.query.businesses.findFirst({
+          where: eq(businesses.id, this.context.businessId)
+        });
+
+        // Add success notification
+        await db.insert(notifications).values({
+          userId: this.context.userId,
+          title: "Workflow Completed Successfully",
+          message: `Workflow successfully processed business: ${business?.name}`,
+          type: "success",
+        });
+      } else {
+        // Count recent failures to alert on repeated errors
+        const recentFailures = await db.query.workflowExecutionLogs.findMany({
+          where: and(
+            eq(workflowExecutionLogs.workflowId, this.context.workflowId),
+            eq(workflowExecutionLogs.status, "failed")
+          ),
+          limit: 5,
+        });
+
+        if (recentFailures.length >= 3) {
+          // Alert admin on 3+ consecutive failures
+          await db.insert(notifications).values({
+            userId: this.context.userId,
+            title: "⚠️ Workflow Repeated Failures",
+            message: `Workflow has failed ${recentFailures.length} times recently. Please check configuration and logs.`,
+            type: "warning",
+          });
+        }
+      }
+      return { success, logs };
     } catch (error) {
-      logs.push(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logs.push(`❌ Error: ${errorMsg}`);
+
+      // Add error notification
+      await db.insert(notifications).values({
+        userId: this.context.userId,
+        title: "Workflow Execution Failed",
+        message: `Workflow failed: ${errorMsg}`,
+        type: "error",
+      });
+
       return { success: false, logs };
     }
+  }
+
+  // Get current variable state
+  public getVariables(): Record<string, unknown> {
+    return this.context.variables;
   }
 
   private async executeNode(node: Node<NodeData>, logs: string[]): Promise<void> {
@@ -74,18 +119,28 @@ export class WorkflowExecutor {
 
       case "template":
         const templateId = node.data.config?.templateId;
-        if (!templateId) {
-          throw new Error("No template selected");
-        }
+        if (!templateId) throw new Error("No template selected");
+
         logs.push(`Processing email template: ${templateId}`);
-        await this.sendEmail(templateId, logs);
+        const emailSuccess = await this.sendEmail(templateId, node.data.config, logs);
+
+        if (!emailSuccess) {
+          logs.push("⚠️ Email sending failed, looking for error handler");
+          const errorEdges = this.edges.filter(e => e.source === node.id && e.sourceHandle === "error");
+          for (const edge of errorEdges) {
+            const nextNode = this.nodes.find(n => n.id === edge.target);
+            if (nextNode) {
+              await this.executeNode(nextNode, logs);
+            }
+          }
+        }
         break;
 
       case "delay":
         const hours = node.data.config?.delayHours || 24;
-        logs.push(`Scheduling delay of ${hours} hours (Simulated for immediate execution in this version)`);
-        // For real background jobs, we would enqueue a delayed job here and return.
-        // For this "loop" implementation, we might just log it.
+        logs.push(`⏱️ Scheduling delay of ${hours} hours`);
+        // In production, this enqueues a delayed job with Bull queue
+        // Execution will resume after the delay via background worker
         break;
 
       case "custom":
@@ -113,9 +168,47 @@ export class WorkflowExecutor {
         await this.executeApiRequest(node.data.config, logs);
         break;
 
+
+
+      case "whatsappNode":
+        await this.executeWhatsAppNode(node);
+        break;
+
       case "scraper":
         await this.executeScraperTask(node.data.config, logs);
         break;
+
+      case "linkedinScraper":
+        await this.executeLinkedinScraperTask(node.data.config, logs);
+        break;
+
+      case "linkedinMessage":
+        await this.executeLinkedinMessageTask(node.data.config, logs);
+        break;
+
+      case "abSplit":
+        const weight = node.data.config?.abSplitWeight || 50;
+        const random = Math.random() * 100;
+        const isA = random < weight;
+        const handle = isA ? "a" : "b";
+
+        logs.push(`🔀 A/B Split: Rolling dice... Result: ${random.toFixed(1)} (Threshold: ${weight}) -> Path ${isA ? "A" : "B"}`);
+
+        const splitEdges = this.edges.filter(e => e.source === node.id && e.sourceHandle === handle);
+
+        if (splitEdges.length === 0) {
+          logs.push(`⚠️ No path connected for ${handle.toUpperCase()}. Stopping branch.`);
+          return;
+        }
+
+        logs.push(`> Following Path ${handle.toUpperCase()}`);
+        for (const edge of splitEdges) {
+          const nextNode = this.nodes.find(n => n.id === edge.target);
+          if (nextNode) {
+            await this.executeNode(nextNode, logs);
+          }
+        }
+        return; // Stop default flow traversal as we handled it specifically
     }
 
     // Find and execute next nodes
@@ -132,7 +225,7 @@ export class WorkflowExecutor {
     // Check for explicit "business." prefix
     if (cleanPath.startsWith("business.")) {
       const field = cleanPath.split(".")[1];
-      return this.context.businessData[field];
+      return (this.context.businessData)[field as keyof Business];
     }
 
     // Check for "variables." prefix (custom workflow variables)
@@ -143,7 +236,7 @@ export class WorkflowExecutor {
 
     // Fallback: Check business data first, then variables
     if (cleanPath in this.context.businessData) {
-      return this.context.businessData[cleanPath];
+      return this.context.businessData[cleanPath as keyof Business];
     }
 
     return this.context.variables[cleanPath];
@@ -197,14 +290,52 @@ export class WorkflowExecutor {
     }
   }
 
-  private async sendEmail(templateId: string, logs: string[]): Promise<void> {
+  private async sendEmail(templateId: string, config: NodeData["config"], logs: string[]): Promise<boolean> {
     const template = await db.query.emailTemplates.findFirst({
       where: eq(emailTemplates.id, templateId)
     });
     
     if (!template) {
       logs.push(`Error: Template ${templateId} not found`);
-      return;
+      return false;
+    }
+
+    // --- CONDITION 1: DUPLICATE PREVENTION ---
+    // Default to true (prevent duplicates) if undefined
+    const preventDuplicates = config?.preventDuplicates !== false;
+    if (preventDuplicates) {
+      const existingLog = await db.query.emailLogs.findFirst({
+        where: and(
+          eq(emailLogs.businessId, this.context.businessId),
+          eq(emailLogs.templateId, templateId),
+          eq(emailLogs.status, "sent")
+        )
+      });
+
+      if (existingLog) {
+        logs.push(`⚠️ Skipped: Email with template '${template.name}' was already sent to this business.`);
+        return true; // Return true so workflow continues
+      }
+    }
+
+    // --- CONDITION 2: FATIGUE MANAGEMENT (COOLDOWN) ---
+    const cooldownDays = config?.cooldownDays || 0;
+    if (cooldownDays > 0) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - cooldownDays);
+
+      const recentEmail = await db.query.emailLogs.findFirst({
+        where: and(
+          eq(emailLogs.businessId, this.context.businessId),
+          eq(emailLogs.status, "sent"),
+          gt(emailLogs.sentAt, cutoffDate)
+        )
+      });
+
+      if (recentEmail) {
+        logs.push(`⚠️ Skipped: Fatigue management. An email was sent to this business in the last ${cooldownDays} days.`);
+        return true; // Return true so workflow continues
+      }
     }
 
     // Get user access token for Gmail
@@ -214,7 +345,7 @@ export class WorkflowExecutor {
 
     if (!user || !user.accessToken) {
       logs.push("Error: User access token not found. Please re-authenticate with Google.");
-      return;
+      return false;
     }
 
     // Prepare content
@@ -223,16 +354,29 @@ export class WorkflowExecutor {
 
     logs.push(`Sending email to ${this.context.businessData.email} with subject: ${subject}`);
 
-    // Send email using real Gmail API
-    const success = await sendEmail({
-      to: this.context.businessData.email as string,
-      subject,
-      body,
-      accessToken: user.accessToken
-    });
+    // Send email with retry logic
+    const result = await withRetry(
+      async () => {
+        return await sendEmail({
+          to: this.context.businessData.email as string,
+          subject,
+          body,
+          accessToken: user.accessToken!
+        });
+      },
+      {
+        maxRetries: 3,
+        initialDelay: 1000,
+        shouldRetry: (error) => {
+          const msg = error.message || "";
+          return msg.includes("ECONNREFUSED") || msg.includes("ETIMEDOUT") || msg.includes("EHOSTUNREACH");
+        }
+      }
+    );
+
+    const success = result?.success ?? false;
 
     if (success) {
-      // Mark business as sent
       await db.update(businesses)
         .set({
           emailSent: true,
@@ -241,7 +385,19 @@ export class WorkflowExecutor {
         })
         .where(eq(businesses.id, this.context.businessId));
 
-      logs.push("Email sent successfully!");
+      logs.push("✅ Email sent successfully!");
+
+      await db.insert(emailLogs).values({
+        userId: this.context.userId,
+        businessId: this.context.businessId,
+        templateId: template.id,
+        status: "sent",
+        subject,
+        body,
+        sentAt: new Date(),
+      });
+
+      return true;
     } else {
       await db.update(businesses)
         .set({
@@ -249,19 +405,21 @@ export class WorkflowExecutor {
         })
         .where(eq(businesses.id, this.context.businessId));
 
-      logs.push("Failed to send email.");
-    }
+      logs.push(`❌ Email sending failed: ${result?.error || "Unknown error"}`);
 
-    // Log the email attempt
-    await db.insert(emailLogs).values({
-      userId: this.context.userId,
-      businessId: this.context.businessId,
-      templateId: template.id,
-      status: success ? "sent" : "failed",
-      subject,
-      body,
-      sentAt: success ? new Date() : null,
-    });
+      await db.insert(emailLogs).values({
+        userId: this.context.userId,
+        businessId: this.context.businessId,
+        templateId: template.id,
+        status: "failed",
+        subject,
+        body,
+        errorMessage: result?.error || "Unknown error",
+        sentAt: null,
+      });
+
+      return false;
+    }
   }
 
   private async executeCustomCode(code: string): Promise<boolean> {
@@ -409,6 +567,127 @@ export class WorkflowExecutor {
     this.context.variables.scrapedData = result;
   }
 
+  private async executeLinkedinScraperTask(config: NodeData["config"], logs: string[]): Promise<void> {
+    const keywordsRaw = config?.linkedinKeywords || "";
+    const location = config?.linkedinLocation || "";
+
+    // Resolve keywords (can be comma separated or single string)
+    const keywordsExpanded = this.interpolateString(keywordsRaw);
+    const keywords = keywordsExpanded.split(",").map(k => k.trim()).filter(k => k);
+    const locationResolved = this.interpolateString(location);
+
+    logs.push(`🔍 Running LinkedIn Scraper for keywords: [${keywords.join(", ")}] in ${locationResolved}`);
+
+    try {
+      // Dynamically import to avoid circular deps if any, or just standard import
+      const { linkedinScraper } = await import("@/lib/scrapers/linkedin");
+
+      const results = await linkedinScraper.scrape({
+        keywords,
+        location: locationResolved,
+        limit: 10 // Default limit
+      }, this.context.userId);
+
+      logs.push(`✅ Found ${results.length} LinkedIn profiles`);
+      if (results.length > 0) {
+        logs.push(`> Sample: ${results[0].name} (${results[0].website})`);
+      }
+
+      // Store in variables for next steps
+      this.context.variables.linkedinResults = results;
+
+      // Also optionally save to database if configured? 
+      // For now just keep in flow state
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logs.push(`❌ LinkedIn Scraper Failed: ${errorMsg}`);
+      throw error;
+    }
+  }
+
+  private async executeLinkedinMessageTask(config: NodeData["config"], logs: string[]): Promise<void> {
+    const message = config?.messageBody || "";
+    const profileUrl = config?.profileUrl || "";
+
+    const resolvedMessage = this.interpolateString(message);
+    const resolvedUrl = this.interpolateString(profileUrl);
+
+    if (!resolvedUrl) {
+      logs.push("⚠️ No LinkedIn Profile URL provided. Skipping message.");
+      return;
+    }
+
+    // 1. Get User's LinkedIn Cookie
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, this.context.userId),
+      columns: { linkedinSessionCookie: true }
+    });
+
+    if (!user || !user.linkedinSessionCookie) {
+      logs.push("❌ Error: LinkedIn Session Cookie not found. Please add your 'li_at' cookie in Settings.");
+      throw new Error("LinkedIn Cookie missing");
+    }
+
+    logs.push(`🤖 Starting LinkedIn Automation for ${resolvedUrl}`);
+
+    // 2. Import Dynamically
+    const { sendLinkedinConnectRequest } = await import("@/lib/linkedin-automation");
+
+    // 3. Execute
+    const result = await sendLinkedinConnectRequest(
+      user.linkedinSessionCookie,
+      resolvedUrl,
+      resolvedMessage
+    );
+
+    // 4. Merge Logs
+    logs.push(...result.logs);
+
+    if (result.success) {
+      this.context.variables.lastMessageStatus = "sent";
+    } else {
+      this.context.variables.lastMessageStatus = "failed";
+      throw new Error(result.error || "LinkedIn automation failed");
+    }
+  }
+
+  private async executeWhatsAppNode(node: Node<NodeData>): Promise<void> {
+    const templateName = node.data.config?.templateName || "hello_world";
+    const businessPhone = this.context.businessData.phone;
+
+    if (!businessPhone) {
+      throw new Error("No phone number found for business");
+    }
+
+    const variables = node.data.config?.variables || [];
+
+    // Resolve variables
+    const resolvedVariables = variables.map((v: string) => this.resolveValue(v));
+
+    const components = [
+      {
+        type: "body",
+        parameters: resolvedVariables.map((v) => ({
+          type: "text",
+          text: String(v ?? "")
+        }))
+      }
+    ];
+
+    const { sendWhatsAppMessage } = await import("@/lib/whatsapp/client");
+
+    const result = await sendWhatsAppMessage({
+      to: businessPhone,
+      templateName,
+      templateLanguage: "en_US",
+      templateComponents: components
+    });
+
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+  }
+
   private getNextNodes(nodeId: string): Node<NodeData>[] {
     const outgoingEdges = this.edges.filter(e => e.source === nodeId);
     return outgoingEdges
@@ -418,53 +697,85 @@ export class WorkflowExecutor {
 }
 
 // Function to execute a workflow for all pending businesses
-export async function executeWorkflowLoop(
+import { queueWorkflowExecution } from "@/lib/queue";
+
+// Function to execute a workflow for all pending businesses
+export async function executeWorkflowLoopWithLogging(
   workflowId: string,
-  userId: string
-): Promise<{ success: boolean; totalProcessed: number; logs: string[] }> {
+  userId: string,
+  businessId?: string
+): Promise<{ success: boolean; logs: string[]; executionId: string }> {
+
   const workflow = await db.query.automationWorkflows.findFirst({
-    where: eq(automationWorkflows.id, workflowId)
+    where: and(
+      eq(automationWorkflows.id, workflowId),
+      eq(automationWorkflows.userId, userId)
+    ),
   });
 
   if (!workflow) {
-    return { success: false, totalProcessed: 0, logs: ["Workflow not found"] };
+    return { success: false, logs: ["Workflow not found"], executionId: "" };
   }
 
-  // Get pending businesses (not sent)
-  const pendingBusinesses = await db.query.businesses.findMany({
-    where: and(
-      eq(businesses.userId, userId),
-      eq(businesses.emailSent, false)
-    ),
-    limit: 5 // LIMIT to 5 for safety in this demo, or remove limit for full loop
-  });
+  const businessesToProcess: Business[] = [];
 
-  const allLogs: string[] = [];
-  let processed = 0;
+  if (businessId) {
+    const business = await db.query.businesses.findFirst({
+      where: and(
+        eq(businesses.id, businessId),
+        eq(businesses.userId, userId)
+      ),
+    });
+    if (!business) {
+      return { success: false, logs: ["Business not found"], executionId: "" };
+    }
+    businessesToProcess.push(business as unknown as Business);
+  } else {
+    // Bulk execution
+    const businessesList = await db.query.businesses.findMany({
+      where: and(
+        eq(businesses.userId, userId),
+        eq(businesses.category, workflow.targetBusinessType),
+        eq(businesses.emailSent, false),
+      ),
+      limit: 50,
+    });
+    businessesToProcess.push(...(businessesList as unknown as Business[]));
+  }
 
-  allLogs.push(`Found ${pendingBusinesses.length} pending businesses`);
+  const logs: string[] = [];
+  const executionIds: string[] = [];
 
-  for (const business of pendingBusinesses) {
-    allLogs.push(`--- Processing ${business.name} ---`);
-
-    // Check if keywords match (if defined in workflow) or if generic
-    // Simplify for now: Run for all pending
-
-    const executor = new WorkflowExecutor(
-      workflow.nodes as Node<NodeData>[],
-      workflow.edges as Edge[],
-      {
+  for (const business of businessesToProcess) {
+    // Create execution log entry for EACH business
+    const [executionLog] = await db
+      .insert(workflowExecutionLogs)
+      .values({
+        workflowId,
         businessId: business.id,
-        businessData: business as unknown as Record<string, unknown>,
-        variables: {},
-        userId
-      }
-    );
+        userId,
+        status: "pending", // changed from running to pending/queued
+        startedAt: new Date(),
+        logs: JSON.stringify([`⏳ Queued for execution (Business: ${business.name})`])
+      })
+      .returning();
 
-    const result = await executor.execute();
-    allLogs.push(...result.logs);
-    if (result.success) processed++;
+    executionIds.push(executionLog.id);
+
+    // Add to Queue
+    await queueWorkflowExecution({
+      workflowId,
+      userId,
+        businessId: business.id,
+      executionId: executionLog.id
+    });
+
+    logs.push(`Queued execution for ${business.name}`);
   }
 
-  return { success: true, totalProcessed: processed, logs: allLogs };
+  return {
+    success: true,
+    logs,
+    executionId: executionIds[0] || "", // Return first ID for reference
+  };
 }

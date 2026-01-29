@@ -13,7 +13,6 @@ import { Business } from "@/types";
 import {
   Users,
   Mail,
-  CheckCircle2,
   TrendingUp,
   Play,
   Loader2,
@@ -44,6 +43,8 @@ interface DashboardStats {
   emailsClicked: number;
   openRate: number;
   clickRate: number;
+  quotaUsed: number;
+  quotaLimit: number;
 }
 
 interface ChartDataPoint {
@@ -432,11 +433,24 @@ export default function DashboardPage() {
                   />
               </AnimatedContainer>
               <AnimatedContainer delay={0.4}>
-                  <StatCard
-                    title="Emails Opened"
-                    value={stats.emailsOpened}
-                    icon={CheckCircle2}
-                  />
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Daily Quota</CardTitle>
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.quotaUsed} / {stats.quotaLimit}</div>
+                    <p className="text-xs text-muted-foreground">
+                      {Math.round((stats.quotaUsed / stats.quotaLimit) * 100)}% used
+                    </p>
+                    <div className="mt-3 h-2 w-full bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${stats.quotaUsed >= stats.quotaLimit ? 'bg-red-500' : 'bg-blue-500'}`}
+                        style={{ width: `${Math.min((stats.quotaUsed / stats.quotaLimit) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               </AnimatedContainer>
               <AnimatedContainer delay={0.5}>
                   <StatCard

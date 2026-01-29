@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { emailLogs, businesses } from "@/db/schema";
+import { emailLogs, businesses, notifications } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -36,11 +36,18 @@ export async function POST(request: Request) {
             })
             .where(eq(emailLogs.businessId, business.id));
 
-          // Update business email status
           await db
             .update(businesses)
             .set({ emailStatus: "opened" })
             .where(eq(businesses.id, business.id));
+
+          // Notify user
+          await db.insert(notifications).values({
+            userId: business.userId,
+            title: "Email Opened",
+            message: `${business.name} opened your email`,
+            type: "info",
+          });
           break;
 
         case "click":
@@ -57,6 +64,13 @@ export async function POST(request: Request) {
             .update(businesses)
             .set({ emailStatus: "clicked" })
             .where(eq(businesses.id, business.id));
+
+          await db.insert(notifications).values({
+            userId: business.userId,
+            title: "Link Clicked",
+            message: `${business.name} clicked a link in your email`,
+            type: "success",
+          });
           break;
 
         case "bounce":
@@ -72,6 +86,13 @@ export async function POST(request: Request) {
             .update(businesses)
             .set({ emailStatus: "bounced" })
             .where(eq(businesses.id, business.id));
+
+          await db.insert(notifications).values({
+            userId: business.userId,
+            title: "Email Bounced",
+            message: `Email to ${business.name} bounced`,
+            type: "error",
+          });
           break;
 
         case "spam":
@@ -87,6 +108,13 @@ export async function POST(request: Request) {
             .update(businesses)
             .set({ emailStatus: "failed" })
             .where(eq(businesses.id, business.id));
+
+          await db.insert(notifications).values({
+            userId: business.userId,
+            title: "Spam Report",
+            message: `${business.name} reported your email as spam`,
+            type: "error",
+          });
           break;
 
         case "unsubscribe":
@@ -94,6 +122,13 @@ export async function POST(request: Request) {
             .update(businesses)
             .set({ emailStatus: "unsubscribed" })
             .where(eq(businesses.id, business.id));
+
+          await db.insert(notifications).values({
+            userId: business.userId,
+            title: "Unsubscribed",
+            message: `${business.name} unsubscribed`,
+            type: "warning",
+          });
           break;
 
         default:

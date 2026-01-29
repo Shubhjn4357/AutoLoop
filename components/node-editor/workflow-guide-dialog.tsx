@@ -162,7 +162,7 @@ export function WorkflowGuideDialog({ open, onOpenChange }: WorkflowGuideProps) 
                                             Nodes also append data to the context. For example, an API Request node might save its response to <code className="bg-muted px-1 rounded">apiResponse</code>.
                                         </p>
                                         <div className="bg-slate-950 text-slate-50 p-4 rounded-md font-mono text-xs">
-                                            <span className="text-green-400">// Example Context Data</span><br />
+                                            <span className="text-green-400">{`// Example Context Data`}</span><br />
                                             {`{
   "email": "user@example.com",
   "apiResponse": {

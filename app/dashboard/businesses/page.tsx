@@ -8,8 +8,9 @@ import { BusinessDetailModal } from "@/components/dashboard/business-detail-moda
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { bulkDeleteBusinesses } from "@/app/actions/business";
-import { Trash2 } from "lucide-react";
+import { Trash2, Search, MapPin, Star } from "lucide-react";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -38,14 +39,32 @@ export default function BusinessesPage() {
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const [limit] = useState(10); // Or make this adjustable
+    const [limit] = useState(10); 
 
+    // Filter state
     const [filterCategory, setFilterCategory] = useState("all");
     const [filterStatus, setFilterStatus] = useState("all");
+    const [filterMinRating, setFilterMinRating] = useState("all");
+    const [searchKeyword, setSearchKeyword] = useState("");
+    const [searchLocation, setSearchLocation] = useState("");
+
+    // Debounce search
+    const [debouncedKeyword, setDebouncedKeyword] = useState("");
+    const [debouncedLocation, setDebouncedLocation] = useState("");
+
     const [categories, setCategories] = useState<string[]>([]);
 
     const { get: getBusinessesApi } = useApi<{ businesses: Business[], totalPages: number, page: number }>();
     const { get: getCategoriesApi } = useApi<{ categories: string[] }>();
+
+    // Debounce effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedKeyword(searchKeyword);
+            setDebouncedLocation(searchLocation);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchKeyword, searchLocation]);
 
     // Fetch categories on mount
     useEffect(() => {
@@ -66,6 +85,9 @@ export default function BusinessesPage() {
             params.append("limit", limit.toString());
             if (filterCategory !== "all") params.append("category", filterCategory);
             if (filterStatus !== "all") params.append("status", filterStatus);
+            if (filterMinRating !== "all") params.append("minRating", filterMinRating);
+            if (debouncedKeyword) params.append("keyword", debouncedKeyword);
+            if (debouncedLocation) params.append("location", debouncedLocation);
 
             const data = await getBusinessesApi(`/api/businesses?${params.toString()}`);
             if (mounted && data) {
@@ -75,7 +97,7 @@ export default function BusinessesPage() {
         };
         load();
         return () => { mounted = false; };
-    }, [getBusinessesApi, currentPage, limit, filterCategory, filterStatus]);
+    }, [getBusinessesApi, currentPage, limit, filterCategory, filterStatus, filterMinRating, debouncedKeyword, debouncedLocation]);
 
     const handleConfirmDelete = async () => {
         try {
@@ -120,9 +142,8 @@ export default function BusinessesPage() {
             <div className="flex justify-start items-center">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Your Businesses</h2>
-                    <p className="text-muted-foreground">Manage all your collected leads</p>
+                    <p className="text-muted-foreground">Manage and filter all your collected leads</p>
                 </div>
-                
             </div>
 
             <Card>
@@ -130,48 +151,84 @@ export default function BusinessesPage() {
                     <CardTitle>All Leads ({businesses.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex justify-between items-center mb-4">
-                       <div className="flex gap-4">
-
-                        <Select
-                            value={filterStatus}
-                            onValueChange={setFilterStatus}
-                        >
-                            <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="All Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Status</SelectItem>
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="sent">Sent</SelectItem>
-                                <SelectItem value="failed">Failed</SelectItem>
-                            </SelectContent>
-                        </Select>
-
-                        <Select
-                            value={filterCategory}
-                            onValueChange={setFilterCategory}
-                        >
-                            <SelectTrigger className="w-[200px]">
-                                <SelectValue placeholder="All Categories" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Categories</SelectItem>
-                                {categories.map((category) => (
-                                    <SelectItem key={category} value={category}>
-                                        {category}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                    <div className="space-y-4 mb-6">
+                        {/* Search Row */}
+                        <div className="flex gap-4">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search by name or category..."
+                                    className="pl-9"
+                                    value={searchKeyword}
+                                    onChange={(e) => setSearchKeyword(e.target.value)}
+                                />
+                            </div>
+                            <div className="relative flex-1">
+                                <MapPin className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Filter by location (e.g. New York)..."
+                                    className="pl-9"
+                                    value={searchLocation}
+                                    onChange={(e) => setSearchLocation(e.target.value)}
+                                />
+                            </div>
                         </div>
-                        {selectedIds.length > 0 && (
-                            <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete ({selectedIds.length})
-                            </Button>
-                        )}
+
+                        {/* Filters Row */}
+                        <div className="flex flex-wrap gap-4 items-center justify-between">
+                            <div className="flex flex-wrap gap-4">
+                                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                                    <SelectTrigger className="w-[150px]">
+                                        <SelectValue placeholder="Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Status</SelectItem>
+                                        <SelectItem value="pending">Pending</SelectItem>
+                                        <SelectItem value="sent">Sent</SelectItem>
+                                        <SelectItem value="failed">Failed</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                                    <SelectTrigger className="w-[180px]">
+                                        <SelectValue placeholder="Category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Categories</SelectItem>
+                                        {categories.map((category) => (
+                                            <SelectItem key={category} value={category}>
+                                                {category}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                <Select value={filterMinRating} onValueChange={setFilterMinRating}>
+                                    <SelectTrigger className="w-[150px]">
+                                        <div className="flex items-center gap-2">
+                                            <Star className="h-4 w-4 text-yellow-500" />
+                                            <SelectValue placeholder="Rating" />
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Any Rating</SelectItem>
+                                        <SelectItem value="3">3+ Stars</SelectItem>
+                                        <SelectItem value="4">4+ Stars</SelectItem>
+                                        <SelectItem value="4.5">4.5+ Stars</SelectItem>
+                                        <SelectItem value="5">5 Stars</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {selectedIds.length > 0 && (
+                                <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete ({selectedIds.length})
+                                </Button>
+                            )}
+                        </div>
                     </div>
+
                     <BusinessTable
                         businesses={businesses}
                         onViewDetails={handleViewDetails}

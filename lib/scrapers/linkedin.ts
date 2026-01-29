@@ -9,15 +9,15 @@ export const linkedinScraper: ScraperSource = {
     displayName: "LinkedIn",
     enabled: true,
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async scrape(options: ScrapingOptions, _userId: string): Promise<BusinessData[]> {
+    async scrape(options: ScrapingOptions): Promise<BusinessData[]> {
         const { keywords, location, limit = 20 } = options;
         const businesses: BusinessData[] = [];
 
         console.log(`🔍 LinkedIn Scraper: Searching for "${keywords.join(", ")}" in ${location}`);
 
+        let browser;
         try {
-            const browser = await puppeteer.launch({
+            browser = await puppeteer.launch({
                 headless: true,
                 args: ["--no-sandbox", "--disable-setuid-sandbox"],
             });
@@ -60,12 +60,16 @@ export const linkedinScraper: ScraperSource = {
                             if (name && website.includes("linkedin.com/company")) {
                                 items.push({
                                     name,
-                                    website,
+                                    website, // LinkedIn URL as website
                                     description: description.substring(0, 200),
                                     source: "linkedin",
                                     sourceUrl: website,
-                                    address: "LinkedIn Profile", // Placeholder
-                                    category: "Company Profile"
+                                    address: "LinkedIn Profile",
+                                    category: "Company Profile",
+                                    phone: undefined,
+                                    email: undefined,
+                                    rating: undefined,
+                                    reviewCount: undefined
                                 });
                             }
                         } catch {
@@ -75,17 +79,25 @@ export const linkedinScraper: ScraperSource = {
                     return items;
                 });
 
-                businesses.push(...results);
+                // Remove duplicates based on website (LinkedIn URL)
+                const uniqueResults = results.filter(r =>
+                    !businesses.some(b => b.website === r.website)
+                );
+
+                businesses.push(...uniqueResults);
 
                 // Rate limit delay
                 await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 2000));
             }
 
-            await browser.close();
             return businesses.slice(0, limit);
         } catch (error) {
             console.error("❌ LinkedIn scraper failed:", error);
             return businesses;
+        } finally {
+            if (browser) {
+                await browser.close();
+            }
         }
     },
 };

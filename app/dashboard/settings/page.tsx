@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect as reactUseEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,7 @@ export default function SettingsPage() {
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
 
   // API Hooks
-  const { get: getSettings, patch: patchSettings, loading: settingsLoading } = useApi<{ user: UserProfile & { isGeminiKeySet: boolean, isGmailConnected: boolean } }>();
+  const { get: getSettings, patch: patchSettings, loading: settingsLoading } = useApi<{ user: UserProfile & { isGeminiKeySet: boolean, isGmailConnected: boolean, isLinkedinCookieSet: boolean } }>();
   const { get: getStatus, loading: statusLoading } = useApi<StatusResponse>();
   const { del: deleteUserFn, loading: deletingUser } = useApi<void>();
   const { del: deleteDataFn, loading: deletingData } = useApi<void>();
@@ -74,7 +74,7 @@ export default function SettingsPage() {
   });
 
   // Fetch initial data
-  reactUseEffect(() => {
+  useEffect(() => {
     const fetchData = async () => {
         // Fetch User Settings
       const settingsData = await getSettings("/api/settings");
@@ -121,6 +121,41 @@ export default function SettingsPage() {
       toast({
         title: "Error",
         description: "Failed to update API key.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  const [linkedinCookie, setLinkedinCookie] = useState("");
+  const [isLinkedinCookieSet, setIsLinkedinCookieSet] = useState(false);
+
+  // Load LinkedIn cookie set status
+  useEffect(() => {
+    const loadLinkedinStatus = async () => {
+      const settingsData = await getSettings("/api/user/settings");
+      if (settingsData?.user?.isLinkedinCookieSet) {
+        setIsLinkedinCookieSet(true);
+      }
+    };
+    loadLinkedinStatus();
+  }, [getSettings]);
+
+  const handleSaveLinkedinCookie = async () => {
+    if (!linkedinCookie) return;
+
+    const result = await patchSettings("/api/settings", { linkedinSessionCookie: linkedinCookie });
+
+    if (result) {
+      setIsLinkedinCookieSet(true);
+      setLinkedinCookie("");
+      toast({
+        title: "LinkedIn Cookie Updated",
+        description: "Your session cookie has been saved.",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to update cookie.",
         variant: "destructive",
       });
     }
@@ -584,6 +619,42 @@ export default function SettingsPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Required for AI-powered email generation and scraping.
+                </p>
+              </div>
+
+              {/* LinkedIn Session Cookie */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>LinkedIn Session Cookie (li_at)</Label>
+                  <Badge variant={isLinkedinCookieSet ? "default" : "secondary"}>
+                    {isLinkedinCookieSet ? "Configured" : "Not Set"}
+                  </Badge>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    placeholder={isLinkedinCookieSet ? "••••••••••••••••" : "Paste your li_at cookie here"}
+                    value={linkedinCookie}
+                    onChange={(e) => setLinkedinCookie(e.target.value)}
+                  />
+                  <Button
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={handleSaveLinkedinCookie}
+                    disabled={settingsLoading || !linkedinCookie}
+                  >
+                    {settingsLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Update"
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Required for real LinkedIn automation.
+                  <span className="text-yellow-600 dark:text-yellow-400 font-medium ml-1">
+                    Warning: Use with caution.
+                  </span>
                 </p>
               </div>
 

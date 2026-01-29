@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import ReactFlow, {
   Node,
   Edge,
@@ -28,6 +28,7 @@ import { WorkflowTemplatesDialog } from "./workflow-templates-dialog";
 import { WorkflowGuideDialog } from "./workflow-guide-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useUndoRedo } from "./use-undo-redo";
 
 
 const nodeTypes = {
@@ -36,10 +37,10 @@ const nodeTypes = {
 
 export interface NodeData {
   label: string;
-  type: "start" | "condition" | "template" | "delay" | "custom" | "gemini" | "apiRequest" | "agent" | "webhook" | "schedule" | "merge" | "splitInBatches" | "filter" | "set" | "scraper";
+  type: "start" | "condition" | "template" | "delay" | "custom" | "gemini" | "apiRequest" | "agent" | "webhook" | "schedule" | "merge" | "splitInBatches" | "filter" | "set" | "scraper" | "linkedinScraper" | "linkedinMessage" | "abSplit" | "whatsappNode" | "database";
   config?: {
     templateId?: string;
-    delayHours?: number;
+    delayHours?: number; // kept for legacy or generic delay
     condition?: string;
     customCode?: string;
     aiPrompt?: string;
@@ -59,14 +60,28 @@ export interface NodeData {
     // Scraper config
     scraperAction?: "summarize" | "extract-emails" | "clean-html" | "markdown" | "fetch-url";
     scraperInputField?: string;
+    // Conditional Sending Config
+    preventDuplicates?: boolean;
+    cooldownDays?: number;
+    // LinkedIn Config
+    linkedinKeywords?: string;
+    linkedinLocation?: string;
+    profileUrl?: string; // used for message
+    messageBody?: string;
+    // A/B Split Config
+    abSplitWeight?: number; // percentage for path A (default 50)
+    // WhatsApp Config
+    templateName?: string;
+    variables?: string[];
+    // Database Config
+    operation?: string;
+    tableName?: string;
+    data?: string;
   };
   isConnected?: boolean;
 }
 
-interface HistoryState {
-  nodes: Node<NodeData>[];
-  edges: Edge[];
-}
+
 
 interface NodeEditorProps {
   initialNodes?: Node<NodeData>[];
@@ -125,44 +140,85 @@ export function NodeEditor({
   const [canvasMode, setCanvasMode] = useState<'drag' | 'select'>('drag');
   const { toast } = useToast();
 
-  // Undo/Redo system
-  const [history, setHistory] = useState<HistoryState[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  // Undo/Redo hook
+  const { undo, redo, canUndo, canRedo, takeSnapshot } = useUndoRedo(initialNodes, initialEdges);
 
-  // Save to history
-  const saveToHistory = useCallback(() => {
-    const newState = { nodes: [...nodes], edges: [...edges] };
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(newState);
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  }, [nodes, edges, history, historyIndex]);
-
-  // Undo
+  // Undo Handler
   const handleUndo = useCallback(() => {
-    if (historyIndex > 0) {
-      const prevState = history[historyIndex - 1];
+    const prevState = undo(nodes, edges);
+    if (prevState) {
       setNodes(prevState.nodes);
       setEdges(prevState.edges);
-      setHistoryIndex(historyIndex - 1);
     }
-  }, [historyIndex, history, setNodes, setEdges]);
+  }, [undo, nodes, edges, setNodes, setEdges]);
 
-  // Redo
+  // Redo Handler
   const handleRedo = useCallback(() => {
-    if (historyIndex < history.length - 1) {
-      const nextState = history[historyIndex + 1];
+    const nextState = redo(nodes, edges);
+    if (nextState) {
       setNodes(nextState.nodes);
       setEdges(nextState.edges);
-      setHistoryIndex(historyIndex + 1);
     }
-  }, [historyIndex, history, setNodes, setEdges]);
+  }, [redo, nodes, edges, setNodes, setEdges]);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Undo: Ctrl+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      // Redo: Ctrl+Y or Ctrl+Shift+Z
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+        e.preventDefault();
+        handleRedo();
+      }
+      // Save: Ctrl+S
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (onSave) {
+          onSave(nodes, edges);
+          toast({ title: "Saved", description: "Workflow saved successfully." });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo, onSave, nodes, edges, toast]);
+
+  // Auto-Save
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+
+  useEffect(() => {
+    if (!onSave) return;
+
+    // Clear previous timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Capture changes for auto-save
+    setIsAutoSaving(true);
+    saveTimeoutRef.current = setTimeout(() => {
+      onSave(nodes, edges);
+      setIsAutoSaving(false);
+    }, 2000); // 2 second debounce
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [nodes, edges, onSave]);
 
   // Paste node handler - using ref to avoid hoisting issues
   const handlePasteNodeRef = useRef<(() => void) | null>(null);
 
   const handlePasteNode = useCallback(() => {
     if (copiedNodes.length === 0) return;
+
+    takeSnapshot(nodes, edges); // Snapshot before pasting
 
     const newNodes = copiedNodes.map((node) => ({
       ...node,
@@ -176,31 +232,29 @@ export function NodeEditor({
 
     setNodes((nds) => [...nds.map(n => ({ ...n, selected: false })), ...newNodes]);
     setSelectedNodes(newNodes);
-    saveToHistory();
-  }, [copiedNodes, setNodes, saveToHistory]);
+  }, [copiedNodes, setNodes, nodes, edges, takeSnapshot]);
 
   // Delete selected node handler - using ref to avoid hoisting issues
   const handleDeleteSelectedNodeRef = useRef<(() => void) | null>(null);
 
   const handleDeleteSelectedNode = useCallback(() => {
-    if (selectedNodes.length > 0) {
-      const selectedIds = selectedNodes.map(n => n.id);
-      setNodes((nds) => nds.filter((n) => !selectedIds.includes(n.id)));
-      setEdges((eds) =>
-        eds.filter((e) => !selectedIds.includes(e.source) && !selectedIds.includes(e.target))
-      );
-      setSelectedNodes([]);
-      setSelectedNode(null);
-      saveToHistory();
-    } else if (selectedNode) {
-      setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
-      setEdges((eds) =>
-        eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id)
-      );
-      setSelectedNode(null);
-      saveToHistory();
+    if (selectedNodes.length > 0 || selectedNode) {
+      takeSnapshot(nodes, edges);
+
+      const idsToDelete = selectedNodes.length > 0
+        ? selectedNodes.map(n => n.id)
+        : (selectedNode ? [selectedNode.id] : []);
+
+      if (idsToDelete.length > 0) {
+        setNodes((nds) => nds.filter((n) => !idsToDelete.includes(n.id)));
+        setEdges((eds) =>
+          eds.filter((e) => !idsToDelete.includes(e.source) && !idsToDelete.includes(e.target))
+        );
+        setSelectedNodes([]);
+        setSelectedNode(null);
+      }
     }
-  }, [selectedNode, selectedNodes, setNodes, setEdges, saveToHistory]);
+  }, [selectedNode, selectedNodes, setNodes, setEdges, takeSnapshot, nodes, edges]);
 
   // Update refs in effect to avoid render side-effects
   useEffect(() => {
@@ -256,10 +310,10 @@ export function NodeEditor({
 
   const onConnect = useCallback(
     (params: Connection) => {
+      takeSnapshot(nodes, edges);
       setEdges((eds) => addEdge(params, eds));
-      saveToHistory();
     },
-    [setEdges, saveToHistory]
+    [setEdges, takeSnapshot, nodes, edges]
   );
 
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
@@ -282,6 +336,11 @@ export function NodeEditor({
         filter: "Filter",
         set: "Set Variables",
         scraper: "Scraper Action",
+        linkedinScraper: "LinkedIn Scraper",
+        linkedinMessage: "LinkedIn Message",
+        abSplit: "A/B Split",
+        whatsappNode: "Send WhatsApp",
+        database: "Database Operation",
       };
 
       // Calculate center position
@@ -310,10 +369,10 @@ export function NodeEditor({
         position,
       };
 
+      takeSnapshot(nodes, edges);
       setNodes((nds) => [...nds, newNode]);
-      saveToHistory();
     },
-    [setNodes, saveToHistory, rfInstance]
+    [setNodes, takeSnapshot, rfInstance, nodes, edges]
   );
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node<NodeData>) => {
@@ -356,17 +415,18 @@ export function NodeEditor({
     if (!contextMenu) return;
 
     if (contextMenu.nodeId) {
+      takeSnapshot(nodes, edges);
       setNodes((nds) => nds.filter((n) => n.id !== contextMenu.nodeId));
       setEdges((eds) =>
         eds.filter((e) => e.source !== contextMenu.nodeId && e.target !== contextMenu.nodeId)
       );
     } else if (contextMenu.edgeId) {
+      takeSnapshot(nodes, edges);
       setEdges((eds) => eds.filter((e) => e.id !== contextMenu.edgeId));
     }
 
     setContextMenu(null);
-    saveToHistory();
-  }, [contextMenu, setNodes, setEdges, saveToHistory]);
+  }, [contextMenu, setNodes, setEdges, takeSnapshot, nodes, edges]);
 
   const handleDuplicateNode = useCallback(() => {
     if (!contextMenu) return;
@@ -382,13 +442,14 @@ export function NodeEditor({
       },
     };
 
+    takeSnapshot(nodes, edges);
     setNodes((nds) => [...nds, newNode]);
     setContextMenu(null);
-    saveToHistory();
-  }, [contextMenu, nodes, setNodes, saveToHistory]);
+  }, [contextMenu, nodes, setNodes, takeSnapshot, edges]);
 
   const updateNodeConfig = useCallback(
     (nodeId: string, config: NodeData["config"], label?: string) => {
+      takeSnapshot(nodes, edges);
       setNodes((nds) =>
         nds.map((node) =>
           node.id === nodeId
@@ -396,9 +457,8 @@ export function NodeEditor({
             : node
         )
       );
-      saveToHistory();
     },
-    [setNodes, saveToHistory]
+    [setNodes, takeSnapshot, nodes, edges]
   );
 
   const handleSave = useCallback(() => {
@@ -475,21 +535,21 @@ export function NodeEditor({
   }, [workflowId, nodes, toast]);
 
   const loadTemplate = useCallback((templateNodes: Node<NodeData>[], templateEdges: Edge[]) => {
+    takeSnapshot(nodes, edges);
     setNodes(templateNodes);
     setEdges(templateEdges);
-    saveToHistory();
     setIsTemplatesOpen(false);
-  }, [setNodes, setEdges, saveToHistory]);
+  }, [setNodes, setEdges, takeSnapshot, nodes, edges]);
 
   const handleAiGenerate = useCallback((generatedNodes: Node<NodeData>[], generatedEdges: Edge[]) => {
+    takeSnapshot(nodes, edges);
     setNodes(generatedNodes);
     setEdges(generatedEdges);
-    saveToHistory();
     toast({
       title: "Workflow Generated",
       description: "AI successfully created the workflow structure.",
     });
-  }, [setNodes, setEdges, saveToHistory, toast]);
+  }, [setNodes, setEdges, takeSnapshot, toast, nodes, edges]);
 
   // Close context menu when clicking outside
   useEffect(() => {
@@ -543,7 +603,7 @@ export function NodeEditor({
                       onClick={handleUndo}
                       size="icon"
                       variant="ghost"
-                      disabled={historyIndex <= 0}
+                      disabled={!canUndo}
                     >
                       <Undo className="h-4 w-4" />
                     </Button>
@@ -557,7 +617,7 @@ export function NodeEditor({
                       onClick={handleRedo}
                       size="icon"
                       variant="ghost"
-                      disabled={historyIndex >= history.length - 1}
+                      disabled={!canRedo}
                     >
                       <Redo className="h-4 w-4" />
                     </Button>
@@ -630,7 +690,7 @@ export function NodeEditor({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button onClick={handleSave} size="icon" variant="outline" disabled={isSaving}>
-                      {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {(isSaving || isAutoSaving) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Save Workflow</TooltipContent>
@@ -709,11 +769,11 @@ export function NodeEditor({
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs font-semibold text-muted-foreground mr-1">Actions:</span>
-                  {["template", "apiRequest", "gemini", "agent", "set", "scraper"].map((type) => (
+                  {["template", "apiRequest", "gemini", "agent", "set", "scraper", "whatsappNode"].map((type) => (
                     <Tooltip key={type}>
                       <TooltipTrigger asChild>
                         <Button variant="outline" size="sm" onClick={() => addNode(type as NodeData["type"])}>
-                          <Plus className="h-3 w-3 mr-1" />{type === 'apiRequest' ? 'API' : type.charAt(0).toUpperCase() + type.slice(1)}
+                          <Plus className="h-3 w-3 mr-1" />{type === 'apiRequest' ? 'API' : type === 'whatsappNode' ? 'WhatsApp' : type.charAt(0).toUpperCase() + type.slice(1)}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Add {type} node</TooltipContent>
@@ -722,11 +782,11 @@ export function NodeEditor({
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs font-semibold text-muted-foreground mr-1">Logic:</span>
-                  {["condition", "delay", "merge", "splitInBatches", "filter", "custom"].map((type) => (
+                  {["condition", "delay", "merge", "splitInBatches", "filter", "custom", "abSplit"].map((type) => (
                     <Tooltip key={type}>
                       <TooltipTrigger asChild>
                         <Button variant="outline" size="sm" onClick={() => addNode(type as NodeData["type"])}>
-                          <Plus className="h-3 w-3 mr-1" />{type === 'splitInBatches' ? 'Loop' : type.charAt(0).toUpperCase() + type.slice(1)}
+                          <Plus className="h-3 w-3 mr-1" />{type === 'splitInBatches' ? 'Loop' : type === 'abSplit' ? 'A/B Split' : type.charAt(0).toUpperCase() + type.slice(1)}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Add {type} node</TooltipContent>
@@ -847,11 +907,11 @@ export function NodeEditor({
             setIsConfigOpen(false);
           }}
             onDelete={() => {
+              takeSnapshot(nodes, edges);
               setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
               setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
               setSelectedNode(null);
               setIsConfigOpen(false);
-              saveToHistory();
             }}
         />
       )}
@@ -867,9 +927,9 @@ export function NodeEditor({
           open={isImportOpen}
           onOpenChange={setIsImportOpen}
           onImport={(n, e) => {
+            takeSnapshot(nodes, edges);
             setNodes(n);
             setEdges(e);
-            saveToHistory();
             setIsImportOpen(false);
           }}
         />

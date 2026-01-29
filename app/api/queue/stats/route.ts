@@ -5,7 +5,7 @@ import { getQueueStats } from "@/lib/queue";
 /**
  * Get queue statistics for monitoring
  */
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const session = await auth();
     if (!session?.user) {

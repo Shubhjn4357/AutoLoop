@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -74,6 +74,10 @@ const NODE_HELPERS = {
         description: "Makes an HTTP request. Response saved to {variables.apiResponse}.",
         variables: ALL_VARIABLES
     },
+    database: {
+        description: "Save data to a custom variable list or external DB.",
+        variables: ["result"]
+    },
     webhook: {
         description: "Triggers the workflow via an external HTTP call.",
         variables: ["query", "body"]
@@ -105,6 +109,14 @@ const NODE_HELPERS = {
     agent: {
         description: "AI Agent that processes Excel/CSV data. Result saved to {variables.aiResult}.",
         variables: ["row", "context", ...ALL_VARIABLES]
+    },
+    linkedinScraper: {
+        description: "Scrapes LinkedIn profiles via Google. Result saved to {variables.linkedinResults}.",
+        variables: ALL_VARIABLES
+    },
+    linkedinMessage: {
+        description: "Sends a connection request or message to a LinkedIn profile.",
+        variables: ALL_VARIABLES
     }
 };
 
@@ -112,6 +124,7 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave, onDelete }:
     const [config, setConfig] = useState<NodeData["config"]>(node.data.config || {});
     const [label, setLabel] = useState(node.data.label);
     const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+    const [whatsappTemplates, setWhatsappTemplates] = useState<{ name: string, language: string }[]>([]);
     const [testInput, setTestInput] = useState("{}");
     const [testOutput, setTestOutput] = useState("");
     const [isTesting, setIsTesting] = useState(false);
@@ -146,6 +159,21 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave, onDelete }:
                 }
             };
             fetchTemplates();
+        }
+    }, [open, node.data.type, get]);
+
+    // Fetch WhatsApp templates
+    useEffect(() => {
+        if (open && node.data.type === "whatsappNode") {
+            const fetchWaTemplates = async () => {
+                const result = await get<{ templates: { name: string; language: string; status: string }[] }>('/api/whatsapp/templates');
+                if (result && result.templates) {
+                    setWhatsappTemplates(result.templates);
+                } else {
+                    setWhatsappTemplates([{ name: 'hello_world', language: 'en_US' }]);
+                }
+            };
+            fetchWaTemplates();
         }
     }, [open, node.data.type, get]);
 
@@ -240,6 +268,42 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave, onDelete }:
                                 Select which email template to send when this node is reached
                             </p>
                         </div>
+                        <div className="flex items-center space-x-2 border p-3 rounded-md">
+                            <input
+                                type="checkbox"
+                                id="preventDuplicates"
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                checked={config?.preventDuplicates !== false} // Default to true
+                                onChange={(e) => setConfig({ ...config, preventDuplicates: e.target.checked })}
+                            />
+                            <div className="space-y-1">
+                                <Label htmlFor="preventDuplicates" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    Prevent Duplicates
+                                </Label>
+                                <p className="text-[10px] text-muted-foreground">
+                                    Don&apos;t send if this specific template was already sent to this business.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="cooldownDays">Fatigue Management (Cool-down)</Label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    id="cooldownDays"
+                                    type="number"
+                                    min="0"
+                                    max="365"
+                                    className="w-24"
+                                    placeholder="3"
+                                    value={config?.cooldownDays !== undefined ? config.cooldownDays : 3}
+                                    onChange={(e) => setConfig({ ...config, cooldownDays: parseInt(e.target.value) || 0 })}
+                                />
+                                <span className="text-sm text-muted-foreground">days</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Skip if ANY email was sent to this business within this many days. Set to 0 to disable.
+                            </p>
+                        </div>
                     </div>
                 );
 
@@ -311,6 +375,64 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave, onDelete }:
                             <div className="text-xs text-muted-foreground">
                                 <p>Enter a prompt for Gemini AI.</p>
                             </div>
+                        </div>
+                    </div>
+                );
+
+            case "database":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="operation">Operation</Label>
+                            <Select
+                                value={config?.operation || "upsert"}
+                                onValueChange={(value) => setConfig({ ...config, operation: value })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Upsert" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="upsert">Upsert (Insert or Update)</SelectItem>
+                                    <SelectItem value="insert">Insert Only</SelectItem>
+                                    <SelectItem value="update">Update Only</SelectItem>
+                                    <SelectItem value="delete">Delete</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="tableName">Table / Collection Name</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, tableName: (config?.tableName || "") + v })}
+                                />
+                            </div>
+                            <Input
+                                id="tableName"
+                                placeholder="leads"
+                                value={config?.tableName || ""}
+                                onChange={(e) => setConfig({ ...config, tableName: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="data">Data (JSON)</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, data: (config?.data || "") + v })}
+                                />
+                            </div>
+                            <Textarea
+                                id="data"
+                                placeholder='{ "email": "{business.email}", "status": "processed" }'
+                                rows={5}
+                                value={config?.data || ""}
+                                onChange={(e) => setConfig({ ...config, data: e.target.value })}
+                                className="font-mono text-sm"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                The data to save. For updates, ensure you include the ID or unique key.
+                            </p>
                         </div>
                     </div>
                 );
@@ -577,6 +699,142 @@ export function NodeConfigDialog({ open, onOpenChange, node, onSave, onDelete }:
                             />
                             <p className="text-xs text-muted-foreground">
                                 The variable or URL to process. Use <code>{`{business.website}`}</code> for fetching.
+                            </p>
+                        </div>
+                    </div>
+                );
+
+            case "linkedinScraper":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="linkedinKeywords">Keywords</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, linkedinKeywords: (config?.linkedinKeywords || "") + v })}
+                                />
+                            </div>
+                            <Input
+                                id="linkedinKeywords"
+                                placeholder="Software Engineer, CTO, Marketing Manager"
+                                value={config?.linkedinKeywords || ""}
+                                onChange={(e) => setConfig({ ...config, linkedinKeywords: e.target.value })}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Comma-separated keywords or variables.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="linkedinLocation">Location</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, linkedinLocation: (config?.linkedinLocation || "") + v })}
+                                />
+                            </div>
+                            <Input
+                                id="linkedinLocation"
+                                placeholder="San Francisco, New York"
+                                value={config?.linkedinLocation || ""}
+                                onChange={(e) => setConfig({ ...config, linkedinLocation: e.target.value })}
+                            />
+                        </div>
+                    </div>
+                );
+
+            case "linkedinMessage":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="profileUrl">LinkedIn Profile URL</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, profileUrl: (config?.profileUrl || "") + v })}
+                                />
+                            </div>
+                            <Input
+                                id="profileUrl"
+                                placeholder="{linkedinResults[0].website} or https://linkedin.com/..."
+                                value={config?.profileUrl || ""}
+                                onChange={(e) => setConfig({ ...config, profileUrl: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="messageBody">Message Body</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => setConfig({ ...config, messageBody: (config?.messageBody || "") + v })}
+                                />
+                            </div>
+                            <Textarea
+                                id="messageBody"
+                                placeholder="Hi {business.name}, I noticed that..."
+                                rows={5}
+                                value={config?.messageBody || ""}
+                                onChange={(e) => setConfig({ ...config, messageBody: e.target.value })}
+                            />
+                        </div>
+                    </div>
+                );
+
+            case "whatsappNode":
+                return (
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="templateName">Template Name</Label>
+                            {whatsappTemplates.length > 0 ? (
+                                <Select
+                                    value={config?.templateName || ""}
+                                    onValueChange={(value) => setConfig({ ...config, templateName: value })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a template" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {whatsappTemplates.map((t) => (
+                                            <SelectItem key={t.name} value={t.name}>
+                                                {t.name} ({t.language})
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Input
+                                    id="templateName"
+                                    value={config?.templateName || ""}
+                                    onChange={(e) => setConfig({ ...config, templateName: e.target.value })}
+                                    placeholder="hello_world"
+                                />
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                                Select an approved template from Meta.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <Label>Variables (comma separated)</Label>
+                                <VariableInsert
+                                    variables={variables}
+                                    onInsert={(v) => {
+                                        const current = config?.variables || [];
+                                        setConfig({ ...config, variables: [...current, v] });
+                                    }}
+                                />
+                            </div>
+                            <Input
+                                value={(config?.variables || []).join(", ")}
+                                onChange={(e) => {
+                                    const vars = e.target.value.split(",").map(v => v.trim()); // Allow empty strings while typing?? Better logic needed or simple text
+                                    // For simplicity let's just parse comma separated
+                                    setConfig({ ...config, variables: vars });
+                                }}
+                                placeholder="{{businessName}}, {{firstName}}"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Order matters. These map to {`{{1}}`}, {`{{2}}`} in your template.
                             </p>
                         </div>
                     </div>

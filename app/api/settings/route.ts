@@ -34,6 +34,7 @@ export async function GET() {
         image: users.image,
         geminiApiKey: users.geminiApiKey,
         accessToken: users.accessToken,
+        linkedinSessionCookie: users.linkedinSessionCookie,
         phone: users.phone,
         jobTitle: users.jobTitle,
         company: users.company,
@@ -61,6 +62,7 @@ export async function GET() {
         geminiApiKey: maskedGeminiKey,
         isGeminiKeySet: !!user.geminiApiKey,
         isGmailConnected: !!user.accessToken,
+        isLinkedinCookieSet: !!user.linkedinSessionCookie,
         phone: user.phone,
         jobTitle: user.jobTitle,
         company: user.company,
@@ -87,13 +89,14 @@ export async function PATCH(request: Request) {
     const userId = await getEffectiveUserId(session.user.id);
     const body = await request.json();
 
-    const updateData: UpdateUserData = {
+    const updateData: UpdateUserData & { linkedinSessionCookie?: string } = {
       updatedAt: new Date(),
     };
 
     // Only update fields that are present in the request
     if (body.name !== undefined) updateData.name = body.name;
     if (body.geminiApiKey !== undefined) updateData.geminiApiKey = body.geminiApiKey;
+    if (body.linkedinSessionCookie !== undefined) updateData.linkedinSessionCookie = body.linkedinSessionCookie;
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.jobTitle !== undefined) updateData.jobTitle = body.jobTitle;
     if (body.company !== undefined) updateData.company = body.company;

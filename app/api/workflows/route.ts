@@ -2,14 +2,16 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { automationWorkflows, users } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { SessionUser } from "@/types";
+import { apiSuccess, apiError } from "@/lib/api-response";
+import { ApiErrors } from "@/lib/api-errors";
 
 export async function GET() {
   try {
     const session = await auth();
     if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      throw ApiErrors.UNAUTHORIZED();
     }
 
     const userId = (session.user as SessionUser).id;
@@ -28,19 +30,45 @@ export async function GET() {
       }
     }
 
-    const workflows = await db
+    // Fetch workflows
+    const workflowsData = await db
       .select()
       .from(automationWorkflows)
       .where(eq(automationWorkflows.userId, queryUserId))
       .orderBy(automationWorkflows.createdAt);
 
-    return NextResponse.json({ workflows });
+    // Manually fetch and aggregate stats (Drizzle aggregation/group by can be complex with relations, 
+    // simpler to just fetch derived data or do a separate count query if volume is low.
+    // For MVP, separate query per workflow or one big group by. 
+    // Let's do a left join aggregation.)
+
+    // Actually, let's fetch basic stats separately to avoid N+1 if list is huge, 
+    // but for < 50 workflows, a loop is fine or a single complex query.
+    // Let's stick to simple: Fetch all, then map.
+
+    // We need: executionCount, lastRunAt
+    // We can add these fields to the response object.
+
+    const enrichedWorkflows = await Promise.all(workflowsData.map(async (wf) => {
+      // Count executions
+      const countResult = await db.execute(sql`
+            SELECT count(*) as count, max(started_at) as last_run
+            FROM workflow_execution_logs 
+            WHERE workflow_id = ${wf.id}
+        `);
+
+      const row = countResult.rows[0] as { count: string, last_run: string | null };
+
+      return {
+        ...wf,
+        executionCount: Number(row.count),
+        lastRunAt: row.last_run ? new Date(row.last_run) : null
+      };
+    }));
+
+    return apiSuccess({ workflows: enrichedWorkflows });
   } catch (error) {
-    console.error("Error fetching workflows:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch workflows" },
-      { status: 500 }
-    );
+    return apiError(error);
   }
 }
 
@@ -55,11 +83,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       name,
+      description,
       targetBusinessType,
       keywords,
       nodes,
       edges,
       isActive,
+      timezone,
     } = body;
 
     // Fail-safe: Ensure admin user exists if this is the admin
@@ -101,11 +131,13 @@ export async function POST(request: Request) {
       .values({
         userId: finalUserId,
         name,
+        description: description || "",
         targetBusinessType: targetBusinessType || "",
         keywords: keywords || [],
         nodes: nodes || [],
         edges: edges || [],
         isActive: isActive || false,
+        timezone: timezone || "UTC",
       })
       .returning();
 
@@ -128,15 +160,17 @@ export async function PATCH(request: Request) {
 
     const userId = (session.user as SessionUser).id;
     const body = await request.json();
-    const { id, name, nodes, edges, isActive } = body;
+    const { id, name, description, nodes, edges, isActive, timezone } = body;
 
     const [workflow] = await db
       .update(automationWorkflows)
       .set({
         name,
+        description,
         nodes,
         edges,
         isActive,
+        timezone,
         updatedAt: new Date(),
       })
       .where(

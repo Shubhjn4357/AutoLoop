@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useNotificationStore, NotificationType } from "@/store/notifications";
+import { useNotificationStore } from "@/store/notifications";
 
 const typeConfig = {
   success: {

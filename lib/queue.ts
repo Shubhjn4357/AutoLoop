@@ -1,17 +1,14 @@
 // TypeScript ESLint configuration overrides for necessary 'any' types
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Queue, Worker, Job } from "bullmq";
-import Redis from "ioredis";
+import { redis as connection } from "./redis";
 import { db } from "@/db";
 import { emailLogs, businesses, emailTemplates, users } from "@/db/schema";
 import { eq, sql, and, gte, lt } from "drizzle-orm";
 import { interpolateTemplate, sendColdEmail } from "./email";
 import type { ScraperSourceName } from "./scrapers/types";
 
-// Redis connection
-const connection = new Redis(process.env.REDIS_URL || "redis://localhost:6379", {
-  maxRetriesPerRequest: null,
-});
+
 
 // Email queue
 export const emailQueue = new Queue("email-outreach", { connection: connection as any });
@@ -135,14 +132,58 @@ export const emailWorker = new Worker(
 
       // Send emails
       // Send email
-      const { success, error } = await sendColdEmail(
+      // Log email immediately to get the ID for tracking
+      const [logEntry] = await db.insert(emailLogs).values({
+        userId,
+        businessId: business.id,
+        templateId: template.id,
+        subject: interpolateTemplate(template.subject, business, sender),
+        body: "", // Will update after sending
+        status: "pending",
+        errorMessage: null,
+        sentAt: null,
+      }).returning();
+
+      const trackingDomain = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+      // Inject Open Tracking Pixel
+      const pixelUrl = `${trackingDomain}/api/tracking/open?id=${logEntry.id}`;
+      const trackingPixel = `<img src="${pixelUrl}" alt="" width="1" height="1" style="display:none;" />`;
+
+      let finalBody = interpolateTemplate(template.body, business, sender);
+
+      // Inject Click Tracking (Basic implementation: rewrite hrefs)
+      finalBody = finalBody.replace(/href=["']([^"']+)["']/g, (match, url) => {
+        const encodedUrl = encodeURIComponent(url);
+        const trackingUrl = `${trackingDomain}/api/tracking/click?id=${logEntry.id}&url=${encodedUrl}`;
+        return `href="${trackingUrl}"`;
+      });
+
+      // Append pixel
+      finalBody += trackingPixel;
+
+      // Update body in log
+      await db.update(emailLogs).set({ body: finalBody }).where(eq(emailLogs.id, logEntry.id));
+
+      // Rename destructured variables to avoid conflict or use different scope
+      const emailResult = await sendColdEmail(
         business,
         template,
         accessToken,
         sender
       );
 
-      // Update business
+      const success = emailResult.success;
+      const error = emailResult.error;
+
+      // Update log status
+      await db.update(emailLogs).set({
+        status: success ? "sent" : "failed",
+        errorMessage: error,
+        sentAt: success ? new Date() : null
+      }).where(eq(emailLogs.id, logEntry.id));
+
+      // Update business status
       await db
         .update(businesses)
         .set({
@@ -153,25 +194,14 @@ export const emailWorker = new Worker(
         })
         .where(eq(businesses.id, business.id));
 
-      // Log email
-      await db.insert(emailLogs).values({
-        userId,
-        businessId: business.id,
-        templateId: template.id,
-        subject: interpolateTemplate(template.subject, business, sender),
-        body: interpolateTemplate(template.body, business, sender),
-        status: success ? "sent" : "failed",
-        errorMessage: error,
-        sentAt: success ? new Date() : null,
-      });
-
       if (!success) {
         throw new Error(error || "Failed to send email");
       }
 
       return { success: true, businessId };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Log failure
+      const errorMessage = error instanceof Error ? error.message : String(error);
       await db.insert(emailLogs).values({
         userId,
         businessId,
@@ -179,10 +209,10 @@ export const emailWorker = new Worker(
         subject: "Cold Outreach",
         body: "Failed to send",
         status: "failed",
-        errorMessage: error.message,
+        errorMessage,
       });
 
-      throw error;
+      throw new Error(errorMessage);
     }
   },
   { connection: connection as any }
@@ -284,11 +314,11 @@ export const scrapingWorker = new Worker(
           // Use INSERT ON CONFLICT DO NOTHING approach
           try {
             await db.insert(businesses).values(businessesToInsert).onConflictDoNothing();
-          } catch (e: any) {
-            console.error("  ❌ Failed to insert businesses (onConflictDoNothing):", e.message);
+          } catch (e: unknown) {
+            console.error("  ❌ Failed to insert businesses (onConflictDoNothing):", e instanceof Error ? e.message : String(e));
             // Fallback if onConflictDoNothing is not supported by driver or schema setup
-            await db.insert(businesses).values(businessesToInsert).catch((err) => {
-              console.error("  ❌ Fallback insert also failed:", err.message);
+            await db.insert(businesses).values(businessesToInsert).catch((err: unknown) => {
+              console.error("  ❌ Fallback insert also failed:", err instanceof Error ? err.message : String(err));
             });
           }
 
@@ -326,13 +356,13 @@ export const scrapingWorker = new Worker(
       console.log(`✅ Scraping completed: ${totalFound} total businesses found`);
       return { success: true, count: totalFound };
 
-    } catch (error: any) {
-      console.error(`❌ Job failed:`, error);
+    } catch (error: unknown) {
+      console.error(`❌ Job failed:`, error instanceof Error ? error.message : String(error));
       await db
         .update(scrapingJobs)
         .set({ status: "failed", completedAt: new Date() })
         .where(eq(scrapingJobs.id, jobId));
-      throw error;
+      throw new Error(error instanceof Error ? error.message : String(error));
     }
   },
   {
@@ -350,11 +380,183 @@ scrapingWorker.on("failed", (job, err) => {
   console.error(`❌ Scraping job ${job?.id} failed:`, err);
 });
 
+
+/**
+ * Workflow execution queue
+ */
+export const workflowQueue = new Queue("workflow-execution", { connection: connection as any });
+
+interface WorkflowJobData {
+  workflowId: string;
+  userId: string;
+  businessId: string;
+  executionId: string;
+}
+
+/**
+ * Add workflow execution to queue
+ */
+export async function queueWorkflowExecution(data: WorkflowJobData) {
+  await workflowQueue.add(
+    "execute-workflow",
+    data,
+    {
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 2000,
+      },
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 200 },
+    }
+  );
+}
+
+/**
+ * Workflow worker - processes workflow execution jobs
+ */
+export const workflowWorker = new Worker(
+  "workflow-execution",
+  async (job: Job<WorkflowJobData>) => {
+    const { workflowId, userId, businessId, executionId } = job.data;
+    console.log(`\n🚀 Processing workflow job ${job.id} (ExecID: ${executionId})`);
+
+    // Dynamic import to avoid circular dependencies if any
+    const { WorkflowExecutor } = await import("./workflow-executor");
+    const { automationWorkflows, workflowExecutionLogs } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { db } = await import("@/db");
+
+    try {
+      // 1. Fetch Workflow & Business Data
+      const workflow = await db.query.automationWorkflows.findFirst({
+        where: eq(automationWorkflows.id, workflowId)
+      });
+
+      if (!workflow) throw new Error("Workflow not found");
+
+      const business = await db.query.businesses.findFirst({
+        where: eq(businesses.id, businessId)
+      });
+
+      if (!business) throw new Error("Business not found");
+
+      // 2. Instantiate Executor
+      // Import types dynamically or assume they are available
+      // specific type imports might be needed if strictly typed
+
+      const executor = new WorkflowExecutor(
+        workflow.nodes as any,
+        workflow.edges as any,
+        {
+          businessId: business.id,
+          businessData: business as any,
+          variables: {},
+          userId,
+          workflowId: workflow.id,
+        }
+      );
+
+      // 3. Execute
+      const result = await executor.execute();
+      const finalState = executor.getVariables();
+
+      // 4. Update Status based on result
+      await db
+        .update(workflowExecutionLogs)
+        .set({
+          status: result.success ? "success" : "failed",
+          logs: JSON.stringify(result.logs),
+          state: finalState,
+          completedAt: new Date(),
+        })
+        .where(eq(workflowExecutionLogs.id, executionId));
+
+      if (result.success) {
+        // Update Workflow lastRunAt and executionCount
+        await db
+          .update(automationWorkflows)
+          .set({
+            lastRunAt: new Date(),
+            executionCount: (workflow.executionCount || 0) + 1
+          })
+          .where(eq(automationWorkflows.id, workflowId));
+      } else {
+        throw new Error("Workflow execution logic returned failure");
+      }
+
+      return { success: true };
+
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`❌ Workflow job ${job.id} failed:`, msg);
+
+      // Update log to failed
+      await db
+        .update(workflowExecutionLogs)
+        .set({
+          status: "failed",
+          error: msg,
+          completedAt: new Date(),
+        })
+        .where(eq(workflowExecutionLogs.id, executionId));
+
+      throw new Error(msg);
+    }
+  },
+  { connection: connection as any, concurrency: 10 }
+);
+
+workflowWorker.on("completed", (job) => {
+  console.log(`✅ Workflow job ${job.id} completed`);
+});
+
+workflowWorker.on("failed", async (job, err) => {
+  console.error(`❌ Workflow job ${job?.id} failed:`, err);
+
+  // Example: Check attempts and notify if max reached
+  if (job && job.attemptsMade >= job.opts.attempts!) {
+    const { notifications, users } = await import("@/db/schema");
+    const { db } = await import("@/db");
+    const { eq } = await import("drizzle-orm");
+    const { sendWhatsAppMessage } = await import("@/lib/whatsapp/client");
+
+    // 1. Create In-App Notification
+    await db.insert(notifications).values({
+      userId: job.data.userId,
+      title: "Workflow Complete Failure",
+      message: `Workflow ${job.data.workflowId} failed after ${job.opts.attempts} attempts. Error: ${err.message}`,
+      type: "error"
+    });
+
+    // 2. Send WhatsApp Alert if User has phone number
+    try {
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, job.data.userId)
+      });
+
+      if (user && user.phone) {
+        // Using a text message for internal alerts (or use a template if enforced)
+        // System alerts usually need a utility template like "alert_notification"
+        // For MVP: text
+        await sendWhatsAppMessage({
+          to: user.phone,
+          text: `🚨 Critical Alert: Workflow ${job.data.executionId} FAILED.\nError: ${err.message}`
+        });
+        console.log(`📱 WhatsApp Alert sent to ${user.phone}`);
+      }
+    } catch (waError) {
+      console.error("Failed to send WhatsApp alert:", waError);
+    }
+  }
+});
+
+
 /**
  * Queue statistics
  */
 export async function getQueueStats() {
-  const [emailStats, scrapingStats] = await Promise.all([
+  const [emailStats, scrapingStats, workflowStats] = await Promise.all([
     Promise.all([
       emailQueue.getWaitingCount(),
       emailQueue.getActiveCount(),
@@ -377,11 +579,23 @@ export async function getQueueStats() {
       completed,
       failed,
     })),
+    Promise.all([
+      workflowQueue.getWaitingCount(),
+      workflowQueue.getActiveCount(),
+      workflowQueue.getCompletedCount(),
+      workflowQueue.getFailedCount(),
+    ]).then(([waiting, active, completed, failed]) => ({
+      waiting,
+      active,
+      completed,
+      failed,
+    })),
   ]);
 
   return {
     email: emailStats,
     scraping: scrapingStats,
+    workflow: workflowStats
   };
 }
 
@@ -393,3 +607,54 @@ emailWorker.on("completed", (job) => {
 emailWorker.on("failed", (job, err) => {
   console.error(`❌ Email job ${job?.id} failed:`, err.message);
 });
+
+
+
+/**
+ * Initialize and return queue workers for use in a dedicated worker process.
+ * Workers are created on import; this function ensures listeners are attached
+ * and returns the worker instances for any external orchestration.
+ */
+export async function startWorker() {
+  try {
+    // attach idempotent markers to avoid duplicate listeners
+    if (!(emailWorker as any).__started) {
+      emailWorker.on("completed", (job) => {
+        console.log(`✅ Email job ${job.id} completed`);
+      });
+      emailWorker.on("failed", (job, err) => {
+        console.error(`❌ Email job ${job?.id} failed:`, (err as Error).message ?? String(err));
+      });
+      (emailWorker as any).__started = true;
+    }
+
+    if (!(scrapingWorker as any).__started) {
+      scrapingWorker.on("completed", (job) => {
+        console.log(`✅ Scraping job ${job.id} completed`);
+      });
+      scrapingWorker.on("failed", (job, err) => {
+        console.error(`❌ Scraping job ${job?.id} failed:`, (err as Error).message ?? String(err));
+      });
+      (scrapingWorker as any).__started = true;
+    }
+
+    if (!(workflowWorker as any).__started) {
+      workflowWorker.on("completed", (job) => {
+        console.log(`✅ Workflow job ${job.id} completed`);
+      });
+      workflowWorker.on("failed", (job, err) => {
+        console.error(`❌ Workflow job ${job?.id} failed:`, (err as Error).message ?? String(err));
+      });
+      (workflowWorker as any).__started = true;
+    }
+
+    return {
+      emailWorker,
+      scrapingWorker,
+      workflowWorker,
+    };
+  } catch (err) {
+    console.error("Failed to start workers:", err);
+    throw err;
+  }
+}

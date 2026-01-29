@@ -58,7 +58,7 @@ https.get(url, options, (res) => {
           if (parsed.data) {
             logFile.write(parsed.data);
           }
-        } catch (e) {
+        } catch {
           // Ignore parse errors for partial lines or heartbeats
         }
       }

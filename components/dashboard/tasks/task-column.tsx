@@ -1,4 +1,4 @@
-import React from "react";
+// default React import not required with new JSX transform
 import { useSortable } from "@dnd-kit/sortable";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { SortableTaskCard } from "./task-card";

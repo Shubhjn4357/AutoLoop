@@ -19,6 +19,11 @@ const nodeColors = {
   filter: "#eab308",
   set: "#64748b",
   scraper: "#c026d3",
+  linkedinScraper: "#0077b5",
+  linkedinMessage: "#0077b5",
+  abSplit: "#ec4899",
+  whatsappNode: "#25D366",
+  database: "#60a5fa", // Blue-400
 };
 
 const nodeIcons = {
@@ -37,6 +42,11 @@ const nodeIcons = {
   filter: "🔍",
   set: "📝",
   scraper: "🕸️",
+  linkedinScraper: "👔",
+  linkedinMessage: "💬",
+  abSplit: "🔀",
+  whatsappNode: "📱",
+  database: "💾",
 };
 
 export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
@@ -45,12 +55,17 @@ export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
 
   return (
     <div
-      className="px-4 py-2 shadow-md rounded-lg border-2 bg-white min-w-[150px]"
+      className="shadow-md rounded-lg border bg-white min-w-[200px] overflow-hidden transition-shadow hover:shadow-lg"
       style={{
         borderColor: selected ? color : "#e2e8f0",
-        backgroundColor: "white",
+        borderWidth: selected ? "2px" : "1px",
       }}
     >
+      <div
+        className="h-1.5 w-full"
+        style={{ backgroundColor: color }}
+      />
+      <div className="px-4 py-3">
       {data.type !== "start" && (
         <Handle
           type="target"
@@ -102,6 +117,29 @@ export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
             <span className="text-[10px] text-red-600 absolute top-3 right-0 font-bold">False</span>
           </div>
         </div>
+        ) : data.type === "abSplit" ? (
+          <div className="flex justify-between w-full mt-2 relative min-w-[120px]">
+            <div className="relative">
+              <Handle
+                type="source"
+                id="a"
+                position={Position.Bottom}
+                className="w-3 h-3 left-2"
+                style={{ background: "#3b82f6" }}
+              />
+              <span className="text-[10px] text-blue-600 absolute top-3 left-0 font-bold">Path A</span>
+            </div>
+            <div className="relative">
+              <Handle
+                type="source"
+                id="b"
+                position={Position.Bottom}
+                className="w-3 h-3 left-auto right-2"
+                style={{ background: "#a855f7" }}
+              />
+              <span className="text-[10px] text-purple-600 absolute top-3 right-0 font-bold">Path B</span>
+            </div>
+          </div>
       ) : (
         <Handle
           type="source"
@@ -110,6 +148,7 @@ export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {
           style={{ background: color }}
         />
       )}
+      </div>
     </div>
   );
 });

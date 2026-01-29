@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { businesses, emailTemplates, emailLogs, users } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { sendColdEmail, interpolateTemplate } from "@/lib/email";
+import { checkEmailRateLimit } from "@/lib/rate-limit";
 import { SessionUser } from "@/types";
 
 export async function POST(request: Request) {
@@ -11,6 +12,17 @@ export async function POST(request: Request) {
         const session = await auth();
         if (!session?.user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const currentUser = session.user as SessionUser;
+
+        // CHECK RATE LIMIT
+        const allowed = await checkEmailRateLimit(currentUser.id);
+        if (!allowed) {
+            return NextResponse.json(
+                { error: "Daily email limit reached (50/day). Please upgrade your plan." },
+                { status: 429 }
+            );
         }
 
         const { businessId } = await request.json();
@@ -21,11 +33,8 @@ export async function POST(request: Request) {
                 { status: 400 }
             );
         }
-
-        const user = session.user as SessionUser;
-
         // Check if user has connected Google Account (access token)
-        if (!user.accessToken) {
+        if (!currentUser.accessToken) {
             return NextResponse.json(
                 { error: "Google Account not connected. Please sign out and sign in with Google." },
                 { status: 403 }
@@ -36,7 +45,7 @@ export async function POST(request: Request) {
         const business = await db.query.businesses.findFirst({
             where: and(
                 eq(businesses.id, businessId),
-                eq(businesses.userId, user.id)
+                eq(businesses.userId, currentUser.id)
             ),
         });
 
@@ -47,7 +56,7 @@ export async function POST(request: Request) {
         // Fetch default template
         const template = await db.query.emailTemplates.findFirst({
             where: and(
-                eq(emailTemplates.userId, user.id),
+                eq(emailTemplates.userId, currentUser.id),
                 eq(emailTemplates.isDefault, true)
             ),
         });
@@ -60,12 +69,12 @@ export async function POST(request: Request) {
         }
 
         // Fetch user details for variable interpolation
-        const dbUser = await db.query.users.findFirst({
-            where: eq(users.id, user.id),
+        const userDetails = await db.query.users.findFirst({
+            where: eq(users.id, currentUser.id),
         });
 
         // Send email
-        const { success, error } = await sendColdEmail(business, template, user.accessToken, dbUser);
+        const { success, error } = await sendColdEmail(business, template, currentUser.accessToken, userDetails);
 
         // Update business status
         await db
@@ -80,11 +89,11 @@ export async function POST(request: Request) {
 
         // Log email
         await db.insert(emailLogs).values({
-            userId: user.id,
+            userId: currentUser.id,
             businessId: business.id,
             templateId: template.id,
-            subject: interpolateTemplate(template.subject, business, dbUser),
-            body: interpolateTemplate(template.body, business, dbUser),
+            subject: interpolateTemplate(template.subject, business, userDetails),
+            body: interpolateTemplate(template.body, business, userDetails),
             status: success ? "sent" : "failed",
             errorMessage: error, // Log the error message
             sentAt: success ? new Date() : null,

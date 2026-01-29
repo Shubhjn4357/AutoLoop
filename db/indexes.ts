@@ -1,7 +1,7 @@
 // Database Indexes for Performance Optimization
 // Add these to your schema for better query performance
 
-import { index } from "drizzle-orm/pg-core";
+// index helper omitted; this file is documentation-only
 
 /*
 Recommended indexes to add to your schema:

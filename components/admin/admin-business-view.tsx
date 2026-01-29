@@ -28,7 +28,7 @@ export function AdminBusinessView({ initialBusinesses }: AdminBusinessViewProps)
             setBusinesses(prev => prev.filter(b => !selectedIds.includes(b.id)));
             setSelectedIds([]);
             toast.success("Deleted successfully");
-        } catch (error) {
+        } catch {
             toast.error("Failed to delete");
         }
     };

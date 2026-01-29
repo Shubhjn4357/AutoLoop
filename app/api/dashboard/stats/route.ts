@@ -5,7 +5,7 @@ import { businesses, emailTemplates, automationWorkflows, emailLogs } from "@/db
 import { SessionUser } from "@/types";
 import { eq, and, gte, sql, count } from "drizzle-orm";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const session = await auth();
     if (!session?.user) {
@@ -64,10 +64,27 @@ export async function GET(request: Request) {
       .orderBy(sql`DATE(created_at)`);
 
     // Get businesses with email status
-    const businessesWithEmail = await db
-      .select({ count: count() })
-      .from(businesses)
-      .where(and(eq(businesses.userId, userId), eq(businesses.emailSent, true)));
+
+
+    // Calculate Quota Usage (Emails sent today)
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const todayStats = await db
+      .select({
+        count: count()
+      })
+      .from(emailLogs)
+      .where(
+        and(
+          eq(emailLogs.userId, userId),
+          gte(emailLogs.createdAt, startOfDay),
+          eq(emailLogs.status, 'sent')
+        )
+      );
+
+    const quotaUsed = todayStats[0]?.count || 0;
+    const quotaLimit = 500; // Gmail limit
 
     return NextResponse.json({
       stats: {
@@ -79,6 +96,8 @@ export async function GET(request: Request) {
         emailsClicked: clicked,
         openRate: totalSent > 0 ? Math.round((opened / totalSent) * 100) : 0,
         clickRate: totalSent > 0 ? Math.round((clicked / totalSent) * 100) : 0,
+        quotaUsed,
+        quotaLimit,
       },
       chartData: timeSeriesData.map((row) => ({
         name: row.date,

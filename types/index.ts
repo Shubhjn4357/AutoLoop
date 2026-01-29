@@ -17,6 +17,7 @@ export interface UserProfile {
   company?: string;
   website?: string;
   customVariables?: Record<string, string>;
+  linkedinSessionCookie?: string;
 }
 
 export interface Business {
@@ -60,11 +61,15 @@ export interface AutomationWorkflow {
   id: string;
   userId: string;
   name: string;
+  description?: string;
   targetBusinessType: string;
   keywords: string[];
   isActive: boolean;
   nodes: Record<string, unknown>[];
   edges: Record<string, unknown>[];
+  lastRunAt?: Date | null;
+  executionCount: number;
+  timezone: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -107,4 +112,12 @@ export interface Task {
   businessesFound?: number;
   workflowName?: string;
   createdAt: Date;
+}
+
+export interface WorkflowExecutionContext {
+  businessId: string;
+  businessData: Business;
+  variables: Record<string, unknown>;
+  userId: string;
+  workflowId: string;
 }

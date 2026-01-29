@@ -1,10 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import React from "react";
+import type { ReactNode } from "react";
 
 interface AnimatedContainerProps {
-  children: React.ReactNode;
+  children: ReactNode;
   delay?: number;
   className?: string;
   direction?: "up" | "down" | "left" | "right";

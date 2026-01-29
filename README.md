@@ -8,72 +8,76 @@ pinned: false
 app_port: 7860
 ---
 
-# AutoLoop - Automated Cold Email Outreach Platform
+## AutoLoop - Automated Cold Email & Social Outreach Platform
 
 ![AutoLoop Banner](https://res.cloudinary.com/dj3a0ww9n/image/upload/v1768761786/workflow_uschkg.png)
 
-**AutoLoop** is an intelligent, production-ready cold email outreach platform designed to automate the entire lead generation and engagement process. It combines **Google Maps scraping**, **AI-powered personalization**, and **visual workflow automation** to help you find, qualify, and convert your ideal customers.
+**AutoLoop** is an intelligent, production-ready automation platform designed to streamline lead generation and engagement. It combines **multi-source scraping** (Google Maps, LinkedIn), **AI-powered personalization**, and **visual workflow automation** to help you find, qualify, and convert your ideal customers across multiple channels.
 
-Key capabilities include continuous lead sourcing, smart email drafting with Google Gemini AI, and managing complex outreach sequences via a drag-and-drop editor.
+Key capabilities include continuous lead sourcing, smart email drafting with Google Gemini AI, LinkedIn automation, and managing complex outreach sequences via a drag-and-drop editor.
 
 ---
 
 ## 🚀 Key Features
 
-
 ### 🔍 Smart Lead Scraping
-
-Automatically scrape businesses from Google Maps based on keywords and location. Extract valid emails, phone numbers, and websites to build your lead database.
-
-<img src="https://res.cloudinary.com/dj3a0ww9n/image/upload/v1768761785/scarpper_orbr6v.png" alt="AutoLoop Scraper Interface" width="100%" />
-
+- **Google Maps**: Automatically scrape businesses based on keywords and location. Extract valid emails, phone numbers, and websites.
+- **LinkedIn Integration**: Scrape profiles using Google Search heuristics and automate messages via Puppeteer (simulated browsing).
 
 ### 🎨 Visual Workflow Builder
+Design complex automation flows with a drag-and-drop node editor.
+- **Triggers**: Schedule-based or Event-based (e.g., "New Lead Found").
+- **Actions**: Send Email, Send WhatsApp, API Request, Scraper Action.
+- **Logic**: Conditionals, A/B Testing, Delays, Merges, Loops.
+- **Persistence**: Workflows save variable state between executions, enabling long-running multi-step sequences.
 
-Design complex automation flows with a simple drag-and-drop node editor. Connect triggers (e.g., "New Lead Found") to actions (e.g., "Send Email", "Wait 2 Days").
-<img src="https://res.cloudinary.com/dj3a0ww9n/image/upload/v1768761786/workflow_uschkg.png" alt="AutoLoop Workflow Builder" width="100%" />
+### 🧠 AI & Personalization
+- **Google Gemini 2.0**: Generate hyper-personalized email drafts based on prospect data and website content.
+- **Dynamic Variables**: Use `{{business.name}}`, `{{business.website}}`, etc., in your templates.
 
+### 📧 Email Mastery
+- **Gmail Integration**: Send emails from your own account via OAuth.
+- **Delivery Tracking**: Real-time tracking of Opens and Clicks via pixel injection and link wrapping.
+- **Rate Limiting**: Built-in protection to prevent spam flagging (e.g., max 50 emails/day per account).
+- **Bounce Handling**: Automatic detection and handling of failed deliveries.
 
-### 🧠 AI Personalization
+### 📊 Real-Time Analytics Dashboard
+- **Execution Monitoring**: Watch workflows run in real-time.
+- **Success/Failure Rates**: Identify bottlenecks in your automation.
+- **Quota Tracking**: Monitor your email sending limits and remaining quota.
+- **Export**: Download execution logs as CSV for offline analysis.
 
-Leverage **Google Gemini 2.0 Flash** to generate hyper-personalized email drafts based on the prospect's business type, website content, and your specific offer.
-
-
-### 📧 Gmail Integration
-
-Connect your Gmail account via OAuth to send emails directly from your own address, ensuring high deliverability and trust.
-
-
-### 📊 Advanced Analytics
-
-Track open rates, click-through rates, and response rates in real-time. Monitor your campaign performance with detailed charts and funnels.
+### 📱 Unified Social Suite
+- **LinkedIn**: Automate connection requests and messages.
+- **Instagram / Facebook**: Dashboard for scheduling Posts & Reels (Integration ready).
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Architecture & Scalability
 
-Built with a modern, type-safe stack for performance and reliability:
+AutoLoop is built for reliability and scale:
 
+- **Horizontal Scaling**: Separated Web Server and Worker processes.
+- **Queue System**: **Redis + BullMQ** powers a robust job queue for critical tasks (Sending emails, Scraping, Workflow execution).
+- **Self-Healing**: Automatic retry logic with exponential backoff for failed tasks.
+- **Monitoring**: Self-ping mechanism to ensure worker uptime on container platforms.
+
+### Tech Stack
 - **Framework**: Next.js 15 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS 4 + Shadcn UI
 - **Database**: PostgreSQL (Neon) + Drizzle ORM
 - **Authentication**: NextAuth.js v5 (Google OAuth)
 - **AI**: Google Gemini API
-- **Queue/Jobs**: Redis + BullMQ (Background processing)
-- **Scraping**: Puppeteer + Cheerio
-- **Visuals**: ReactFlow, Recharts, Framer Motion
+- **Worker**: Node.js dedicated process
 
 ---
 
 ## 📦 Installation & Setup
 
-
 ### Prerequisites
-
 - **Node.js 18+**
-
-- **pnpm** (recommended) or npm
+- **pnpm** (recommended)
 - **PostgreSQL Database** (e.g., Neon)
 - **Redis Instance** (Local or Upstash)
 - **Google Cloud Project** (Enabled Gmail API & OAuth credentials)
@@ -86,35 +90,33 @@ Built with a modern, type-safe stack for performance and reliability:
    cd autoloop
    ```
 
-
 2. **Install dependencies**
    ```bash
    pnpm install
    ```
 
-
 3. **Configure Environment**
-   Create a `.env` file in the root directory (see [Environment Variables](#-environment-variables) below).
+   Create a `.env` file in the root directory (see [Environment Variables](#-environment-variables)).
 
 4. **Setup Database**
    ```bash
    pnpm db:push
+   # Optional: Seed sample data
+   npx tsx scripts/seed-data.ts
    ```
-
 
 5. **Run Development Server**
    ```bash
    pnpm dev
    ```
+   The web app will run at `http://localhost:3000`.
 
-   The app will run at `http://localhost:3000`.
-
-6. **Start Background Workers** (Required for scraping & sending emails)
-   Open a new terminal configuration and run:
+6. **Start Background Workers** (Critical for automation)
+   Open a separate terminal and run:
    ```bash
    pnpm worker
    ```
-
+   *Note: This starts the dedicated worker process that handles queued jobs and scraping.*
 
 ---
 
@@ -124,41 +126,44 @@ Create a `.env` file with the following keys:
 
 ```env
 # Database (Neon/Postgres)
-DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require"
+DATABASE_URL="postgresql://..."
 
 # NextAuth Configuration
-NEXTAUTH_URL="http://localhost:3000" # Use your production URL in deployment
+NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="your-super-secret-key"
 
 # Google OAuth & Gmail API
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
 
 # Google AI (Gemini)
-GEMINI_API_KEY="your-gemini-api-key"
+GEMINI_API_KEY="..."
 
 # Redis (Queue)
 REDIS_URL="redis://localhost:6379"
 
-# Webhooks (Optional)
-WEBHOOK_URL="https://your-domain.com/api/webhooks/email"
+# App URL (For Self-Ping & Webhooks)
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
-# Hugging Face
-HF_TOKEN="your-huggingface-token"
+# Hugging Face (Optional)
+HF_TOKEN="..."
+
+# Admin Credentials (for seed/testing)
+ADMIN_EMAIL="admin@example.com"
 ```
 
 ---
 
 ## 🌐 Deployment
 
+### Hugging Face Spaces / Docker
+This repo includes a `Dockerfile` and is configured for Hugging Face Spaces.
 
-### Hugging Face Spaces
-
-This application is configured for deployment on Hugging Face Spaces (Docker).
+**Important for Cloud Deployment:**
+1. **Worker Process**: Ensure your deployment platform runs `scripts/worker.ts`. In Docker, you might use a process manager like `pm2` or run the worker in a separate container/service.
+2. **Keep-Alive**: The worker includes a self-ping mechanism. Ensure `NEXT_PUBLIC_APP_URL` is set to your production URL (e.g., `https://my-app.hf.space`) so the ping hits the public route and keeps the container active.
 
 **Live Demo**: [https://shubhjn-autoloop.hf.space](https://shubhjn-autoloop.hf.space)
-
-Current `NEXTAUTH_URL` for production: `https://shubhjn-autoloop.hf.space`
 
 ---
 
@@ -166,8 +171,4 @@ Current `NEXTAUTH_URL` for production: `https://shubhjn-autoloop.hf.space`
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
----
-
 Made with ❤️ by **Shubh Jain**
-
-<img src="/public/thumbnails/workflow.png" alt="AutoLoop Workflow Builder" width="100%" />

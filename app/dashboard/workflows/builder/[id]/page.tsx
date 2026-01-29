@@ -7,9 +7,10 @@ import { NodeEditor, NodeData } from "@/components/node-editor/node-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AutomationWorkflow } from "@/types";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Settings } from "lucide-react";
 import { useApi } from "@/hooks/use-api";
 import { useToast } from "@/hooks/use-toast";
+import { WorkflowSettingsDialog } from "@/components/node-editor/workflow-settings-dialog";
 
 export default function WorkflowBuilderPage() {
     const params = useParams();
@@ -82,6 +83,12 @@ export default function WorkflowBuilderPage() {
         }
     };
 
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    const handleSettingsSave = (updates: Partial<AutomationWorkflow>) => {
+        setWorkflow(prev => ({ ...prev, ...updates }));
+    };
+
     if (!isReady) {
         return (
             <div className="flex h-screen w-full items-center justify-center">
@@ -100,13 +107,18 @@ export default function WorkflowBuilderPage() {
                         <span className="hidden sm:inline">Back</span>
                     </Button>
                     <div className="flex flex-col gap-1 flex-1 sm:flex-none">
-                        <Input
-                            value={workflow.name || ""}
-                            onChange={(e) => setWorkflow(prev => ({ ...prev, name: e.target.value }))}
-                            className="h-8 font-semibold text-lg border-transparent hover:border-input focus:border-input px-2 transition-colors -ml-2 w-full sm:w-[300px]"
-                        />
-                        <p className="text-xs text-muted-foreground px-2 hidden sm:block">
-                            {params.id === 'new' ? 'Create new workflow' : 'Edit workflow'}
+                        <div className="flex items-center gap-2">
+                            <Input
+                                value={workflow.name || ""}
+                                onChange={(e) => setWorkflow(prev => ({ ...prev, name: e.target.value }))}
+                                className="h-8 font-semibold text-lg border-transparent hover:border-input focus:border-input px-2 transition-colors -ml-2 w-full sm:w-[300px]"
+                            />
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => setIsSettingsOpen(true)}>
+                                <Settings className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground px-2 hidden sm:block truncate max-w-[300px]">
+                            {workflow.description || (params.id === 'new' ? 'Create new workflow' : 'Edit workflow')}
                         </p>
                     </div>
                 </div>
@@ -133,6 +145,13 @@ export default function WorkflowBuilderPage() {
                     workflowId={params.id !== 'new' ? (params.id as string) : undefined}
                 />
             </div>
+
+            <WorkflowSettingsDialog
+                open={isSettingsOpen}
+                onOpenChange={setIsSettingsOpen}
+                workflow={workflow}
+                onSave={handleSettingsSave}
+            />
         </div>
     );
 }

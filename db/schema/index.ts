@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, boolean, integer, jsonb, real, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, jsonb, real, varchar, index } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 export const users = pgTable("users", {
@@ -16,6 +17,7 @@ export const users = pgTable("users", {
   company: text("company"),
   website: text("website"),
   customVariables: jsonb("custom_variables").$type<Record<string, string>>(),
+  linkedinSessionCookie: text("linkedin_session_cookie"), // "li_at" cookie value
 });
 
 export const businesses = pgTable("businesses", {
@@ -53,6 +55,7 @@ export const automationWorkflows = pgTable("automation_workflows", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  description: text("description"),
   targetBusinessType: text("target_business_type").notNull(),
   keywords: jsonb("keywords").notNull().$type<string[]>(),
   isActive: boolean("is_active").default(false).notNull(),
@@ -61,8 +64,16 @@ export const automationWorkflows = pgTable("automation_workflows", {
   nodes: jsonb("nodes").notNull().$type<any[]>(),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   edges: jsonb("edges").notNull().$type<any[]>(),
+  lastRunAt: timestamp("last_run_at"),
+  executionCount: integer("execution_count").default(0).notNull(),
+  timezone: varchar("timezone", { length: 50 }).default("UTC").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => {
+  return {
+    userIdIdx: index("workflow_user_id_idx").on(table.userId),
+    isActiveIdx: index("workflow_is_active_idx").on(table.isActive),
+  };
 });
 
 export const emailLogs = pgTable("email_logs", {
@@ -121,3 +132,135 @@ export const banners = pgTable("banners", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   createdBy: text("created_by").references(() => users.id),
 });
+
+export const workflowExecutionLogs = pgTable("workflow_execution_logs", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  workflowId: text("workflow_id").notNull().references(() => automationWorkflows.id, { onDelete: "cascade" }),
+  businessId: text("business_id").references(() => businesses.id, { onDelete: "set null" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 20 }).notNull(), // "pending", "running", "success", "failed"
+  logs: text("logs"), // JSON stringified array of log entries
+  state: jsonb("state"), // Workflow variable state
+  error: text("error"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  metadata: jsonb("metadata"),
+}, (table) => {
+  return {
+    execWorkflowIdIdx: index("exec_workflow_id_idx").on(table.workflowId),
+    execStartedAtIdx: index("exec_started_at_idx").on(table.startedAt),
+  };
+});
+
+export const workflowTriggers = pgTable("workflow_triggers", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  workflowId: text("workflow_id").notNull().references(() => automationWorkflows.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  triggerType: varchar("trigger_type", { length: 50 }).notNull(), // "new_business", "schedule", "delay_completion"
+
+  // Configuration for different trigger types
+  config: jsonb("config").$type<{
+    // For schedule triggers
+    cronExpression?: string;
+    timezone?: string;
+
+    // For new_business triggers
+    targetBusinessTypes?: string[];
+    minRating?: number;
+
+    // For delay_completion triggers
+    delayHours?: number;
+  }>(),
+
+  isActive: boolean("is_active").default(true),
+  lastRunAt: timestamp("last_run_at"),
+  nextRunAt: timestamp("next_run_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const workflowTriggerExecutions = pgTable("workflow_trigger_executions", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  triggerId: text("trigger_id").notNull().references(() => workflowTriggers.id, { onDelete: "cascade" }),
+  workflowId: text("workflow_id").notNull().references(() => automationWorkflows.id, { onDelete: "cascade" }),
+  businessId: text("business_id").references(() => businesses.id, { onDelete: "set null" }),
+  status: varchar("status", { length: 20 }).notNull(), // "pending", "running", "success", "failed"
+  error: text("error"),
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => {
+  return {
+    execTriggerIdIdx: index("exec_trigger_id_idx").on(table.triggerId),
+    execWorkflowIdIdx: index("exec_workflow_id_idx").on(table.workflowId),
+  };
+});
+
+export const connectedAccounts = pgTable("connected_accounts", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 50 }).notNull(), // "facebook", "instagram"
+  providerAccountId: text("provider_account_id").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  name: text("name"),
+  picture: text("picture"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const socialPosts = pgTable("social_posts", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  connectedAccountId: text("connected_account_id").references(() => connectedAccounts.id, { onDelete: "set null" }),
+  content: text("content"),
+  mediaUrls: jsonb("media_urls").$type<string[]>(),
+  scheduledAt: timestamp("scheduled_at"),
+  status: varchar("status", { length: 20 }).default("draft").notNull(), // 'draft', 'scheduled', 'published', 'failed'
+  platform: varchar("platform", { length: 20 }).notNull(), // 'facebook', 'instagram', 'both'
+  publishedAt: timestamp("published_at"),
+  platformPostId: text("platform_post_id"),
+  error: text("error"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const socialAutomations = pgTable("social_automations", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  connectedAccountId: text("connected_account_id").references(() => connectedAccounts.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  triggerType: varchar("trigger_type", { length: 50 }).notNull(), // 'comment_keyword', 'dm_keyword', 'story_mention', 'any_comment'
+  keywords: jsonb("keywords").$type<string[]>(),
+  actionType: varchar("action_type", { length: 50 }).notNull(), // 'reply_comment', 'send_dm', 'whatsapp_reply'
+  responseTemplate: text("response_template"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const whatsappMessages = pgTable("whatsapp_messages", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  wamid: text("wamid").unique(), // WhatsApp Message ID
+  phoneNumber: text("phone_number").notNull(),
+  direction: varchar("direction", { length: 10 }).notNull(), // 'inbound', 'outbound'
+  type: varchar("type", { length: 20 }).default("text"), // 'text', 'template'
+  status: varchar("status", { length: 20 }).default("sent"), // 'sent', 'delivered', 'read', 'failed'
+  body: text("body"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const workflowExecutionLogsRelations = relations(workflowExecutionLogs, ({ one }) => ({
+  workflow: one(automationWorkflows, {
+    fields: [workflowExecutionLogs.workflowId],
+    references: [automationWorkflows.id],
+  }),
+  business: one(businesses, {
+    fields: [workflowExecutionLogs.businessId],
+    references: [businesses.id],
+  }),
+}));

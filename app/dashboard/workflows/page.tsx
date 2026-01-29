@@ -3,17 +3,78 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Play, Trash2, PenSquare } from "lucide-react";
+import { Plus, Play, Trash2, PenSquare, Copy, Download, Clock } from "lucide-react";
 import { useWorkflows } from "@/hooks/useWorkflows";
 import { useToast } from "@/hooks/use-toast";
 import { useApi } from "@/hooks/use-api";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+import type { AutomationWorkflow } from "@/types";
 
 export default function WorkflowsPage() {
   const { workflows, refetch } = useWorkflows();
   const { toast } = useToast();
   const router = useRouter();
-  const { patch: updateWf, del: deleteWfFn, loading } = useApi();
+  const { patch: updateWf, del: deleteWfFn, loading, post } = useApi();
+  const [duplicationLoading, setDuplicationLoading] = useState<string | null>(null);
+
+  const formatLastRun = (date: string | Date | null | undefined) => {
+    if (!date) return "Never";
+    const d = new Date(date);
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - d.getTime()) / 1000);
+    if (seconds < 60) return "Just now";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return d.toLocaleDateString();
+  };
+
+  const duplicateWorkflow = async (workflow: AutomationWorkflow) => {
+    setDuplicationLoading(workflow.id);
+    try {
+      const result = await post("/api/workflows", {
+        name: `${workflow.name} (Copy)`,
+        description: workflow.description,
+        targetBusinessType: workflow.targetBusinessType,
+        keywords: workflow.keywords,
+        nodes: workflow.nodes,
+        edges: workflow.edges,
+        timezone: workflow.timezone,
+      });
+
+      if (result) {
+        refetch();
+        toast({
+          title: "Workflow Duplicated",
+          description: `${workflow.name} has been duplicated successfully`,
+        });
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to duplicate workflow",
+        variant: "destructive",
+      });
+    } finally {
+      setDuplicationLoading(null);
+    }
+  };
+
+  const exportWorkflow = (workflow: AutomationWorkflow) => {
+    const dataStr = JSON.stringify(workflow, null, 2);
+    const dataBlob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${workflow.name.replace(/\s+/g, "-")}-workflow.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast({
+      title: "Exported",
+      description: `${workflow.name} workflow exported as JSON`,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -35,7 +96,7 @@ export default function WorkflowsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {loading ||workflows.length === 0 ? (
+        {loading || workflows.length === 0 ? (
           // Show skeleton cards while loading
           Array.from({ length: 6 }).map((_, i) => (
             <Card key={i} className="animate-pulse">
@@ -50,16 +111,23 @@ export default function WorkflowsPage() {
           ))
         ) : (
           workflows.map((workflow) => (
-            <Card key={workflow.id} className="group cursor-pointer hover:shadow-lg transition-all" onClick={() => router.push(`/dashboard/workflows/builder/${workflow.id}`)}>
+            <Card key={workflow.id} className="group cursor-pointer hover:shadow-lg transition-all flex flex-col" onClick={() => router.push(`/dashboard/workflows/builder/${workflow.id}`)}>
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <CardTitle className="line-clamp-1">{workflow.name}</CardTitle>
+                  <div className="flex-1">
+                    <CardTitle className="line-clamp-1">{workflow.name}</CardTitle>
+                    {workflow.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        {workflow.description}
+                      </p>
+                    )}
+                  </div>
                   <Badge variant={workflow.isActive ? "success" : "secondary"}>
                     {workflow.isActive ? "Running" : "Paused"}
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1 flex flex-col">
                 <p className="text-sm text-muted-foreground mb-2">
                   {workflow.targetBusinessType}
                 </p>
@@ -75,11 +143,25 @@ export default function WorkflowsPage() {
                     </Badge>
                   )}
                 </div>
-                <div className="flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity justify-end">
+
+                {/* Quick Stats */}
+                <div className="flex gap-4 text-xs text-muted-foreground mb-4 pb-4 border-t">
+                  <div className="flex items-center gap-1 mt-2">
+                    <Clock className="h-3 w-3" />
+                    <span>{formatLastRun(workflow.lastRunAt)}</span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    <span className="font-semibold">{workflow.executionCount || 0}</span>
+                    <span>executions</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity justify-end mt-auto flex-wrap">
                   <Button
                     size="icon"
                     variant="outline"
                     className="h-8 w-8"
+                    title={workflow.isActive ? "Pause" : "Resume"}
                     onClick={(e) => {
                       e.stopPropagation();
                       const toggleStatus = async () => {
@@ -90,13 +172,13 @@ export default function WorkflowsPage() {
                           toast({
                             title: "Status Updated",
                             description: `Workflow ${!workflow.isActive ? "resumed" : "paused"}`,
-                          })
+                          });
                         } else {
                           toast({
                             title: "Error",
                             description: "Failed to update status",
                             variant: "destructive",
-                          })
+                          });
                         }
                       };
                       toggleStatus();
@@ -107,6 +189,31 @@ export default function WorkflowsPage() {
                     ) : (
                       <Play className="h-4 w-4 text-green-500 fill-green-500" />
                     )}
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-8 w-8"
+                    title="Duplicate"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      duplicateWorkflow(workflow);
+                    }}
+                    disabled={duplicationLoading === workflow.id}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-8 w-8"
+                    title="Export as JSON"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      exportWorkflow(workflow);
+                    }}
+                  >
+                    <Download className="h-4 w-4" />
                   </Button>
                   <Button
                     size="sm"
@@ -133,9 +240,9 @@ export default function WorkflowsPage() {
 
                         if (result !== null) {
                           refetch();
-                          toast({ title: "Workflow Deleted", description: "Workflow deleted successfully" })
+                          toast({ title: "Workflow Deleted", description: "Workflow deleted successfully" });
                         } else {
-                          toast({ title: "Error", description: "Failed to delete workflow", variant: "destructive" })
+                          toast({ title: "Error", description: "Failed to delete workflow", variant: "destructive" });
                         }
                       };
                       deleteWorkflow();

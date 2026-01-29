@@ -7,9 +7,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useNotificationStore } from "@/store/notifications";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { useNotificationStore } from "@/store/notifications";
 
 export function NotificationCenter() {
   const {
