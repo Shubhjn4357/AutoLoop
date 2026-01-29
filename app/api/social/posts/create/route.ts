@@ -3,7 +3,8 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { socialPosts, connectedAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { publishToFacebook, publishToInstagram } from "@/lib/social/publisher";
+import { socialPublisher } from "@/lib/social/publisher";
+const { publishToFacebook, publishToInstagram } = socialPublisher;
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
         accessToken: account.accessToken,
         providerAccountId: account.providerAccountId,
         content,
-        mediaUrls
+        mediaUrl: mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : undefined
       });
     } else if (platform === "instagram") {
       // Find IG Account ID linked (for now assume providerAccountId IS the target or we query it)
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
         accessToken: account.accessToken,
         providerAccountId: account.providerAccountId,
         content,
-        mediaUrls
+        mediaUrl: mediaUrls && mediaUrls.length > 0 ? mediaUrls[0] : undefined
       });
     }
 

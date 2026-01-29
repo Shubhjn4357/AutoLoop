@@ -112,7 +112,144 @@ export async function GET(
                 });
             }
 
-            return NextResponse.redirect(new URL("/dashboard/social?success=connected", effectiveBaseUrl));
+            return NextResponse.redirect(new URL("/dashboard/settings?success=connected", effectiveBaseUrl));
+        }
+
+        if (provider === "linkedin") {
+            const clientId = process.env.LINKEDIN_CLIENT_ID;
+            const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
+            const redirectUri = `${effectiveBaseUrl}/api/social/callback/linkedin`;
+
+            const tokenUrl = "https://www.linkedin.com/oauth/v2/accessToken";
+            const params = new URLSearchParams();
+            params.append("grant_type", "authorization_code");
+            params.append("code", code);
+            params.append("redirect_uri", redirectUri);
+            params.append("client_id", clientId!);
+            params.append("client_secret", clientSecret!);
+
+            const tokenRes = await fetch(tokenUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: params
+            });
+            const tokenData = await tokenRes.json();
+
+            if (tokenData.error) {
+                throw new Error(tokenData.error_description || "LinkedIn Auth Failed");
+            }
+
+            const accessToken = tokenData.access_token;
+            const expiresSeconds = tokenData.expires_in;
+            const expiresAt = new Date(Date.now() + expiresSeconds * 1000);
+
+            // Fetch Profile (OpenID)
+            const meUrl = "https://api.linkedin.com/v2/userinfo";
+            const meRes = await fetch(meUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            const meData = await meRes.json();
+            // meData: { sub: "id", name: "...", picture: "...", email: "..." }
+
+            // Save to DB
+            const existingAccount = await db.query.connectedAccounts.findFirst({
+                where: and(
+                    eq(connectedAccounts.userId, userId),
+                    eq(connectedAccounts.provider, "linkedin")
+                )
+            });
+
+            if (existingAccount) {
+                await db.update(connectedAccounts).set({
+                    accessToken: accessToken,
+                    expiresAt: expiresAt,
+                    updatedAt: new Date(),
+                    name: meData.name,
+                    picture: meData.picture,
+                    providerAccountId: meData.sub
+                }).where(eq(connectedAccounts.id, existingAccount.id));
+            } else {
+                await db.insert(connectedAccounts).values({
+                    userId: userId,
+                    provider: "linkedin",
+                    providerAccountId: meData.sub,
+                    accessToken: accessToken,
+                    expiresAt: expiresAt,
+                    name: meData.name,
+                    picture: meData.picture
+                });
+            }
+
+            return NextResponse.redirect(new URL("/dashboard/settings?success=connected", effectiveBaseUrl));
+        }
+
+        if (provider === "youtube") {
+            const clientId = process.env.GOOGLE_CLIENT_ID;
+            const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+            const redirectUri = `${effectiveBaseUrl}/api/social/callback/youtube`;
+
+            const tokenUrl = "https://oauth2.googleapis.com/token";
+            const params = new URLSearchParams();
+            params.append("grant_type", "authorization_code");
+            params.append("code", code);
+            params.append("redirect_uri", redirectUri);
+            params.append("client_id", clientId!);
+            params.append("client_secret", clientSecret!);
+
+            const tokenRes = await fetch(tokenUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: params
+            });
+            const tokenData = await tokenRes.json();
+
+            if (tokenData.error) {
+                throw new Error(tokenData.error_description || "YouTube Auth Failed");
+            }
+
+            const accessToken = tokenData.access_token;
+            // Google tokens expire in 1 hour usually
+            const expiresSeconds = tokenData.expires_in;
+            const expiresAt = new Date(Date.now() + expiresSeconds * 1000);
+
+            // Fetch Profile
+            const meUrl = "https://www.googleapis.com/oauth2/v2/userinfo";
+            const meRes = await fetch(meUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            const meData = await meRes.json();
+            // meData: { id: "...", email: "...", name: "...", picture: "..." }
+
+            // Save to DB
+            const existingAccount = await db.query.connectedAccounts.findFirst({
+                where: and(
+                    eq(connectedAccounts.userId, userId),
+                    eq(connectedAccounts.provider, "youtube")
+                )
+            });
+
+            if (existingAccount) {
+                await db.update(connectedAccounts).set({
+                    accessToken: accessToken,
+                    expiresAt: expiresAt,
+                    updatedAt: new Date(),
+                    name: meData.name,
+                    picture: meData.picture,
+                    providerAccountId: meData.id
+                }).where(eq(connectedAccounts.id, existingAccount.id));
+            } else {
+                await db.insert(connectedAccounts).values({
+                    userId: userId,
+                    provider: "youtube",
+                    providerAccountId: meData.id,
+                    accessToken: accessToken,
+                    expiresAt: expiresAt,
+                    name: meData.name,
+                    picture: meData.picture
+                });
+            }
+
+            return NextResponse.redirect(new URL("/dashboard/settings?success=connected", effectiveBaseUrl));
         }
 
     } catch (err) {

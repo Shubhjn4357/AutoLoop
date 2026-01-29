@@ -54,7 +54,7 @@ export default function BusinessesPage() {
 
     const [categories, setCategories] = useState<string[]>([]);
 
-    const { get: getBusinessesApi } = useApi<{ businesses: Business[], totalPages: number, page: number }>();
+    const { get: getBusinessesApi, loading: loadingBusinesses } = useApi<{ businesses: Business[], totalPages: number, page: number }>();
     const { get: getCategoriesApi } = useApi<{ categories: string[] }>();
 
     // Debounce effect
@@ -235,6 +235,7 @@ export default function BusinessesPage() {
                         onSendEmail={handleSendEmail}
                         selectedIds={selectedIds}
                         onSelectionChange={setSelectedIds}
+                        isLoading={loadingBusinesses}
                     />
 
                     {/* Pagination Controls */}

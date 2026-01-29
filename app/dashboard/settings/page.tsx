@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Key, Bell, Copy, Check, Loader2 } from "lucide-react";
+import { User, Key, Bell, Copy, Check, Loader2, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus } from "lucide-react";
@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/components/theme-provider";
 import { signOut } from "next-auth/react";
 import { useApi } from "@/hooks/use-api";
-import { UserProfile } from "@/types";
+import { ConnectedAccount, UserProfile } from "@/types";
 
 import {
   Dialog,
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Moon, Sun, LogOut, Trash2, AlertTriangle, Palette } from "lucide-react";
 import { MailSettings } from "@/components/mail/mail-settings";
+import { SocialSettings } from "@/components/settings/social-settings";
 
 interface StatusResponse {
   database: boolean;
@@ -43,7 +44,7 @@ export default function SettingsPage() {
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
 
   // API Hooks
-  const { get: getSettings, patch: patchSettings, loading: settingsLoading } = useApi<{ user: UserProfile & { isGeminiKeySet: boolean, isGmailConnected: boolean, isLinkedinCookieSet: boolean } }>();
+  const { get: getSettings, patch: patchSettings, loading: settingsLoading } = useApi<{ user: UserProfile & { isGeminiKeySet: boolean, isGmailConnected: boolean, isLinkedinCookieSet: boolean }, connectedAccounts: ConnectedAccount[] }>();
   const { get: getStatus, loading: statusLoading } = useApi<StatusResponse>();
   const { del: deleteUserFn, loading: deletingUser } = useApi<void>();
   const { del: deleteDataFn, loading: deletingData } = useApi<void>();
@@ -54,6 +55,7 @@ export default function SettingsPage() {
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [isGeminiKeySet, setIsGeminiKeySet] = useState(false);
   const [isGmailConnected, setIsGmailConnected] = useState(false);
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
 
   // Connection Status State
   const [connectionStatus, setConnectionStatus] = useState({ database: false, redis: false });
@@ -94,7 +96,11 @@ export default function SettingsPage() {
         }
         setIsGeminiKeySet(settingsData.user.isGeminiKeySet);
         setIsGmailConnected(settingsData.user.isGmailConnected);
+
+        if (settingsData.connectedAccounts) {
+          setConnectedAccounts(settingsData.connectedAccounts);
         }
+      }
 
         // Fetch Connection Status
       const statusData = await getStatus("/api/settings/status");
@@ -550,8 +556,17 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Social Integrations */}
+              <div className="space-y-4 pt-4 border-t">
+                <div>
+                  <h3 className="text-lg font-medium">Social Connections</h3>
+                  <p className="text-sm text-muted-foreground">Manage your social media accounts for auto-posting.</p>
+                </div>
+                <SocialSettings connectedAccounts={connectedAccounts} />
+              </div>
+
               {/* Mail Settings (Gmail) */}
-              <div className="space-y-2">
+              <div className="space-y-2 pt-4 border-t">
                 <MailSettings isConnected={isGmailConnected} email={session?.user?.email} />
               </div>
 
@@ -592,7 +607,17 @@ export default function SettingsPage() {
               {/* Gemini API */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Gemini API Key</Label>
+                  <div className="flex items-center gap-2">
+                    <Label>Gemini API Key</Label>
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                    >
+                      (Get Key <ExternalLink className="h-3 w-3" />)
+                    </a>
+                  </div>
                   <Badge variant={isGeminiKeySet ? "default" : "destructive"}>
                     {isGeminiKeySet ? "Configured" : "Not Set"}
                   </Badge>
@@ -622,10 +647,21 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              {/* LinkedIn Session Cookie */}
+              {/* LinkedIn Session Cookie (Legacy/Alternative) */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>LinkedIn Session Cookie (li_at)</Label>
+                  <div className="flex items-center gap-2">
+                    <Label>LinkedIn Session Cookie (Scraping)</Label>
+                    <a
+                      href="https://www.linkedin.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                      title="Login and find 'li_at' cookie in Developer Tools > Application"
+                    >
+                      (Open LinkedIn <ExternalLink className="h-3 w-3" />)
+                    </a>
+                  </div>
                   <Badge variant={isLinkedinCookieSet ? "default" : "secondary"}>
                     {isLinkedinCookieSet ? "Configured" : "Not Set"}
                   </Badge>
@@ -651,10 +687,8 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Required for real LinkedIn automation.
-                  <span className="text-yellow-600 dark:text-yellow-400 font-medium ml-1">
-                    Warning: Use with caution.
-                  </span>
+                  <strong>Required ONLY for the Scraper Tool.</strong> This is separate from the &quot;Social Connections&quot; above.
+                  Used for extracting data from LinkedIn profiles directly. Use F12 &gt; Application &gt; Cookies to find <code>li_at</code>.
                 </p>
               </div>
 

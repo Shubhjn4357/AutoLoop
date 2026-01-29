@@ -86,7 +86,7 @@ export interface NodeData {
 interface NodeEditorProps {
   initialNodes?: Node<NodeData>[];
   initialEdges?: Edge[];
-  onSave?: (nodes: Node<NodeData>[], edges: Edge[], options?: { isAutoSave?: boolean }) => void;
+  onSave?: (nodes: Node<NodeData>[], edges: Edge[]) => void;
   isSaving?: boolean;
   workflowId?: string;
 }
@@ -188,29 +188,11 @@ export function NodeEditor({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo, onSave, nodes, edges, toast]);
 
-  // Auto-Save
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  // Auto-Save Removed
+  // const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // const [isAutoSaving, setIsAutoSaving] = useState(false);
 
-  useEffect(() => {
-    if (!onSave) return;
-
-    // Clear previous timeout
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-
-    // Capture changes for auto-save
-    setIsAutoSaving(true);
-    saveTimeoutRef.current = setTimeout(() => {
-      onSave(nodes, edges, { isAutoSave: true });
-      setIsAutoSaving(false);
-    }, 2000); // 2 second debounce
-
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, [nodes, edges, onSave]);
+  // useEffect(() => { ... }) code removed
 
   // Paste node handler - using ref to avoid hoisting issues
   const handlePasteNodeRef = useRef<(() => void) | null>(null);
@@ -690,7 +672,7 @@ export function NodeEditor({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button onClick={handleSave} size="icon" variant="outline" disabled={isSaving}>
-                      {(isSaving || isAutoSaving) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Save Workflow</TooltipContent>

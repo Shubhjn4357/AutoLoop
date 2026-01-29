@@ -46,13 +46,8 @@ export default function WorkflowBuilderPage() {
         init();
     }, [params.id, get, router, toast]);
 
-    const [isManualSaving, setIsManualSaving] = useState(false);
-
-    const handleSave = async (nodes: Node<NodeData>[], edges: Edge[], options?: { isAutoSave?: boolean }) => {
+    const handleSave = async (nodes: Node<NodeData>[], edges: Edge[]) => {
         const isNew = params.id === "new";
-        const isAutoSave = options?.isAutoSave;
-
-        if (!isAutoSave) setIsManualSaving(true);
 
         const workflowData = {
             ...workflow,
@@ -60,36 +55,29 @@ export default function WorkflowBuilderPage() {
             edges,
         };
 
-        const apiOptions = isAutoSave ? { skipNotification: true } : undefined;
-
         let result;
         if (isNew) {
-            result = await post<{ workflow: AutomationWorkflow }>("/api/workflows", workflowData, apiOptions);
+            result = await post<{ workflow: AutomationWorkflow }>("/api/workflows", workflowData);
         } else {
-            result = await patch<{ workflow: AutomationWorkflow }>(`/api/workflows/${params.id}`, workflowData, apiOptions);
+            result = await patch<{ workflow: AutomationWorkflow }>(`/api/workflows/${params.id}`, workflowData);
         }
 
         if (result && result.workflow) {
-            if (!isAutoSave) {
-                toast({
-                    title: "Success",
-                    description: "Workflow saved successfully",
-                });
-            }
-
+            toast({
+                title: "Success",
+                description: "Workflow saved successfully",
+            });
             if (isNew && result.workflow.id) {
                 // Update URL without reloading so we stay in edit mode
                 router.replace(`/dashboard/workflows/builder/${result.workflow.id}`);
             }
-        } else if (!isAutoSave) {
+        } else {
             toast({
                 title: "Error",
                 description: "Failed to save workflow",
                 variant: "destructive",
             });
         }
-
-        if (!isAutoSave) setIsManualSaving(false);
     };
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -138,7 +126,7 @@ export default function WorkflowBuilderPage() {
                         disabled={loading}
                         className="w-full sm:w-auto"
                     >
-                        {isManualSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save Workflow
                     </Button>
                 </div>

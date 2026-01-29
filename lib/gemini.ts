@@ -6,10 +6,13 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-async function getEffectiveApiKey(providedKey?: string): Promise<string | undefined> {
-  if (providedKey) return providedKey;
-  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+// Standardize models across the app (newest to oldest/most stable)
+export const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
 
+export async function getEffectiveApiKey(providedKey?: string): Promise<string | undefined> {
+  if (providedKey) return providedKey;
+
+  // Try fetching from DB first (User preference overrides global env)
   try {
     const session = await auth();
     if (session?.user?.id) {
@@ -22,6 +25,10 @@ async function getEffectiveApiKey(providedKey?: string): Promise<string | undefi
   } catch (error) {
     console.warn("Failed to fetch Gemini API key from DB:", error);
   }
+
+  // Fallback to environment variable
+  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+
   return undefined;
 }
 
@@ -31,16 +38,15 @@ export async function generateEmailTemplate(
   apiKey?: string
 ): Promise<{ subject: string; body: string }> {
   try {
-    const key = apiKey || process.env.GEMINI_API_KEY;
-    if (!key) throw new Error("No Gemini API key provided");
+    const key = await getEffectiveApiKey(apiKey);
+    if (!key) throw new Error("No Gemini API key provided. Please configure it in settings or .env");
 
     const client = new GoogleGenerativeAI(key);
 
     // Models to try in order of preference
-    const models = ["gemini-3-flash-preview", "gemini-2.0-flash"]; /* "gemini-2.0-flash-exp" is also common, but sticking to user request */
     let lastError;
 
-    for (const modelName of models) {
+    for (const modelName of GEMINI_MODELS) {
       try {
         const model = client.getGenerativeModel({ model: modelName });
 
@@ -112,16 +118,15 @@ export async function evaluateCondition(
  */
 export async function generateAIContent(prompt: string, apiKey?: string): Promise<string> {
   try {
-    const key = apiKey || process.env.GEMINI_API_KEY;
+    const key = await getEffectiveApiKey(apiKey);
     if (!key) {
       throw new Error("Gemini API key not configured");
     }
 
     const genAI = new GoogleGenerativeAI(key);
-    const models = ["gemini-3-flash-preview", "gemini-2.0-flash"];
     let lastError;
 
-    for (const modelName of models) {
+    for (const modelName of GEMINI_MODELS) {
       try {
         const model = genAI.getGenerativeModel({ model: modelName });
 
@@ -152,17 +157,16 @@ export async function generateWorkflowFromPrompt(
   apiKey?: string
 ): Promise<{ nodes: Node[]; edges: Edge[] }> {
   try {
-    const key = apiKey || process.env.GEMINI_API_KEY;
+    const key = await getEffectiveApiKey(apiKey);
     if (!key) {
       throw new Error("Gemini API key not configured");
     }
 
     const genAI = new GoogleGenerativeAI(key);
     // Models to try in order
-    const models = ["gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
     let lastError;
 
-    for (const modelName of models) {
+    for (const modelName of GEMINI_MODELS) {
       try {
         const model = genAI.getGenerativeModel({ model: modelName });
 

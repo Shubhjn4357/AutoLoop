@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 // If DatePicker doesn't exist, we'll use input type="datetime-local" for MVP.
 
 interface ConnectedAccount {
@@ -131,8 +132,9 @@ export function PostCreatorForm({ accounts }: PostCreatorFormProps) {
                             onChange={(e) => setImageUrl(e.target.value)}
                         />
                         {imageUrl && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={imageUrl} alt="Preview" className="w-full h-48 object-cover rounded mt-2 border" />
+                            <div className="relative w-full h-48 mt-2 rounded border overflow-hidden">
+                                <Image src={imageUrl} alt="Preview" fill className="object-cover" unoptimized />
+                            </div>
                         )}
                         <p className="text-xs text-muted-foreground">Direct link to image (JPG/PNG)</p>
                     </div>

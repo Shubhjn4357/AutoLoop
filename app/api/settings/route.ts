@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getEffectiveUserId } from "@/lib/auth-utils";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, connectedAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 interface UpdateUserData {
@@ -48,6 +48,11 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Fetch connected accounts
+    const accounts = await db.query.connectedAccounts.findMany({
+      where: eq(connectedAccounts.userId, userId),
+    });
+
     // Mask sensitive keys for display
     const maskedGeminiKey = user.geminiApiKey
       ? `••••••••${user.geminiApiKey.slice(-4)}`
@@ -69,6 +74,7 @@ export async function GET() {
         website: user.website,
         customVariables: user.customVariables,
       },
+      connectedAccounts: accounts,
     });
   } catch (error) {
     console.error("Error fetching user settings:", error);

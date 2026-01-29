@@ -15,6 +15,7 @@ import {
   FileText,
   CheckSquare,
   Share2,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -27,6 +28,7 @@ import { toast } from "sonner";
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Businesses", href: "/dashboard/businesses", icon: Building2 },
+  { name: "Scraper", href: "/dashboard/scraper", icon: Search },
   { name: "Workflows", href: "/dashboard/workflows", icon: Workflow },
   { name: "Templates", href: "/dashboard/templates", icon: Mail },
   { name: "Analytics", href: "/dashboard/analytics", icon: FileText },

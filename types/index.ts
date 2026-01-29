@@ -121,3 +121,18 @@ export interface WorkflowExecutionContext {
   userId: string;
   workflowId: string;
 }
+
+export interface ConnectedAccount {
+  id: string;
+  userId: string;
+  provider: string;
+  providerAccountId: string;
+  accessToken?: string | null;
+  refreshToken?: string | null;
+  expiresAt?: Date | null;
+  name?: string | null;
+  email?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+}

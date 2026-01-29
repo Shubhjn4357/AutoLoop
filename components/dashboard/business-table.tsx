@@ -15,10 +15,13 @@ import { Mail, ExternalLink, MoreHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
 
+import { Skeleton } from "@/components/ui/skeleton";
+
 interface BusinessTableProps {
   businesses: Business[];
   onViewDetails: (business: Business) => void;
   onSendEmail: (business: Business) => void;
+  isLoading?: boolean;
 }
 
 export function BusinessTable({
@@ -27,6 +30,7 @@ export function BusinessTable({
   onSendEmail,
   selectedIds = [],
   onSelectionChange,
+  isLoading = false,
 }: BusinessTableProps & {
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
@@ -62,6 +66,46 @@ export function BusinessTable({
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="w-full">
+        <div className="flex items-center py-4">
+          {/* Optional header skeleton if needed, but table structure usually suffices */}
+        </div>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]"><Skeleton className="h-4 w-4" /></TableHead>
+                <TableHead>Business Name</TableHead>
+                <TableHead>Website</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Email Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-[70px] rounded-full" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-[80px]" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Table>
       <TableHeader>
@@ -85,7 +129,14 @@ export function BusinessTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {businesses.map((business) => (
+        {businesses.length === 0 ? (
+          <TableRow>
+            <TableCell colSpan={8} className="h-24 text-center">
+              No businesses found.
+            </TableCell>
+          </TableRow>
+        ) : (
+          businesses.map((business) => (
           <TableRow key={business.id}>
             {onSelectionChange && (
               <TableCell>
@@ -154,7 +205,7 @@ export function BusinessTable({
               </div>
             </TableCell>
           </TableRow>
-        ))}
+        )))}
       </TableBody>
     </Table>
   );

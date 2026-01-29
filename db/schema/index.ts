@@ -237,6 +237,10 @@ export const socialPosts = pgTable("social_posts", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   connectedAccountId: text("connected_account_id").references(() => connectedAccounts.id, { onDelete: "set null" }),
   content: text("content"),
+  title: text("title"),
+  thumbnailUrl: text("thumbnail_url"),
+  tags: jsonb("tags").$type<string[]>(),
+  category: text("category"),
   mediaUrls: jsonb("media_urls").$type<string[]>(),
   scheduledAt: timestamp("scheduled_at"),
   status: varchar("status", { length: 20 }).default("draft").notNull(), // 'draft', 'scheduled', 'published', 'failed'

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Zap } from "lucide-react";
+import { Plus, Zap, ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 
@@ -25,6 +25,12 @@ export default async function AutomationsPage() {
         <div className="flex flex-col gap-6 p-6">
             <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-2">
+                    <Button variant="ghost" className="w-fit pl-0 hover:bg-transparent hover:text-primary" asChild>
+                        <Link href="/dashboard/social">
+                            <ChevronLeft className="mr-2 h-4 w-4" />
+                            Back to Dashboard
+                        </Link>
+                    </Button>
                     <h1 className="text-3xl font-bold tracking-tight">Social Automations</h1>
                     <p className="text-muted-foreground">
                         Automatically reply to comments and DMs based on keywords.
