@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { setDefaultResultOrder } from "node:dns";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { connectedAccounts } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
+setDefaultResultOrder("ipv4first");
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ provider: string }> }
