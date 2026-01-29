@@ -96,7 +96,7 @@ export default function WorkflowsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {loading || workflows.length === 0 ? (
+        {loading ? (
           // Show skeleton cards while loading
           Array.from({ length: 6 }).map((_, i) => (
             <Card key={i} className="animate-pulse">

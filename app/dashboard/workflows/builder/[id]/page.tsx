@@ -56,23 +56,19 @@ export default function WorkflowBuilderPage() {
 
         let result;
         if (isNew) {
-            result = await post<{ id: string }>("/api/workflows", workflowData);
-            if (result && result.id) {
-                // Redirect to edit mode so we don't create duplicates on subsequent saves
-                // router.replace(`/dashboard/workflows/builder/${result.id}`);
-                // Actually, let's keep it simple for now, maybe just toast
-            }
+            result = await post<{ workflow: AutomationWorkflow }>("/api/workflows", workflowData);
         } else {
-            result = await patch(`/api/workflows/${params.id}`, workflowData);
+            result = await patch<{ workflow: AutomationWorkflow }>(`/api/workflows/${params.id}`, workflowData);
         }
 
-        if (result) {
+        if (result && result.workflow) {
             toast({
                 title: "Success",
                 description: "Workflow saved successfully",
             });
-            if (isNew) {
-                router.push("/dashboard/workflows");
+            if (isNew && result.workflow.id) {
+                // Update URL without reloading so we stay in edit mode
+                router.replace(`/dashboard/workflows/builder/${result.workflow.id}`);
             }
         } else {
             toast({

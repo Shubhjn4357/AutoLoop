@@ -45,29 +45,58 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           credentials.password === adminPassword
         ) {
           // Ensure admin user exists in DB
-          const adminId = "admin-user";
-
           try {
+            // Ensure admin user exists in DB
             const existingAdmin = await db.query.users.findFirst({
-              where: eq(users.id, adminId)
+              where: eq(users.email, adminEmail!)
             });
 
+            let adminUser = existingAdmin;
+
             if (!existingAdmin) {
+              const newAdminId = "admin-user";
               await db.insert(users).values({
-                id: adminId,
+                id: newAdminId,
                 name: "Admin",
                 email: adminEmail!,
                 createdAt: new Date(),
                 updatedAt: new Date()
               });
+
+              // Refetch to be safe or construct the object
+              adminUser = {
+                id: newAdminId,
+                name: "Admin",
+                email: adminEmail!,
+                // other fields typically expected by types, though findFirst returns partial
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                image: null,
+                accessToken: null,
+                refreshToken: null,
+                geminiApiKey: null,
+                phone: null,
+                jobTitle: null,
+                company: null,
+                website: null,
+                customVariables: null,
+                linkedinSessionCookie: null
+              };
             }
+
+            return {
+              id: adminUser!.id,
+              name: adminUser!.name || "Admin",
+              email: adminUser!.email,
+              role: "admin",
+            };
           } catch (error) {
             console.error("Failed to ensure admin user exists:", error);
             // Fallback to memory-only, but this might cause FK issues as seen
           }
 
           return {
-            id: adminId,
+            id: "admin-user",
             name: "Admin",
             email: adminEmail,
             role: "admin",
@@ -182,7 +211,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               session.user.name = dbUser.name || session.user.name;
               session.user.image = dbUser.image || session.user.image;
               // START FIX: Check if this is the admin user
-              if (dbUser.id === "admin-user") {
+              if (dbUser.id === "admin-user" || dbUser.email === process.env.ADMIN_EMAIL) {
                 session.user.role = "admin";
               } else {
                 session.user.role = "user";

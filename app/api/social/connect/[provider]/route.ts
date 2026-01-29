@@ -27,7 +27,7 @@ export async function GET(
       "business_management", // General access
     ].join(",");
 
-    const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}`;
+    const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${clientId}&redirect_uri=${redirectUri}&state=${encodeURIComponent(state)}&scope=${scope}`;
     
     return NextResponse.redirect(url);
   }

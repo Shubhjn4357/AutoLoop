@@ -211,11 +211,11 @@ export default function SignIn() {
 
           <p className="text-center text-xs text-slate-500 dark:text-slate-400 px-4 leading-relaxed">
             By clicking continue, you agree to our{" "}
-            <Link href="#" className="font-medium text-primary hover:underline underline-offset-4">
+            <Link href="/terms" className="font-medium text-primary hover:underline underline-offset-4">
               Terms of Service
             </Link>{" "}
             and{" "}
-            <Link href="#" className="font-medium text-primary hover:underline underline-offset-4">
+            <Link href="/privacy" className="font-medium text-primary hover:underline underline-offset-4">
               Privacy Policy
             </Link>
           </p>

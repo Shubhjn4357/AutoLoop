@@ -162,6 +162,17 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { id, name, description, nodes, edges, isActive, timezone } = body;
 
+    let finalUserId = userId;
+    if (userId === "admin-user") {
+      const adminEmail = process.env.ADMIN_EMAIL;
+      if (adminEmail) {
+        const existingUserByEmail = await db.query.users.findFirst({
+          where: eq(users.email, adminEmail)
+        });
+        if (existingUserByEmail) finalUserId = existingUserByEmail.id;
+      }
+    }
+
     const [workflow] = await db
       .update(automationWorkflows)
       .set({
@@ -176,7 +187,7 @@ export async function PATCH(request: Request) {
       .where(
         and(
           eq(automationWorkflows.id, id),
-          eq(automationWorkflows.userId, userId)
+          eq(automationWorkflows.userId, finalUserId)
         )
       )
       .returning();
@@ -202,6 +213,17 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
+    let finalUserId = userId;
+    if (userId === "admin-user") {
+      const adminEmail = process.env.ADMIN_EMAIL;
+      if (adminEmail) {
+        const existingUserByEmail = await db.query.users.findFirst({
+          where: eq(users.email, adminEmail)
+        });
+        if (existingUserByEmail) finalUserId = existingUserByEmail.id;
+      }
+    }
+
     if (!id) {
       return NextResponse.json(
         { error: "Workflow ID required" },
@@ -214,7 +236,7 @@ export async function DELETE(request: Request) {
       .where(
         and(
           eq(automationWorkflows.id, id),
-          eq(automationWorkflows.userId, userId)
+          eq(automationWorkflows.userId, finalUserId)
         )
       );
 
