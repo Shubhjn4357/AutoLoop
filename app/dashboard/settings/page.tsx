@@ -64,7 +64,7 @@ export default function SettingsPage() {
   // API Key State
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [isGeminiKeySet, setIsGeminiKeySet] = useState(false);
-  const [isGeminiKeySet, setIsGeminiKeySet] = useState(false);
+
   const [isGmailConnected, setIsGmailConnected] = useState(false);
   const [whatsappConfig, setWhatsappConfig] = useState({ phone: "", configured: false });
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);

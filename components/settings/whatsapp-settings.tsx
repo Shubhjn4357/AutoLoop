@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApi } from "@/hooks/use-api";
-import { Loader2, MessageSquare, CheckCircle2, Copy, Eye, EyeOff, ExternalLink } from "lucide-react";
+import { Loader2, MessageSquare, Copy, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface WhatsAppSettingsProps {
     businessPhone?: string | null;
@@ -17,6 +17,7 @@ interface WhatsAppSettingsProps {
 }
 
 export function WhatsAppSettings({ businessPhone, isConfigured: initialConfigured }: WhatsAppSettingsProps) {
+    const { toast } = useToast();
     const { patch, loading } = useApi();
     const [phoneId, setPhoneId] = useState(businessPhone || "");
     const [accessToken, setAccessToken] = useState("");
@@ -34,7 +35,7 @@ export function WhatsAppSettings({ businessPhone, isConfigured: initialConfigure
             return;
         }
 
-        const data: any = { whatsappBusinessPhone: phoneId };
+        const data = { whatsappBusinessPhone: phoneId };
         if (accessToken) data.whatsappAccessToken = accessToken;
         if (verifyToken) data.whatsappVerifyToken = verifyToken;
 
