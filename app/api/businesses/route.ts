@@ -4,12 +4,8 @@ import { db } from "@/db";
 import { businesses } from "@/db/schema";
 import { eq, and, sql, or, isNull } from "drizzle-orm";
 import { rateLimit } from "@/lib/rate-limit";
-
-interface SessionUser {
-  id: string;
-  email: string;
-  name?: string;
-}
+import { getCached, invalidateCache } from "@/lib/cache-manager";
+import type { SessionUser } from "@/types";
 
 export async function GET(request: Request) {
   try {
@@ -27,63 +23,76 @@ export async function GET(request: Request) {
     const keyword = searchParams.get("keyword");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
-    const offset = (page - 1) * limit;
 
-    // Build where conditions
-    const conditions = [eq(businesses.userId, userId)];
+    // Generate cache key from query parameters
+    const cacheKey = `businesses:${userId}:${category}:${status}:${minRating}:${location}:${keyword}:${page}:${limit}`;
 
-    if (category && category !== "all") {
-      conditions.push(eq(businesses.category, category));
-    }
+    // Try to get from cache first
+    const cached = await getCached(
+      cacheKey,
+      async () => {
+        const offset = (page - 1) * limit;
 
-    if (status && status !== "all") {
-      if (status === "pending") {
-        conditions.push(or(eq(businesses.emailStatus, "pending"), isNull(businesses.emailStatus))!);
-      } else {
-        conditions.push(eq(businesses.emailStatus, status));
-      }
-    }
+        // Build where conditions
+        const conditions = [eq(businesses.userId, userId)];
 
-    if (minRating) {
-      conditions.push(sql`${businesses.rating} >= ${minRating}`);
-    }
+        if (category && category !== "all") {
+          conditions.push(eq(businesses.category, category));
+        }
 
-    if (location) {
-      conditions.push(sql`${businesses.address} ILIKE ${`%${location}%`}`);
-    }
+        if (status && status !== "all") {
+          if (status === "pending") {
+            conditions.push(or(eq(businesses.emailStatus, "pending"), isNull(businesses.emailStatus))!);
+          } else {
+            conditions.push(eq(businesses.emailStatus, status));
+          }
+        }
 
-    if (keyword) {
-      conditions.push(
-        or(
-          sql`${businesses.name} ILIKE ${`%${keyword}%`}`,
-          sql`${businesses.category} ILIKE ${`%${keyword}%`}`
-        )!
-      );
-    }
+        if (minRating) {
+          conditions.push(sql`${businesses.rating} >= ${minRating}`);
+        }
 
-    // Get total count
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(businesses)
-      .where(and(...conditions));
+        if (location) {
+          conditions.push(sql`${businesses.address} ILIKE ${`%${location}%`}`);
+        }
 
-    const totalPages = Math.ceil(count / limit);
+        if (keyword) {
+          conditions.push(
+            or(
+              sql`${businesses.name} ILIKE ${`%${keyword}%`}`,
+              sql`${businesses.category} ILIKE ${`%${keyword}%`}`
+            )!
+          );
+        }
 
-    const results = await db
-      .select()
-      .from(businesses)
-      .where(and(...conditions))
-      .orderBy(businesses.createdAt)
-      .limit(limit)
-      .offset(offset);
+        // Get total count
+        const [{ count }] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(businesses)
+          .where(and(...conditions));
 
-    return NextResponse.json({
-      businesses: results,
-      page,
-      limit,
-      total: count,
-      totalPages
-    });
+        const totalPages = Math.ceil(count / limit);
+
+        const results = await db
+          .select()
+          .from(businesses)
+          .where(and(...conditions))
+          .orderBy(businesses.createdAt)
+          .limit(limit)
+          .offset(offset);
+
+        return {
+          businesses: results,
+          page,
+          limit,
+          total: count,
+          totalPages,
+        };
+      },
+      600 // Cache for 10 minutes
+    );
+
+    return NextResponse.json(cached);
   } catch (error) {
     console.error("Error fetching businesses:", error);
     return NextResponse.json(
@@ -105,6 +114,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const userId = (session.user as SessionUser).id;
     const body = await request.json();
     const { id, ...updates } = body;
 
@@ -113,6 +123,9 @@ export async function PATCH(request: Request) {
       .set({ ...updates, updatedAt: new Date() })
       .where(eq(businesses.id, id))
       .returning();
+
+    // Invalidate cache for this user's businesses
+    await invalidateCache(`businesses:${userId}:*`);
 
     return NextResponse.json({ business });
   } catch (error) {
@@ -131,6 +144,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const userId = (session.user as SessionUser).id;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -142,6 +156,9 @@ export async function DELETE(request: Request) {
     }
 
     await db.delete(businesses).where(eq(businesses.id, id));
+
+    // Invalidate cache for this user's businesses
+    await invalidateCache(`businesses:${userId}:*`);
 
     return NextResponse.json({ success: true });
   } catch (error) {

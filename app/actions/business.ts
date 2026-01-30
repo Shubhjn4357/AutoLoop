@@ -2,14 +2,19 @@
 
 import { auth } from "@/auth";
 import { getEffectiveUserId } from "@/lib/auth-utils";
+import { validateCsrfToken } from "@/lib/csrf-server";
 import { db } from "@/db";
 import { businesses } from "@/db/schema";
 import { eq, inArray, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export async function deleteBusiness(id: string) {
+export async function deleteBusiness(id: string, csrfToken: string) {
     const session = await auth();
     if (!session?.user?.id) throw new Error("Unauthorized");
+
+    // Validate CSRF token
+    const isValidToken = await validateCsrfToken(csrfToken);
+    if (!isValidToken) throw new Error("Invalid CSRF token");
 
     const userId = await getEffectiveUserId(session.user.id);
 
@@ -23,9 +28,13 @@ export async function deleteBusiness(id: string) {
     revalidatePath("/dashboard/businesses");
 }
 
-export async function bulkDeleteBusinesses(ids: string[]) {
+export async function bulkDeleteBusinesses(ids: string[], csrfToken: string) {
     const session = await auth();
     if (!session?.user?.id) throw new Error("Unauthorized");
+
+    // Validate CSRF token
+    const isValidToken = await validateCsrfToken(csrfToken);
+    if (!isValidToken) throw new Error("Invalid CSRF token");
 
     const userId = await getEffectiveUserId(session.user.id);
 

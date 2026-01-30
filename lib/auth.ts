@@ -80,7 +80,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 company: null,
                 website: null,
                 customVariables: null,
-                linkedinSessionCookie: null
+                linkedinSessionCookie: null,
+                whatsappBusinessPhone: null,
+                whatsappAccessToken: null,
+                whatsappVerifyToken: null
               };
             }
 

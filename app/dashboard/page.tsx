@@ -6,7 +6,7 @@ import { BusinessTable } from "@/components/dashboard/business-table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Business } from "@/types";
-import { Users, Mail, TrendingUp, ArrowRight } from "lucide-react";
+import { Users, Mail, TrendingUp, ArrowRight, Activity } from "lucide-react";
 import dynamic from "next/dynamic";
 import { AnimatedContainer } from "@/components/animated-container";
 import { useApi } from "@/hooks/use-api";
@@ -14,6 +14,11 @@ import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const EmailChart = dynamic(() => import("@/components/dashboard/email-chart"), {
+  loading: () => <Skeleton className="h-[300px] w-full" />,
+  ssr: false
+});
+
+const LeadDemographicsChart = dynamic(() => import("@/components/dashboard/lead-demographics-chart"), {
   loading: () => <Skeleton className="h-[300px] w-full" />,
   ssr: false
 });
@@ -32,10 +37,16 @@ interface ChartDataPoint {
   opened: number;
 }
 
+interface DemographicData {
+  name: string;
+  value: number;
+}
+
 export default function DashboardPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [demographics, setDemographics] = useState<DemographicData[]>([]);
 
   // API Hooks
   const { get: getBusinessesApi, loading: loadingBusinesses } = useApi<{ businesses: Business[] }>();
@@ -48,7 +59,23 @@ export default function DashboardPage() {
         getStatsApi("/api/dashboard/stats")
       ]);
 
-      if (businessData?.businesses) setBusinesses(businessData.businesses);
+      if (businessData?.businesses) {
+        setBusinesses(businessData.businesses);
+
+        // Calculate demographics from businesses
+        const typeCount: Record<string, number> = {};
+        businessData.businesses.forEach((b) => {
+          const type = b.category || "Unknown";
+          typeCount[type] = (typeCount[type] || 0) + 1;
+        });
+
+        const demoData = Object.entries(typeCount)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5); // Top 5
+
+        setDemographics(demoData);
+      }
       if (statsData) {
         setStats(statsData.stats);
         setChartData(statsData.chartData || []);
@@ -78,25 +105,31 @@ export default function DashboardPage() {
       {/* Primary Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {loadingStats || !stats ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 w-full rounded-xl" />
-          ))
+          <>
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </>
         ) : (
             <>
               <AnimatedContainer delay={0.1}>
-                <StatCard title="Total Leads" value={stats.totalBusinesses} icon={Users} />
+                <StatCard title="Total Leads" value={stats.totalBusinesses.toString()} icon={Users} />
               </AnimatedContainer>
               <AnimatedContainer delay={0.2}>
-                <StatCard title="Emails Sent" value={stats.emailsSent} icon={Mail} />
+                <StatCard title="Emails Sent" value={stats.emailsSent.toString()} icon={Mail} />
               </AnimatedContainer>
               <AnimatedContainer delay={0.3}>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Daily Quota</CardTitle>
-                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-medium">Email Quota</CardTitle>
+                    <Activity className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{stats.quotaUsed} / {stats.quotaLimit}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {Math.round((stats.quotaUsed / stats.quotaLimit) * 100)}% used
+                    </p>
                     <div className="mt-3 h-2 w-full bg-secondary rounded-full overflow-hidden">
                       <div
                         className={`h-full ${stats.quotaUsed >= stats.quotaLimit ? 'bg-red-500' : 'bg-blue-500'}`}
@@ -125,16 +158,14 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Recent Activity / Demographics Placeholder */}
+        {/* Lead Demographics */}
         <Card className="col-span-3">
           <CardHeader>
             <CardTitle>Lead Demographics</CardTitle>
             <CardDescription>Business types distribution</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm border-2 border-dashed rounded-lg">
-              Coming Soon: Business Type Chart
-            </div>
+            <LeadDemographicsChart data={demographics} loading={loadingBusinesses} />
           </CardContent>
         </Card>
       </div>
@@ -148,12 +179,12 @@ export default function DashboardPage() {
           </Button>
         </CardHeader>
         <CardContent>
-                <BusinessTable
+          <BusinessTable
             businesses={businesses.slice(0, 5)}
             onViewDetails={() => { }}
             onSendEmail={() => { }}
             isLoading={loadingBusinesses}
-                />
+          />
         </CardContent>
       </Card>
     </div>

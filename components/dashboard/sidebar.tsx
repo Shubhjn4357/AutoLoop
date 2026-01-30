@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  Bell,
   LayoutDashboard,
   Building2,
   Mail,
@@ -23,7 +22,6 @@ import { BuyCoffeeWidget } from "@/components/buy-coffee-widget";
 import { SignOutModal } from "@/components/sign-out-modal";
 import { useSidebar } from "./sidebar-provider";
 
-import { toast } from "sonner";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -67,24 +65,6 @@ export function Sidebar() {
             </div>
           )}
         </div>
-
-
-
-        {/* Test Notification Button (Temporary/Demo) */}
-        {!isCollapsed && (
-          <div className="px-4 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start text-xs h-7 border-dashed border-primary/30 hover:border-primary/60 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
-              onClick={() => toast.success("Glassmorphic Notification", { description: "This is a test notification to verify the new theme styles." })}
-            >
-              <Bell className="h-3 w-3 mr-2" />
-              Test Notification
-            </Button>
-          </div>
-        )}
-
         {/* Navigation */}
         <nav className="flex-1 space-y-1 p-4">
           {navigation.map((item) => {
@@ -116,7 +96,7 @@ export function Sidebar() {
         <div className="border-t p-4">
           <Button
             variant="ghost"
-            className={cn("w-full cursor-pointer", isCollapsed ? "justify-center p-2" : "justify-start")}
+            className={cn(" hover:text-destructive-foreground hover:bg-destructive w-full cursor-pointer", isCollapsed ? "justify-center p-2" : "justify-start")}
             onClick={() => setShowSignOutModal(true)}
             title={isCollapsed ? "Sign Out" : undefined}
           >
@@ -128,7 +108,7 @@ export function Sidebar() {
         {/* Collapse button */}
         <button
           onClick={toggleSidebar}
-          className="absolute -right-3 top-9 flex h-6 w-6 items-center justify-center rounded-full border bg-background shadow-md cursor-pointer hover:bg-accent"
+          className="absolute z-999 -right-3 top-9 flex h-6 w-6 items-center justify-center rounded-full border bg-background shadow-md cursor-pointer hover:bg-accent"
         >
           <ChevronLeft
             className={cn(

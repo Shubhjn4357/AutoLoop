@@ -158,6 +158,158 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     ],
   },
   {
+    id: "social-engagement-automation",
+    name: "Social Media Engagement Bot",
+    description: "Monitor comments/mentions and auto-reply with AI-generated responses",
+    nodes: [
+      {
+        id: "1",
+        type: "workflowNode",
+        data: { label: "Schedule Check", type: "schedule", config: { scheduleCron: "*/15 * * * *" } },
+        position: { x: 250, y: 50 }
+      },
+      {
+        id: "2",
+        type: "workflowNode",
+        data: {
+          label: "Monitor Instagram",
+          type: "social_monitor",
+          config: {
+            platform: "instagram",
+            monitorType: "comments",
+            keywords: ["interested", "price", "how much"],
+            saveToVariable: "newComments"
+          }
+        },
+        position: { x: 250, y: 150 }
+      },
+      {
+        id: "3",
+        type: "workflowNode",
+        data: {
+          label: "Has Comments?",
+          type: "condition",
+          config: { condition: "variables.newComments.length > 0" }
+        },
+        position: { x: 250, y: 250 }
+      },
+      {
+        id: "4",
+        type: "workflowNode",
+        data: {
+          label: "Generate AI Response",
+          type: "gemini",
+          config: { aiPrompt: "Create a friendly, helpful response to this comment: {comment}" }
+        },
+        position: { x: 100, y: 350 }
+      },
+      {
+        id: "5",
+        type: "workflowNode",
+        data: {
+          label: "Send Reply",
+          type: "social_reply",
+          config: {
+            platform: "instagram",
+            actionType: "reply_comment",
+            responseTemplate: "{variables.aiResult}"
+          }
+        },
+        position: { x: 100, y: 450 }
+      }
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+      { id: "e3-4", source: "3", target: "4", label: "Yes" },
+      { id: "e4-5", source: "4", target: "5" },
+    ]
+  },
+  {
+    id: "multi-platform-post",
+    name: "Multi-Platform Social Post",
+    description: "Post content to Facebook, Instagram, and LinkedIn simultaneously with AI optimization",
+    nodes: [
+      {
+        id: "1",
+        type: "workflowNode",
+        data: { label: "New Content Ready", type: "start" },
+        position: { x: 250, y: 50 }
+      },
+      {
+        id: "2",
+        type: "workflowNode",
+        data: {
+          label: "Optimize for Social",
+          type: "gemini",
+          config: { aiPrompt: "Optimize this content for social media: {content}. Make it engaging and add relevant hashtags." }
+        },
+        position: { x: 250, y: 150 }
+      },
+      {
+        id: "3",
+        type: "workflowNode",
+        data: {
+          label: "Post to All Platforms",
+          type: "social_post",
+          config: {
+            platforms: ["facebook", "instagram", "linkedin"],
+            content: "{variables.aiResult}",
+            accountId: "default"
+          }
+        },
+        position: { x: 250, y: 250 }
+      },
+      {
+        id: "4",
+        type: "workflowNode",
+        data: {
+          label: "Wait 1 Hour",
+          type: "delay",
+          config: { delayHours: 1 }
+        },
+        position: { x: 250, y: 350 }
+      },
+      {
+        id: "5",
+        type: "workflowNode",
+        data: {
+          label: "Monitor Engagement",
+          type: "social_monitor",
+          config: {
+            platform: "instagram",
+            monitorType: "comments",
+            saveToVariable: "engagement"
+          }
+        },
+        position: { x: 250, y: 450 }
+      },
+      {
+        id: "6",
+        type: "workflowNode",
+        data: {
+          label: "Setup Auto-Reply",
+          type: "social_reply",
+          config: {
+            platform: "instagram",
+            triggerType: "comment_keyword",
+            keywords: ["thanks", "interested", "info"],
+            actionType: "reply_comment",
+            responseTemplate: "Thanks for your interest! Check out our website for more details."
+          }
+        },
+        position: { x: 250, y: 550 }
+      }
+    ],
+    edges: [
+      { id: "e1-2", source: "1", target: "2" },
+      { id: "e2-3", source: "2", target: "3" },
+      { id: "e3-4", source: "3", target: "4" },
+      { id: "e4-5", source: "4", target: "5" },
+      { id: "e5-6", source: "5", target: "6" },
+    ]
+  },
+  {
     id: "blank",
     name: "Blank Workflow",
     description: "Start from scratch with just a start node",

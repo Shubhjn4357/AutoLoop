@@ -109,7 +109,7 @@ export async function PATCH(
     if (Object.keys(updates).length > 1) { // updatedAt is always there
       await db
         .update(automationWorkflows)
-        .set(updates)
+        .set(updates as Record<string, unknown>)
         .where(
           and(
             eq(automationWorkflows.id, id),

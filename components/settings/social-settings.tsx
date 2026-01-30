@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,15 +10,27 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Share2, AlertCircle, CheckCircle2, RefreshCw, Linkedin } from "lucide-react";
+import { AlertCircle, CheckCircle2, RefreshCw, Linkedin, Trash2, Plus } from "lucide-react";
 import { SiFacebook, SiInstagram, SiYoutube } from "@icons-pack/react-simple-icons";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 interface ConnectedAccount {
   id: string;
   userId: string;
-  provider: string; // 'facebook', 'linkedin', etc.
+  provider: string;
   providerAccountId: string;
   name?: string | null;
   picture?: string | null;
@@ -25,18 +38,67 @@ interface ConnectedAccount {
   expiresAt?: Date | null;
 }
 
-interface SocialSettingsProps {
-  connectedAccounts: ConnectedAccount[];
+interface SocialAutomation {
+  id: string;
+  userId: string;
+  connectedAccountId: string;
+  platform: string;
+  triggerType: string;
+  keywords: string[] | null;
+  responseTemplate: string;
+  actionType: string;
+  createdAt: Date;
 }
 
-export function SocialSettings({ connectedAccounts }: SocialSettingsProps) {
+interface SocialSettingsProps {
+  connectedAccounts: ConnectedAccount[];
+  automations?: SocialAutomation[];
+}
+
+export function SocialSettings({ connectedAccounts, automations = [] }: SocialSettingsProps) {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
   const success = searchParams.get("success");
+  const { toast } = useToast();
+
+  const [autoReplies, setAutoReplies] = useState<SocialAutomation[]>(automations);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fbAccount = connectedAccounts.find((a) => a.provider === "facebook");
   const linkedinAccount = connectedAccounts.find((a) => a.provider === "linkedin");
   const youtubeAccount = connectedAccounts.find((a) => a.provider === "youtube");
+
+  const handleDeleteAutomation = async () => {
+    if (!deleteId) return;
+
+    try {
+      const res = await fetch(`/api/social/automations/${deleteId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setAutoReplies((prev) => prev.filter((a) => a.id !== deleteId));
+        toast({
+          title: "Success",
+          description: "Auto-reply rule deleted successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete auto-reply rule",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to delete auto-reply rule",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -232,6 +294,89 @@ export function SocialSettings({ connectedAccounts }: SocialSettingsProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Auto-Reply Management Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Auto-Reply Rules</CardTitle>
+              <CardDescription>
+                Manage automatic responses to comments and messages
+              </CardDescription>
+            </div>
+            <Button asChild>
+              <Link href="/dashboard/social/create-automation">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Rule
+              </Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {autoReplies.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No auto-reply rules configured yet</p>
+              <p className="text-sm mt-2">
+                Create rules to automatically respond to comments and messages
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {autoReplies.map((automation) => (
+                <div
+                  key={automation.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="secondary">{automation.platform}</Badge>
+                      <Badge variant="outline">{automation.triggerType}</Badge>
+                    </div>
+                    <p className="text-sm font-medium mb-1">
+                      {automation.keywords && automation.keywords.length > 0
+                        ? `Keywords: ${automation.keywords.join(", ")}`
+                        : "All interactions"}
+                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {automation.responseTemplate}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setDeleteId(automation.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Auto-Reply Rule?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this auto-reply rule. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAutomation}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

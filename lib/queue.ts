@@ -8,8 +8,6 @@ import { eq, sql, and, gte, lt } from "drizzle-orm";
 import { interpolateTemplate, sendColdEmail } from "./email";
 import type { ScraperSourceName } from "./scrapers/types";
 
-
-
 // Email queue
 export const emailQueue = new Queue("email-outreach", { connection: connection as any });
 
@@ -526,7 +524,8 @@ workflowWorker.on("failed", async (job, err) => {
       userId: job.data.userId,
       title: "Workflow Complete Failure",
       message: `Workflow ${job.data.workflowId} failed after ${job.opts.attempts} attempts. Error: ${err.message}`,
-      type: "error"
+      level: "error",
+      category: "workflow"
     });
 
     // 2. Send WhatsApp Alert if User has phone number
@@ -658,3 +657,4 @@ export async function startWorker() {
     throw err;
   }
 }
+

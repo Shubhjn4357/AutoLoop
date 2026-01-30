@@ -21,33 +21,40 @@ Key capabilities include continuous lead sourcing, smart email drafting with Goo
 ## 🚀 Key Features
 
 ### 🔍 Smart Lead Scraping
+
 - **Google Maps**: Automatically scrape businesses based on keywords and location. Extract valid emails, phone numbers, and websites.
 - **LinkedIn Integration**: Scrape profiles using Google Search heuristics and automate messages via Puppeteer (simulated browsing).
 
 ### 🎨 Visual Workflow Builder
+
 Design complex automation flows with a drag-and-drop node editor.
+
 - **Triggers**: Schedule-based or Event-based (e.g., "New Lead Found").
 - **Actions**: Send Email, Send WhatsApp, API Request, Scraper Action.
 - **Logic**: Conditionals, A/B Testing, Delays, Merges, Loops.
 - **Persistence**: Workflows save variable state between executions, enabling long-running multi-step sequences.
 
 ### 🧠 AI & Personalization
+
 - **Google Gemini 2.0**: Generate hyper-personalized email drafts based on prospect data and website content.
 - **Dynamic Variables**: Use `{{business.name}}`, `{{business.website}}`, etc., in your templates.
 
 ### 📧 Email Mastery
+
 - **Gmail Integration**: Send emails from your own account via OAuth.
 - **Delivery Tracking**: Real-time tracking of Opens and Clicks via pixel injection and link wrapping.
 - **Rate Limiting**: Built-in protection to prevent spam flagging (e.g., max 50 emails/day per account).
 - **Bounce Handling**: Automatic detection and handling of failed deliveries.
 
 ### 📊 Real-Time Analytics Dashboard
+
 - **Execution Monitoring**: Watch workflows run in real-time.
 - **Success/Failure Rates**: Identify bottlenecks in your automation.
 - **Quota Tracking**: Monitor your email sending limits and remaining quota.
 - **Export**: Download execution logs as CSV for offline analysis.
 
 ### 📱 Unified Social Suite
+
 - **LinkedIn**: Automate connection requests and messages.
 - **Instagram / Facebook**: Dashboard for scheduling Posts & Reels (Integration ready).
 
@@ -63,6 +70,7 @@ AutoLoop is built for reliability and scale:
 - **Monitoring**: Self-ping mechanism to ensure worker uptime on container platforms.
 
 ### Tech Stack
+
 - **Framework**: Next.js 15 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS 4 + Shadcn UI
@@ -76,6 +84,7 @@ AutoLoop is built for reliability and scale:
 ## 📦 Installation & Setup
 
 ### Prerequisites
+
 - **Node.js 18+**
 - **pnpm** (recommended)
 - **PostgreSQL Database** (e.g., Neon)
@@ -85,38 +94,47 @@ AutoLoop is built for reliability and scale:
 ### Quick Start
 
 1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/autoloop.git
-   cd autoloop
-   ```
+
+```bash
+git clone https://github.com/yourusername/autoloop.git
+cd autoloop
+```
 
 2. **Install dependencies**
-   ```bash
-   pnpm install
-   ```
+
+```bash
+pnpm install
+```
 
 3. **Configure Environment**
-   Create a `.env` file in the root directory (see [Environment Variables](#-environment-variables)).
+
+Create a `.env` file in the root directory (see [Environment Variables](#-environment-variables)).
 
 4. **Setup Database**
-   ```bash
-   pnpm db:push
-   # Optional: Seed sample data
-   npx tsx scripts/seed-data.ts
-   ```
+
+```bash
+pnpm db:push
+# Optional: Seed sample data
+npx tsx scripts/seed-data.ts
+```
 
 5. **Run Development Server**
-   ```bash
-   pnpm dev
-   ```
-   The web app will run at `http://localhost:3000`.
+
+```bash
+pnpm dev
+```
+
+The web app will run at `http://localhost:3000`.
 
 6. **Start Background Workers** (Critical for automation)
-   Open a separate terminal and run:
-   ```bash
-   pnpm worker
-   ```
-   *Note: This starts the dedicated worker process that handles queued jobs and scraping.*
+
+Open a separate terminal and run:
+
+```bash
+pnpm worker
+```
+
+*Note: This starts the dedicated worker process that handles queued jobs and scraping.*
 
 ---
 
@@ -157,9 +175,11 @@ ADMIN_EMAIL="admin@example.com"
 ## 🌐 Deployment
 
 ### Hugging Face Spaces / Docker
+
 This repo includes a `Dockerfile` and is configured for Hugging Face Spaces.
 
 **Important for Cloud Deployment:**
+
 1. **Worker Process**: Ensure your deployment platform runs `scripts/worker.ts`. In Docker, you might use a process manager like `pm2` or run the worker in a separate container/service.
 2. **Keep-Alive**: The worker includes a self-ping mechanism. Ensure `NEXT_PUBLIC_APP_URL` is set to your production URL (e.g., `https://my-app.hf.space`) so the ping hits the public route and keeps the container active.
 

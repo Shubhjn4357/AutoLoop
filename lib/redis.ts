@@ -1,51 +1,57 @@
 import Redis from "ioredis";
 
-// Use a global variable to preserve the client across hot reloads in development
-const globalForRedis = global as unknown as { redis: Redis };
+let redis: Redis | null = null;
+let connectionAttempted = false;
 
-const redisConfig = {
-  // Retry strategy for connection issues
-  retryStrategy: (times: number) => {
-    const delay = Math.min(times * 50, 2000);
-    return delay;
-  },
-  // Max retries per request
-  maxRetriesPerRequest: null,
-  // Enable offline queue to buffer commands when disconnected
-  enableOfflineQueue: true,
-};
+export function getRedis(): Redis | null {
+  if (connectionAttempted) {
+    return redis;
+  }
 
-let redis: Redis;
-
-if (process.env.NODE_ENV === "production" || !globalForRedis.redis) {
   try {
-    if (process.env.REDIS_URL) {
-      console.log("Initializing Redis...");
-      redis = new Redis(process.env.REDIS_URL, redisConfig);
-    } else {
-      console.warn("REDIS_URL is not defined. Using default localhost:6379 with lazyConnect");
-      redis = new Redis({ ...redisConfig, host: 'localhost', port: 6379, lazyConnect: true });
+    connectionAttempted = true;
+
+    // Don't attempt connection if no Redis URL is provided
+    if (!process.env.REDIS_URL && !process.env.REDIS_HOST) {
+      console.warn("Redis not configured, continuing without Redis");
+      return null;
     }
 
-    redis.on('error', (err) => {
-      console.error('Redis Client Error:', err);
+    redis = new Redis({
+      host: process.env.REDIS_HOST || "localhost",
+      port: parseInt(process.env.REDIS_PORT || "6379"),
+      password: process.env.REDIS_PASSWORD,
+      // BullMQ requires this to be null
+      maxRetriesPerRequest: null,
+      retryStrategy: (times) => {
+        if (times > 3) {
+          console.warn("Redis connection failed after retries, continuing without Redis");
+          return null; // Stop retrying
+        }
+        return Math.min(times * 50, 200);
+      },
+      lazyConnect: true,
+      enableOfflineQueue: false,
     });
 
-    redis.on('connect', () => {
-      console.log('Redis Client Connected');
+    // Attempt to connect (non-blocking)
+    redis.connect().catch((err) => {
+      console.warn("Redis connection failed:", err.message);
+      redis = null;
     });
+
+    redis.on("error", (err) => {
+      console.warn("Redis error:", err.message);
+    });
+
+    return redis;
   } catch (error) {
-    console.error("Failed to initialize Redis:", error);
-    // Fallback or crash safely? For now, we allow the app to run but queue features will fail.
-    // We create a dummy redis client to prevent immediate crashes on import if init fails completely (unexpected)
-    redis = new Redis({ ...redisConfig, lazyConnect: true });
+    console.warn("Failed to initialize Redis:", error);
+    redis = null;
+    return null;
   }
-
-  if (process.env.NODE_ENV !== "production") {
-    globalForRedis.redis = redis;
-  }
-} else {
-  redis = globalForRedis.redis;
 }
 
+// For backward compatibility
+redis = getRedis();
 export { redis };

@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
             targetBusinessType: template.targetBusinessType || "General",
             keywords: template.keywords || [],
             isActive: false,
-            nodes: nodes,
-            edges: template.edges,
+            nodes: nodes as unknown as import("@/types/social-workflow").WorkflowNode[],
+            edges: template.edges as unknown as import("@/types/social-workflow").WorkflowEdge[],
         });
 
         // Query the workflow back to get its ID (most recently created)

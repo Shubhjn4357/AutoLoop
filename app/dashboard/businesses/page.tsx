@@ -11,6 +11,7 @@ import { bulkDeleteBusinesses } from "@/app/actions/business";
 import { Trash2, Search, MapPin, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { generateCsrfToken } from "@/lib/csrf";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -35,6 +36,7 @@ export default function BusinessesPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [csrfToken, setCsrfToken] = useState("");
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -56,6 +58,11 @@ export default function BusinessesPage() {
 
     const { get: getBusinessesApi, loading: loadingBusinesses } = useApi<{ businesses: Business[], totalPages: number, page: number }>();
     const { get: getCategoriesApi } = useApi<{ categories: string[] }>();
+
+    // Generate CSRF token on mount
+    useEffect(() => {
+        setCsrfToken(generateCsrfToken());
+    }, []);
 
     // Debounce effect
     useEffect(() => {
@@ -101,7 +108,7 @@ export default function BusinessesPage() {
 
     const handleConfirmDelete = async () => {
         try {
-            await bulkDeleteBusinesses(selectedIds);
+            await bulkDeleteBusinesses(selectedIds, csrfToken);
             setBusinesses(prev => prev.filter(b => !selectedIds.includes(b.id)));
             setSelectedIds([]);
             toast.success("Deleted successfully");

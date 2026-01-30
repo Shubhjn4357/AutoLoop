@@ -37,7 +37,7 @@ const nodeTypes = {
 
 export interface NodeData {
   label: string;
-  type: "start" | "condition" | "template" | "delay" | "custom" | "gemini" | "apiRequest" | "agent" | "webhook" | "schedule" | "merge" | "splitInBatches" | "filter" | "set" | "scraper" | "linkedinScraper" | "linkedinMessage" | "abSplit" | "whatsappNode" | "database";
+  type: "start" | "condition" | "template" | "delay" | "custom" | "gemini" | "apiRequest" | "agent" | "webhook" | "schedule" | "merge" | "splitInBatches" | "filter" | "set" | "scraper" | "linkedinScraper" | "linkedinMessage" | "abSplit" | "whatsappNode" | "database" | "social_post" | "social_reply" | "social_monitor";
   config?: {
     templateId?: string;
     delayHours?: number; // kept for legacy or generic delay
@@ -77,6 +77,18 @@ export interface NodeData {
     operation?: string;
     tableName?: string;
     data?: string;
+    // Social Media Config
+    platforms?: string[];
+    content?: string;
+    mediaUrl?: string;
+    accountId?: string;
+    platform?: string;
+    triggerType?: string;
+    keywords?: string[];
+    responseTemplate?: string;
+    actionType?: string;
+    monitorType?: string;
+    saveToVariable?: string;
   };
   isConnected?: boolean;
 }
@@ -323,6 +335,9 @@ export function NodeEditor({
         abSplit: "A/B Split",
         whatsappNode: "Send WhatsApp",
         database: "Database Operation",
+        social_post: "Social Post",
+        social_reply: "Social Reply",
+        social_monitor: "Social Monitor",
       };
 
       // Calculate center position

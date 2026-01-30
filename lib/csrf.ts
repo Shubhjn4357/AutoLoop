@@ -1,12 +1,8 @@
-import crypto from "crypto";
-import { cookies } from "next/headers";
+/**
+ * CSRF Token Utilities - Re-exports for backward compatibility
+ * Use csrf-utils.ts for browser-compatible token generation
+ * Use csrf-server.ts for server-side cookie operations
+ */
 
-export function generateCsrfToken(): string {
-  return crypto.randomBytes(32).toString("hex");
-}
-
-export async function validateCsrfToken(token: string): Promise<boolean> {
-  const cookieStore = await cookies();
-  const storedToken = cookieStore.get("csrf-token")?.value;
-  return storedToken === token;
-}
+// Re-export the browser-safe function for client components
+export { generateCsrfToken } from "./csrf-utils";

@@ -1,77 +1,62 @@
-import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { db } from "@/db";
-import { notifications, users } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { apiSuccess, apiError } from "@/lib/api-response-helpers";
+import { NotificationService } from "@/lib/notifications/notification-service";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return apiError("Unauthorized", 401);
     }
 
-    // Get user ID from DB
-    const user = await db.query.users.findFirst({
-        where: eq(users.email, session.user.email)
+    const { searchParams } = new URL(request.url);
+    const categoryParam = searchParams.get("category");
+    const category = categoryParam as "workflow" | "social" | "email" | "system" | "task" | undefined;
+    const limit = parseInt(searchParams.get("limit") || "50");
+    const offset = parseInt(searchParams.get("offset") || "0");
+
+    const notifications = await NotificationService.getForUser(session.user.id, {
+      category: category || undefined,
+      limit,
+      offset,
     });
 
-    if (!user) {
-        return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
+    const unreadCount = await NotificationService.getUnreadCount(session.user.id);
 
-    const userNotifications = await db
-      .select()
-      .from(notifications)
-      .where(eq(notifications.userId, user.id))
-      .orderBy(desc(notifications.createdAt))
-      .limit(50);
-
-    return NextResponse.json({ notifications: userNotifications });
+    return apiSuccess({ notifications, unreadCount });
   } catch (error) {
     console.error("Error fetching notifications:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch notifications" },
-      { status: 500 }
-    );
+    return apiError("Failed to fetch notifications", 500);
   }
 }
 
 export async function POST(request: Request) {
   try {
     const session = await auth();
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session?.user?.id) {
+      return apiError("Unauthorized", 401);
     }
 
-     // Get user ID from DB
-     const user = await db.query.users.findFirst({
-        where: eq(users.email, session.user.email)
+    const body = await request.json();
+    const { title, message, category, level, actionUrl, metadata } = body;
+
+    if (!title || !message || !category || !level) {
+      return apiError("Missing required fields", 400);
+    }
+
+    const notification = await NotificationService.create({
+      userId: session.user.id,
+      title,
+      message,
+      category,
+      level,
+      actionUrl,
+      metadata,
     });
 
-    if (!user) {
-        return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const { title, message, type } = await request.json();
-
-    const [newNotification] = await db
-      .insert(notifications)
-      .values({
-        userId: user.id,
-        title,
-        message,
-        type: type || "info",
-        read: false,
-      })
-      .returning();
-
-    return NextResponse.json({ notification: newNotification });
+    return apiSuccess({ notification });
   } catch (error) {
     console.error("Error creating notification:", error);
-    return NextResponse.json(
-      { error: "Failed to create notification" },
-      { status: 500 }
-    );
+    return apiError("Failed to create notification", 500);
   }
 }

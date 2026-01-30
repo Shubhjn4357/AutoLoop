@@ -6,6 +6,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { SessionUser } from "@/types";
 import { apiSuccess, apiError } from "@/lib/api-response";
 import { ApiErrors } from "@/lib/api-errors";
+import { getCached, invalidateCache } from "@/lib/cache-manager";
 
 export async function GET() {
   try {
@@ -30,43 +31,41 @@ export async function GET() {
       }
     }
 
-    // Fetch workflows
-    const workflowsData = await db
-      .select()
-      .from(automationWorkflows)
-      .where(eq(automationWorkflows.userId, queryUserId))
-      .orderBy(automationWorkflows.createdAt);
+    // Cache workflows for 5 minutes
+    const cachedWorkflows = await getCached(
+      `workflows:${queryUserId}`,
+      async () => {
+        // Fetch workflows
+        const workflowsData = await db
+          .select()
+          .from(automationWorkflows)
+          .where(eq(automationWorkflows.userId, queryUserId))
+          .orderBy(automationWorkflows.createdAt);
 
-    // Manually fetch and aggregate stats (Drizzle aggregation/group by can be complex with relations, 
-    // simpler to just fetch derived data or do a separate count query if volume is low.
-    // For MVP, separate query per workflow or one big group by. 
-    // Let's do a left join aggregation.)
+        // Enriched with stats
+        const enrichedWorkflows = await Promise.all(workflowsData.map(async (wf) => {
+          // Count executions
+          const countResult = await db.execute(sql`
+                SELECT count(*) as count, max(started_at) as last_run
+                FROM workflow_execution_logs 
+                WHERE workflow_id = ${wf.id}
+            `);
 
-    // Actually, let's fetch basic stats separately to avoid N+1 if list is huge, 
-    // but for < 50 workflows, a loop is fine or a single complex query.
-    // Let's stick to simple: Fetch all, then map.
+          const row = countResult.rows[0] as { count: string, last_run: string | null };
 
-    // We need: executionCount, lastRunAt
-    // We can add these fields to the response object.
+          return {
+            ...wf,
+            executionCount: Number(row.count),
+            lastRunAt: row.last_run ? new Date(row.last_run) : null
+          };
+        }));
 
-    const enrichedWorkflows = await Promise.all(workflowsData.map(async (wf) => {
-      // Count executions
-      const countResult = await db.execute(sql`
-            SELECT count(*) as count, max(started_at) as last_run
-            FROM workflow_execution_logs 
-            WHERE workflow_id = ${wf.id}
-        `);
+        return { workflows: enrichedWorkflows };
+      },
+      300 // 5 minutes
+    );
 
-      const row = countResult.rows[0] as { count: string, last_run: string | null };
-
-      return {
-        ...wf,
-        executionCount: Number(row.count),
-        lastRunAt: row.last_run ? new Date(row.last_run) : null
-      };
-    }));
-
-    return apiSuccess({ workflows: enrichedWorkflows });
+    return apiSuccess(cachedWorkflows);
   } catch (error) {
     return apiError(error);
   }
@@ -141,6 +140,9 @@ export async function POST(request: Request) {
       })
       .returning();
 
+    // Invalidate workflows cache for this user
+    await invalidateCache(`workflows:${finalUserId}`);
+
     return NextResponse.json({ workflow });
   } catch (error) {
     console.error("Error creating workflow:", error);
@@ -192,6 +194,9 @@ export async function PATCH(request: Request) {
       )
       .returning();
 
+    // Invalidate workflows cache
+    await invalidateCache(`workflows:${finalUserId}`);
+
     return NextResponse.json({ workflow });
   } catch (error) {
     console.error("Error updating workflow:", error);
@@ -239,6 +244,9 @@ export async function DELETE(request: Request) {
           eq(automationWorkflows.userId, finalUserId)
         )
       );
+
+    // Invalidate workflows cache
+    await invalidateCache(`workflows:${finalUserId}`);
 
     return NextResponse.json({ success: true });
   } catch (error) {

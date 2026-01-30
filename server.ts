@@ -4,10 +4,22 @@ import { spawn } from "child_process";
 import { parse } from "url";
 import { Socket } from "net";
 import next from "next";
-import { emailWorker, scrapingWorker } from "./lib/queue";
 import { validateEnvironmentVariables } from "./lib/validate-env";
 
+// Ignore "frame list" errors (often from ws/zlib in dev environments)
+process.on("uncaughtException", (err) => {
+    if (err.message && err.message.includes("frame list")) {
+        // Safe to ignore
+        return;
+    }
+    console.error("Uncaught Exception:", err);
+    process.exit(1);
+});
+
 const dev = process.env.NODE_ENV !== "production";
+console.log(`[Server] NODE_ENV: ${process.env.NODE_ENV}`);
+console.log(`[Server] Is Dev Mode: ${dev}`);
+
 const hostname = "0.0.0.0";
 const port = parseInt(process.env.PORT || "7860", 10);
 
@@ -15,16 +27,12 @@ const port = parseInt(process.env.PORT || "7860", 10);
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-import { startTriggerProcessor } from "./lib/workflow-triggers";
+// Trigger processor import - also dynamic later? No, this one is fine but safer to move inside
+// import { startTriggerProcessor } from "./lib/workflow-triggers";
 
 console.log("🚀 Starting Custom Server (Next.js + Workers)...");
 
 validateEnvironmentVariables();
-
-// Start the workflow trigger processor (checks every minute)
-if (process.env.NODE_ENV === "production" || process.env.ENABLE_TRIGGERS === "true") {
-    startTriggerProcessor();
-}
 
 app.prepare().then(async () => {
     // 1. Try to start Local Redis (if available and not connecting to external)
@@ -60,25 +68,64 @@ app.prepare().then(async () => {
             console.log("✅ Local Redis service detected. Skipping auto-spawn.");
         } else {
             console.log(`🔄 Attempting to start local Redis server...`);
-            const redisProcess = spawn("redis-server", [], {
-                stdio: "ignore", // Run in background
-                detached: true
-            });
-
-            redisProcess.on("error", () => {
-                console.warn("⚠️  Could not auto-start 'redis-server'. Ensure it is installed and in your PATH, or use Docker.");
-                console.warn("⚠️  Please start Redis manually: 'redis-server'");
-            });
-
-            if (redisProcess.pid) {
-                console.log(`✅ Started local Redis process (PID: ${redisProcess.pid})`);
-                redisProcess.unref();
-
-                process.on("exit", () => {
-                    try { process.kill(redisProcess.pid!); } catch { }
+            try {
+            // Check if redis-server is in PATH (simple spawn attempt)
+                const redisProcess = spawn("redis-server", [], {
+                    stdio: "ignore", // Run in background
+                    detached: true,
+                    shell: true // Try with shell=true for better window path handling
                 });
+
+                redisProcess.on("error", (err) => {
+                    console.warn(`⚠️  Could not auto-start 'redis-server': ${err.message}`);
+                    console.warn("⚠️  App will proceed, but background jobs may fail if Redis is not running.");
+                });
+
+                if (redisProcess.pid) {
+                    console.log(`✅ Started local Redis process (PID: ${redisProcess.pid})`);
+                    redisProcess.unref();
+
+                    process.on("exit", () => {
+                        try { process.kill(redisProcess.pid!); } catch { }
+                    });
+                }
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            } catch (spawnError) {
+                console.warn("⚠️  Failed to spawn redis-server. Make sure it is installed.");
             }
         }
+    }
+
+    // Dynamic Import of Workers/Triggers AFTER Redis env/process is handled
+    console.log("👷 Initializing Background Workers...");
+
+    // Start Triggers
+    if (process.env.NODE_ENV === "production" || process.env.ENABLE_TRIGGERS === "true") {
+        import("./lib/workflow-triggers").then(({ startTriggerProcessor }) => {
+            startTriggerProcessor();
+        });
+    }
+
+    // Start Workers
+    try {
+        const { emailWorker, scrapingWorker } = await import("./lib/queue");
+        console.log(`✅ Email Worker ID: ${emailWorker.id}`);
+        console.log(`✅ Scraping Worker ID: ${scrapingWorker.id}`);
+
+        // Graceful Shutdown
+        const shutdown = async () => {
+            console.log("🛑 Shutting down server and workers...");
+            await emailWorker.close();
+            await scrapingWorker.close();
+            process.exit(0);
+        };
+
+        process.on("SIGTERM", shutdown);
+        process.on("SIGINT", shutdown);
+
+    } catch (e) {
+        console.error("❌ Failed to initialize workers (Redis likely missing):", e);
+    // Do not crash server, just run without workers
     }
 
     // 2. Start HTTP Server
@@ -100,16 +147,7 @@ app.prepare().then(async () => {
             console.log(`> Ready on http://${hostname}:${port}`);
         });
 
-    // 3. Start Workers
-    console.log("👷 Initializing Background Workers...");
-
-    // Workers are instantiated in lib/queue.ts, so importing them is enough to ensure they are "alive"
-    // but we can log their status here.
-    console.log(`✅ Email Worker ID: ${emailWorker.id}`);
-    console.log(`✅ Scraping Worker ID: ${scrapingWorker.id}`);
-
-    // 3. Keep-Alive Mechanism (Hugging Face Free Tier)
-    // Pings the server every 14 minutes to prevent sleep
+    // 3. Keep-Alive Mechanism
     const KEEP_ALIVE_INTERVAL = 14 * 60 * 1000; // 14 minutes
 
     if (process.env.ENABLE_KEEP_ALIVE === "true") {
@@ -118,36 +156,16 @@ app.prepare().then(async () => {
         const performHealthCheck = async () => {
             try {
                 const url = `http://${hostname}:${port}/api/health`;
-                console.log(`💓 Sending keep-alive ping to ${url}`);
-
+                // console.log(`💓 Sending keep-alive ping to ${url}`);
                 const response = await fetch(url);
-                const data = await response.json();
-
-                if (data.status === "healthy") {
-                    console.log("✅ Keep-alive: Server is healthy");
-                } else {
-                    console.warn(`⚠️  Keep-alive: Server status is ${data.status}`);
-                }
+                await response.json();
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
             } catch (error) {
-                console.error("❌ Keep-alive ping failed:", error);
+                // Silent catch
             }
         };
 
-        // Initial ping after 30 seconds
         setTimeout(performHealthCheck, 30000);
-
-        // Regular pings
         setInterval(performHealthCheck, KEEP_ALIVE_INTERVAL);
     }
-
-    // Graceful Shutdown
-    const shutdown = async () => {
-        console.log("🛑 Shutting down server and workers...");
-        await emailWorker.close();
-        await scrapingWorker.close();
-        process.exit(0);
-    };
-
-    process.on("SIGTERM", shutdown);
-    process.on("SIGINT", shutdown);
 });

@@ -8,209 +8,272 @@ import {
   Mail,
   BarChart3,
   CheckCircle2,
+  Users,
+  Layers,
 } from "lucide-react";
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function Home() {
   const { data: session } = useSession();
   const router = useRouter();
+  const [offset, setOffset] = useState(0);
 
   // Redirect to dashboard if logged in
   useEffect(() => {
-    if (session?.user) {
-      router.push("/dashboard");
-    }
+    if (session?.user) router.push("/dashboard");
   }, [session, router]);
 
+  // Lightweight parallax scroll handler
+  useEffect(() => {
+    const onScroll = () => setOffset(window.scrollY || 0);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // IntersectionObserver to trigger entrance animations for elements with .animate-on-scroll
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const els = Array.from(document.querySelectorAll<HTMLElement>(".animate-on-scroll"));
+    if (!els.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const el = entry.target as HTMLElement;
+            el.classList.add("animate-slide-in-up");
+            el.classList.remove("opacity-0");
+            observer.unobserve(el);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+
+    els.forEach((el) => {
+      el.classList.add("opacity-0");
+      observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
+    <div className="min-h-screen overflow-hidden bg-linear-to-b from-background via-muted/30 to-background">
+      {/* Top nav */}
+      <nav className="fixed left-0 right-0 top-0 z-40 border-b bg-background/80 backdrop-blur-md supports-backdrop-filter:bg-background/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="text-xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <div className="text-xl font-extrabold bg-linear-to-r from-primary via-purple-600 to-pink-600 bg-clip-text text-transparent">
             AutoLoop
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link href="/auth/signin">
               <Button variant="ghost">Sign In</Button>
             </Link>
             <Link href="/auth/signin">
-              <Button>Get Started</Button>
+              <Button className="bg-linear-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90">
+                Get Started
+              </Button>
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-linear-to-b from-blue-50 via-purple-50 to-background dark:from-blue-950/20 dark:via-purple-950/20 dark:to-background">
-        <div className="absolute inset-0 bg-grid-black/[0.02] dark:bg-grid-white/[0.02]" />
+      {/* Hero with modern gradients */}
+      <header className="relative pt-32 pb-24">
+        {/* Modern gradient blobs */}
+        <div aria-hidden className="absolute inset-0 -z-10 overflow-hidden">
+          <div
+            className="absolute left-[-10%] top-10 h-[400px] w-[400px] rounded-full bg-linear-to-r from-primary/30 to-purple-500/30 opacity-40 blur-3xl animate-pulse"
+            style={{ transform: `translateY(${offset * -0.02}px)`, animationDuration: '4s' }}
+          />
+          <div
+            className="absolute right-[-12%] top-32 h-[500px] w-[500px] rounded-full bg-linear-to-r from-pink-500/30 to-purple-600/30 opacity-40 blur-3xl animate-pulse"
+            style={{ transform: `translateY(${offset * -0.04}px)`, animationDuration: '6s', animationDelay: '1s' }}
+          />
+          <div
+            className="absolute left-1/2 top-[50%] h-[300px] w-[800px] -translate-x-1/2 rounded-3xl bg-linear-to-r from-emerald-400/20 to-cyan-400/20 opacity-30 blur-2xl"
+            style={{ transform: `translate(-50%, ${offset * -0.01}px)` }}
+          />
+        </div>
 
-        {/* Animated background elements */}
-        <div className="absolute top-20 left-10 h-72 w-72 animate-pulse-glow rounded-full bg-blue-400/20 blur-3xl" />
-        <div className="absolute top-40 right-10 h-96 w-96 animate-float rounded-full bg-purple-400/20 blur-3xl" />
-
-        <div className="container relative mx-auto px-4 py-24 sm:py-32">
-          <div className="mx-auto max-w-4xl text-center">
-            {/* Animated heading */}
-            <h1 className="text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl animate-slide-in-up opacity-0 stagger-1">
-              <span className="bg-linear-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Automate Your Cold Email Outreach
-              </span>
-              <br />
-              <span className="mt-2 block">With AI-Powered Precision</span>
-            </h1>
-
-            {/* Animated description */}
-            <p className="mt-6 text-lg leading-8 text-muted-foreground sm:text-xl animate-slide-in-up opacity-0 stagger-2">
-              AutoLoop helps you find,qualify, and reach out to your ideal customers automatically.
-              Powered by AI to generate personalized emails that convert.
-            </p>
-
-            {/* Animated features list */}
-            <div className="mt-8 grid gap-4 sm:grid-cols-3 animate-slide-in-up opacity-0 stagger-3">
-              <div className="flex items-center justify-center gap-2 rounded-lg border bg-card p-4 backdrop-blur-xl">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-sm font-medium">AI-Powered Templates</span>
+        <div className="container mx-auto px-4">
+          <div className="mx-auto max-w-5xl text-center">
+            <div className="flex flex-col items-center gap-6 animate-fade-in">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium text-primary backdrop-blur-sm">
+                <Zap className="h-4 w-4" />
+                Trusted by 1,200+ sales teams
               </div>
-              <div className="flex items-center justify-center gap-2 rounded-lg border bg-card p-4 backdrop-blur-xl">
-                <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
-                <span className="text-sm font-medium">Smart Lead Scraping</span>
-              </div>
-              <div className="flex items-center justify-center gap-2 rounded-lg border bg-card p-4 backdrop-blur-xl">
-                <div className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-                <span className="text-sm font-medium">Advanced Analytics</span>
+
+              <h1 className="text-5xl font-extrabold leading-tight tracking-tight sm:text-6xl md:text-7xl bg-linear-to-r from-foreground via-foreground to-muted-foreground bg-clip-text text-transparent">
+                Automate outreach.<br />Personalize at scale.
+              </h1>
+
+              <p className="mt-4 mx-auto max-w-3xl text-lg text-muted-foreground leading-relaxed">
+                AutoLoop finds leads, enriches profiles, and sends AI-personalized cold
+                emails — all while you focus on closing deals. Powerful integrations,
+                visual workflows, and enterprise-grade reliability.
+              </p>
+
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+                <Link href="/auth/signin">
+                  <Button size="lg" className="bg-linear-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg hover:shadow-xl transition-all duration-300 text-base px-8">
+                    Get Started Free
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
+                <Link href="#features">
+                  <Button variant="outline" size="lg" className="border-2 text-base px-8">
+                    Explore Features
+                  </Button>
+                </Link>
               </div>
             </div>
-
-            {/* Animated CTA buttons */}
-            <div className="mt-10 flex items-center justify-center gap-4 animate-slide-in-up opacity-0 stagger-4">
-              <Link href="/auth/signin">
-                <Button size="lg" className="gap-2 animate-pulse-glow">
-                  Get Started Free
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link href="#features">
-                <Button variant="outline" size="lg">
-                  Learn More
-                </Button>
-              </Link>
-            </div>
-
-            {/* Social proof */}
-            <p className="mt-8 text-sm text-muted-foreground animate-fade-in opacity-0" style={{ animationDelay: "0.8s" }}>
-              Trusted by <span className="font-semibold text-foreground">1,000+</span> sales teams worldwide
-            </p>
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* Features Section */}
-      <section className="py-24">
+      {/* Features overview */}
+      <section id="features" className="py-24 bg-muted/20">
         <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Everything you need to scale outreach
+          <div className="mx-auto mb-16 max-w-3xl text-center">
+            <h2 className="text-4xl font-bold bg-linear-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+              Complete outreach stack
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              Powerful features to automate and personalize your cold email campaigns
+              Everything you need to source prospects, personalize at scale, and
+              measure impact — built for SDRs and growth teams.
             </p>
           </div>
 
-          <div className="mx-auto mt-16 grid max-w-5xl gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Feature 1 */}
-            <div className="group relative rounded-xl border bg-card p-8 shadow-sm transition-all hover:shadow-md stagger-item">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/10">
-                <Zap className="h-6 w-6 text-blue-600" />
-              </div>
-              <h3 className="mb-2 text-xl font-semibold">Auto Scraping</h3>
-              <p className="text-muted-foreground">
-                Continuously scrape Google Maps for businesses matching your criteria.
-                Fresh leads delivered daily.
-              </p>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <FeatureCard
+              delay={0.05}
+              icon={<Zap className="h-6 w-6 text-primary" />}
+              title="Auto Scraping & Enrichment"
+              description="Continuously discover leads from Google Maps, websites, and social profiles, then enrich records with firmographics and contact data."
+            />
+
+            <FeatureCard
+              delay={0.1}
+              icon={<Bot className="h-6 w-6 text-purple-600" />}
+              title="AI Personalization"
+              description="Generate personalized, context-aware email copy for each lead using AI tuned for cold outreach. A/B test variations automatically."
+            />
+
+            <FeatureCard
+              delay={0.15}
+              icon={<Mail className="h-6 w-6 text-emerald-600" />}
+              title="Gmail & SMTP Integration"
+              description="Send from your Gmail or SMTP provider, track opens/clicks, and record replies in one place. Automatic send throttling and warm-up support."
+            />
+
+            <FeatureCard
+              delay={0.2}
+              icon={<BarChart3 className="h-6 w-6 text-pink-600" />}
+              title="Analytics & Insights"
+              description="Campaign-level analytics, funnel metrics, and recipient-level signals to help you optimize subject lines and sequences."
+            />
+
+            <FeatureCard
+              delay={0.25}
+              icon={<Layers className="h-6 w-6 text-amber-600" />}
+              title="Visual Workflows"
+              description="Build multi-step automations with a drag-and-drop node editor (scrape → enrich → sequence → notify)."
+            />
+
+            <FeatureCard
+              delay={0.3}
+              icon={<CheckCircle2 className="h-6 w-6 text-emerald-600" />}
+              title="Deliverability & Safety"
+              description="Built-in rate limiting, spam-safety checks, unsubscribe handling, and per-account quotas to protect sender reputation."
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="bg-background py-24">
+        <div className="container mx-auto px-4">
+          <div className="grid items-center gap-12 lg:grid-cols-2">
+            <div>
+              <h3 className="text-3xl font-bold">How AutoLoop works</h3>
+              <ol className="mt-8 space-y-6 list-decimal pl-6 text-muted-foreground">
+                <li className="pl-2">
+                  <strong className="text-foreground">Find</strong>: Define search criteria and AutoLoop continuously
+                  finds new prospects.
+                </li>
+                <li className="pl-2">
+                  <strong className="text-foreground">Enrich</strong>: We append contact details, role, and business
+                  data for better personalization.
+                </li>
+                <li className="pl-2">
+                  <strong className="text-foreground">Personalize</strong>: AI crafts tailored outreach using the
+                  lead context and your templates.
+                </li>
+                <li className="pl-2">
+                  <strong className="text-foreground">Send & Measure</strong>: Deliver through Gmail/SMTP and
+                  measure opens, clicks and replies. Iterate automatically.
+                </li>
+              </ol>
             </div>
 
-            {/* Feature 2 */}
-            <div className="group relative rounded-xl border bg-card p-8 shadow-sm transition-all hover:shadow-md stagger-item">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-500/10">
-                <Bot className="h-6 w-6 text-purple-600" />
+            <div>
+              <div className="rounded-xl border bg-card p-8 shadow-lg hover:shadow-xl transition-shadow">
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="p-3 rounded-lg bg-primary/10">
+                    <Users className="h-8 w-8 text-primary" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Customers</div>
+                    <div className="text-2xl font-bold">1,200+ teams</div>
+                  </div>
+                </div>
+                <p className="text-muted-foreground">
+                  AutoLoop runs continuously in the background and surfaces only the
+                  leads that match your ideal customer profile.
+                </p>
               </div>
-              <h3 className="mb-2 text-xl font-semibold">AI Personalization</h3>
-              <p className="text-muted-foreground">
-                Generate personalized emails using AI. Each message is tailored to the
-                recipient&apos;s business.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="group relative rounded-xl border bg-card p-8 shadow-sm transition-all hover:shadow-md stagger-item">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-500/10">
-                <Mail className="h-6 w-6 text-green-600" />
-              </div>
-              <h3 className="mb-2 text-xl font-semibold">Gmail Integration</h3>
-              <p className="text-muted-foreground">
-                Send emails directly from your Gmail account. Track opens, clicks, and
-                responses.
-              </p>
-            </div>
-
-            {/* Feature 4 */}
-            <div className="group relative rounded-xl border bg-card p-8 shadow-sm transition-all hover:shadow-md stagger-item">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-pink-500/10">
-                <BarChart3 className="h-6 w-6 text-pink-600" />
-              </div>
-              <h3 className="mb-2 text-xl font-semibold">Analytics Dashboard</h3>
-              <p className="text-muted-foreground">
-                Track campaign performance with detailed analytics and insights.
-              </p>
-            </div>
-
-            {/* Feature 5 */}
-            <div className="group relative rounded-xl border bg-card p-8 shadow-sm transition-all hover:shadow-md stagger-item">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-500/10">
-                <CheckCircle2 className="h-6 w-6 text-yellow-600" />
-              </div>
-              <h3 className="mb-2 text-xl font-semibold">Visual Workflows</h3>
-              <p className="text-muted-foreground">
-                Build complex automation workflows with an easy-to-use node editor.
-              </p>
-            </div>
-
-            {/* Feature 6 */}
-            <div className="group relative rounded-xl border bg-card p-8 shadow-sm transition-all hover:shadow-md stagger-item">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-500/10">
-                <Zap className="h-6 w-6 text-cyan-600" />
-              </div>
-              <h3 className="mb-2 text-xl font-semibold">Smart Filtering</h3>
-              <p className="text-muted-foreground">
-                Filter leads based on criteria like website availability, ratings, and more.
-              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="relative overflow-hidden bg-linear-to-r from-blue-600 via-purple-600 to-pink-600 py-24">
-        <div className="container relative z-10 mx-auto px-4 text-center">
-          <h2 className="text-4xl font-bold text-white sm:text-5xl">
-            Ready to scale your outreach?
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-white/90">
-            Join hundreds of businesses using AutoLoop to automate their cold email
-            campaigns and close more deals.
-          </p>
-          <div className="mt-10">
+      {/* Testimonials + CTA */}
+      <section className="py-24">
+        <div className="container mx-auto px-4">
+          <div className="mx-auto mb-12 max-w-3xl text-center">
+            <h2 className="text-3xl font-bold">What customers say</h2>
+            <p className="mt-3 text-muted-foreground">Real teams, real results.</p>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <blockquote className="rounded-lg border bg-card p-6 shadow hover:shadow-lg transition-shadow">
+              <p className="text-foreground">&ldquo;AutoLoop doubled our booked demos in 6 weeks.&rdquo;</p>
+              <footer className="mt-4 text-sm text-muted-foreground">— Head of Sales, SMB</footer>
+            </blockquote>
+
+            <blockquote className="rounded-lg border bg-card p-6 shadow hover:shadow-lg transition-shadow">
+              <p className="text-foreground">&ldquo;The AI emails feel human and convert better than our manual outreach.&rdquo;</p>
+              <footer className="mt-4 text-sm text-muted-foreground">— Growth Lead</footer>
+            </blockquote>
+
+            <blockquote className="rounded-lg border bg-card p-6 shadow hover:shadow-lg transition-shadow">
+              <p className="text-foreground">&ldquo;Workflows let us automate complex sequences without engineering.&rdquo;</p>
+              <footer className="mt-4 text-sm text-muted-foreground">— Ops Manager</footer>
+            </blockquote>
+          </div>
+
+          <div className="mt-12 text-center">
             <Link href="/auth/signin">
-              <Button
-                size="lg"
-                variant="outline"
-                className="border-white bg-white/10 text-white backdrop-blur-sm hover:bg-white/20"
-              >
-                Get Started for Free
+              <Button size="lg" className="bg-linear-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg hover:shadow-xl transition-all duration-300 px-8">
+                Start Free Trial
+                <Zap className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>
@@ -218,78 +281,34 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t bg-muted/50">
-        <div className="container mx-auto px-4 py-12">
-          <div className="grid gap-8 md:grid-cols-4">
-            {/* Brand */}
-            <div className="space-y-4">
-              <div className="text-xl font-bold bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                AutoLoop
-              </div>
-              <p className="text-sm text-muted-foreground">
-                AI-powered cold email outreach automation that helps you scale your sales.
-              </p>
-            </div>
-
-            {/* Product */}
-            <div className="space-y-4">
-              <h3 className="font-semibold">Product</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#features" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Features
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div className="space-y-4">
-              <h3 className="font-semibold">Company</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/feedback" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Contact & Feedback
-                  </Link>
-                </li>
-                <li>
-                  <a href="mailto:support@autoloop.com" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Support
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div className="space-y-4">
-              <h3 className="font-semibold">Legal</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Terms of Service
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/privacy" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Privacy Policy
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-8 pt-8 border-t text-center">
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} AutoLoop. All rights reserved.
-            </p>
-          </div>
+      <footer className="border-t bg-muted/30 py-8">
+        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+          © {new Date().getFullYear()} AutoLoop — Privacy · Terms
         </div>
       </footer>
+    </div>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  description,
+  delay = 0,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  delay?: number;
+}) {
+  return (
+    <div
+      className="group rounded-xl border bg-card p-6 shadow-sm hover:shadow-lg hover:border-primary/20 transition-all duration-300 transform hover:-translate-y-1 animate-on-scroll"
+      style={{ animationDelay: `${delay}s` }}
+    >
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-muted group-hover:bg-primary/10 transition-colors">{icon}</div>
+      <h4 className="mb-2 text-lg font-semibold">{title}</h4>
+      <p className="text-sm text-muted-foreground">{description}</p>
     </div>
   );
 }

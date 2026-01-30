@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { google } from "googleapis";
-import { Readable } from "stream";
 
 export interface SocialPostPayload {
     content: string;
@@ -32,7 +31,7 @@ export const socialPublisher = {
     publishToFacebook: async (payload: SocialPostPayload) => {
         const { content, mediaUrl, accessToken, providerAccountId } = payload;
         
-        const params: any = new FormData();
+        const params = new FormData();
         params.append("access_token", accessToken);
         
         let url = `https://graph.facebook.com/v21.0/${providerAccountId}/feed`;
@@ -95,7 +94,13 @@ export const socialPublisher = {
          const containerUrl = `https://graph.facebook.com/v21.0/${providerAccountId}/media`;
          const fullUrl = mediaUrl.startsWith("http") ? mediaUrl : `${appUrl}${mediaUrl}`;
 
-         const containerParams: any = {
+        const containerParams: {
+            access_token: string;
+            caption: string;
+            image_url?: string;
+            media_type?: 'VIDEO';
+            video_url?: string;
+        } = {
             access_token: accessToken,
             caption: content,
         };
@@ -186,7 +191,25 @@ export const socialPublisher = {
 
         // 3. Create Post
         const url = "https://api.linkedin.com/v2/ugcPosts";
-        const body: any = {
+        const body: {
+            author: string;
+            lifecycleState: 'PUBLISHED';
+            specificContent: {
+                'com.linkedin.ugc.ShareContent': {
+                    shareCommentary: { text: string };
+                    shareMediaCategory: 'NONE' | 'IMAGE' | 'VIDEO';
+                    media?: Array<{
+                        status: string;
+                        description: { text: string };
+                        media: string;
+                        title: { text: string };
+                    }>;
+                };
+            };
+            visibility: {
+                'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC';
+            };
+        } = {
             author: `urn:li:person:${providerAccountId}`,
             lifecycleState: "PUBLISHED",
             specificContent: {

@@ -132,8 +132,8 @@ export default function WorkflowBuilderPage() {
                 </div>
             </div>
 
-            {/* Editor Area */}
-            <div className="flex-1 overflow-hidden h-screen">
+            {/* Editor Area - Fullscreen Canvas */}
+            <div className="flex-1 overflow-hidden" style={{ height: 'calc(100vh - 100px)' }}>
                 <NodeEditor
                     initialNodes={(workflow.nodes as Node<NodeData>[]) || []}
                     initialEdges={(workflow.edges as Edge[]) || []}

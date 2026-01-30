@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { scrapingJobs } from "@/db/schema";
 import { queueScraping } from "@/lib/queue";
 import { rateLimit } from "@/lib/rate-limit";
-import { SessionUser } from "@/types";
+import type { SessionUser } from "@/types";
 import { eq, and } from "drizzle-orm";
 
 export async function POST(request: Request) {

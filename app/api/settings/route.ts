@@ -13,6 +13,9 @@ interface UpdateUserData {
   company?: string;
   website?: string;
   customVariables?: Record<string, string>;
+  whatsappBusinessPhone?: string;
+  whatsappAccessToken?: string;
+  whatsappVerifyToken?: string;
   updatedAt: Date;
 }
 
@@ -40,6 +43,9 @@ export async function GET() {
         company: users.company,
         website: users.website,
         customVariables: users.customVariables,
+        whatsappBusinessPhone: users.whatsappBusinessPhone,
+        whatsappAccessToken: users.whatsappAccessToken,
+        whatsappVerifyToken: users.whatsappVerifyToken,
       })
       .from(users)
       .where(eq(users.id, userId));
@@ -73,6 +79,8 @@ export async function GET() {
         company: user.company,
         website: user.website,
         customVariables: user.customVariables,
+        whatsappBusinessPhone: user.whatsappBusinessPhone,
+        isWhatsappConfigured: !!(user.whatsappBusinessPhone && user.whatsappAccessToken),
       },
       connectedAccounts: accounts,
     });
@@ -108,6 +116,9 @@ export async function PATCH(request: Request) {
     if (body.company !== undefined) updateData.company = body.company;
     if (body.website !== undefined) updateData.website = body.website;
     if (body.customVariables !== undefined) updateData.customVariables = body.customVariables;
+    if (body.whatsappBusinessPhone !== undefined) updateData.whatsappBusinessPhone = body.whatsappBusinessPhone;
+    if (body.whatsappAccessToken !== undefined) updateData.whatsappAccessToken = body.whatsappAccessToken;
+    if (body.whatsappVerifyToken !== undefined) updateData.whatsappVerifyToken = body.whatsappVerifyToken;
 
     const [updatedUser] = await db
       .update(users)

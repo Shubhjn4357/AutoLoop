@@ -29,6 +29,7 @@ import {
 import { Moon, Sun, LogOut, Trash2, AlertTriangle, Palette } from "lucide-react";
 import { MailSettings } from "@/components/mail/mail-settings";
 import { SocialSettings } from "@/components/settings/social-settings";
+import { WhatsAppSettings } from "@/components/settings/whatsapp-settings";
 
 interface StatusResponse {
   database: boolean;
@@ -44,7 +45,16 @@ export default function SettingsPage() {
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
 
   // API Hooks
-  const { get: getSettings, patch: patchSettings, loading: settingsLoading } = useApi<{ user: UserProfile & { isGeminiKeySet: boolean, isGmailConnected: boolean, isLinkedinCookieSet: boolean }, connectedAccounts: ConnectedAccount[] }>();
+  const { get: getSettings, patch: patchSettings, loading: settingsLoading } = useApi<{
+    user: UserProfile & {
+      isGeminiKeySet: boolean,
+      isGmailConnected: boolean,
+      isLinkedinCookieSet: boolean,
+      whatsappBusinessPhone?: string,
+      isWhatsappConfigured?: boolean
+    },
+    connectedAccounts: ConnectedAccount[]
+  }>();
   const { get: getStatus, loading: statusLoading } = useApi<StatusResponse>();
   const { del: deleteUserFn, loading: deletingUser } = useApi<void>();
   const { del: deleteDataFn, loading: deletingData } = useApi<void>();
@@ -54,7 +64,9 @@ export default function SettingsPage() {
   // API Key State
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [isGeminiKeySet, setIsGeminiKeySet] = useState(false);
+  const [isGeminiKeySet, setIsGeminiKeySet] = useState(false);
   const [isGmailConnected, setIsGmailConnected] = useState(false);
+  const [whatsappConfig, setWhatsappConfig] = useState({ phone: "", configured: false });
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
 
   // Connection Status State
@@ -96,6 +108,10 @@ export default function SettingsPage() {
         }
         setIsGeminiKeySet(settingsData.user.isGeminiKeySet);
         setIsGmailConnected(settingsData.user.isGmailConnected);
+        setWhatsappConfig({
+          phone: settingsData.user.whatsappBusinessPhone || "",
+          configured: !!settingsData.user.isWhatsappConfigured
+        });
 
         if (settingsData.connectedAccounts) {
           setConnectedAccounts(settingsData.connectedAccounts);
@@ -563,6 +579,14 @@ export default function SettingsPage() {
                   <p className="text-sm text-muted-foreground">Manage your social media accounts for auto-posting.</p>
                 </div>
                 <SocialSettings connectedAccounts={connectedAccounts} />
+              </div>
+
+              {/* WhatsApp Settings */}
+              <div className="pt-4 border-t">
+                <WhatsAppSettings
+                  businessPhone={whatsappConfig.phone}
+                  isConfigured={whatsappConfig.configured}
+                />
               </div>
 
               {/* Mail Settings (Gmail) */}

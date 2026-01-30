@@ -1,6 +1,7 @@
 import { pgTable, text, timestamp, boolean, integer, jsonb, real, varchar, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import type { WorkflowNode, WorkflowEdge } from "@/types/social-workflow";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
@@ -11,6 +12,7 @@ export const users = pgTable("users", {
   refreshToken: text("refresh_token"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  role: text("role").default("user").notNull(),
   geminiApiKey: text("gemini_api_key"),
   phone: text("phone"),
   jobTitle: text("job_title"),
@@ -18,6 +20,10 @@ export const users = pgTable("users", {
   website: text("website"),
   customVariables: jsonb("custom_variables").$type<Record<string, string>>(),
   linkedinSessionCookie: text("linkedin_session_cookie"), // "li_at" cookie value
+  // WhatsApp Business API Configuration
+  whatsappBusinessPhone: text("whatsapp_business_phone"), // WhatsApp Business Phone Number ID
+  whatsappAccessToken: text("whatsapp_access_token"), // WhatsApp Business API Access Token
+  whatsappVerifyToken: text("whatsapp_verify_token"), // Webhook verification token
 });
 
 export const businesses = pgTable("businesses", {
@@ -73,10 +79,8 @@ export const automationWorkflows = pgTable("automation_workflows", {
   keywords: jsonb("keywords").notNull().$type<string[]>(),
   isActive: boolean("is_active").default(false).notNull(),
   priority: varchar("priority", { length: 10 }).default("high").notNull(),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  nodes: jsonb("nodes").notNull().$type<any[]>(),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  edges: jsonb("edges").notNull().$type<any[]>(),
+  nodes: jsonb("nodes").notNull().$type<WorkflowNode[]>(),
+  edges: jsonb("edges").notNull().$type<WorkflowEdge[]>(),
   lastRunAt: timestamp("last_run_at"),
   executionCount: integer("execution_count").default(0).notNull(),
   timezone: varchar("timezone", { length: 50 }).default("UTC").notNull(),
@@ -132,16 +136,6 @@ export const feedback = pgTable("feedback", {
   message: text("message").notNull(),
   type: varchar("type", { length: 20 }).default("general").notNull(),
   status: varchar("status", { length: 20 }).default("new").notNull(), 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const notifications = pgTable("notifications", {
-  id: text("id").primaryKey().$defaultFn(() => nanoid()),
-  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  message: text("message").notNull(),
-  type: varchar("type", { length: 20 }).default("info").notNull(),
-  read: boolean("read").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -288,3 +282,79 @@ export const workflowExecutionLogsRelations = relations(workflowExecutionLogs, (
     references: [businesses.id],
   }),
 }));
+
+export const socialAutomationsRelations = relations(socialAutomations, ({ one }) => ({
+  user: one(users, {
+    fields: [socialAutomations.userId],
+    references: [users.id],
+  }),
+  account: one(connectedAccounts, {
+    fields: [socialAutomations.connectedAccountId],
+    references: [connectedAccounts.id],
+  }),
+}));
+
+export const connectedAccountsRelations = relations(connectedAccounts, ({ one, many }) => ({
+  user: one(users, {
+    fields: [connectedAccounts.userId],
+    references: [users.id],
+  }),
+  automations: many(socialAutomations),
+}));
+
+// Notifications System
+export const notifications = pgTable("notifications", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  category: varchar("category", { length: 20 }).notNull(), // 'workflow', 'social', 'email', 'system', 'task'
+  level: varchar("level", { length: 10 }).notNull(), // 'info', 'success', 'warning', 'error'
+  read: boolean("read").default(false).notNull(),
+  actionUrl: text("action_url"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  category: varchar("category", { length: 20 }).notNull(), // same categories as notifications
+  emailEnabled: boolean("email_enabled").default(true).notNull(),
+  pushEnabled: boolean("push_enabled").default(false).notNull(),
+  inAppEnabled: boolean("in_app_enabled").default(true).notNull(),
+  soundEnabled: boolean("sound_enabled").default(true).notNull(),
+  desktopEnabled: boolean("desktop_enabled").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
+export const notificationPreferencesRelations = relations(notificationPreferences, ({ one }) => ({
+  user: one(users, {
+    fields: [notificationPreferences.userId],
+    references: [users.id],
+  }),
+}));
+
+export const systemSettings = pgTable("system_settings", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  featureFlags: jsonb("feature_flags").default({
+    betaFeatures: false,
+    registration: true,
+    maintenance: false,
+  }).notNull(),
+  emailConfig: jsonb("email_config").default({
+    dailyLimit: 10000,
+    userRateLimit: 50,
+  }).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
