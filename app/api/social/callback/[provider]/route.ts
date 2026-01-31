@@ -8,8 +8,9 @@ import { eq, and } from "drizzle-orm";
 setDefaultResultOrder("ipv4first");
 export async function GET(
     req: NextRequest,
-    { params }: { params: Promise<{ provider: string }> }
+    props: { params: Promise<{ provider: string }> }
 ) {
+    const params = await props.params;
     const session = await auth();
 
     // Facebook callbacks might not have session cookies if same-site strict? 

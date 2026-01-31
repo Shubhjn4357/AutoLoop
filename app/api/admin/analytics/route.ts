@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { sql } from "drizzle-orm";
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(request: NextRequest) {
   const session = await auth();
 
@@ -24,10 +25,11 @@ export async function GET(request: NextRequest) {
     `);
 
     let cumulativeUsers = 0;
-    const userGrowth = usersByDate.map((row: any) => {
-      cumulativeUsers += Number(row.count);
+    const userGrowth = usersByDate.rows.map((row) => {
+      const typedRow = row as unknown as { date: string, count: number };
+      cumulativeUsers += Number(typedRow.count);
       return {
-        date: new Date(row.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        date: new Date(typedRow.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
         users: cumulativeUsers
       };
     });

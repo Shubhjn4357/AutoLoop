@@ -18,21 +18,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // For MVP, we automatically link to the first connected account or all?
-    // The schema allows `connectedAccountId` to be null (meaning global?) or specific.
-    // The form currently doesn't ask for account. Let's find a default one for now to link it,
-    // or just pick the first one. A real app would let you choose "Apply to which account?".
-    const account = await db.query.connectedAccounts.findFirst({
-      where: eq(connectedAccounts.userId, session.user.id)
-    });
+    // For whatsapp_command, we don't need a connected account as it uses the user's global WhatsApp config
+    let accountId = null;
 
-    if (!account) {
-      return NextResponse.json({ error: "No connected social account found" }, { status: 400 });
+    if (triggerType !== 'whatsapp_command') {
+      const account = await db.query.connectedAccounts.findFirst({
+        where: eq(connectedAccounts.userId, session.user.id)
+      });
+
+      if (!account) {
+        return NextResponse.json({ error: "No connected social account found" }, { status: 400 });
+      }
+      accountId = account.id;
     }
 
     await db.insert(socialAutomations).values({
       userId: session.user.id,
-      connectedAccountId: account.id, // Linking to first account found for now
+      connectedAccountId: accountId, // Linking to first account found for now or null for global commands
       name,
       triggerType,
       keywords, // Array of strings

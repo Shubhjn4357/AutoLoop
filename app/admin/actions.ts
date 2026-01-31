@@ -14,20 +14,33 @@ export async function sendGlobalNotification(formData: FormData) {
 
     const title = formData.get("title") as string;
     const message = formData.get("message") as string;
-    const type = formData.get("type") as "info" | "warning" | "success" || "info";
+    const level = (formData.get("type") as "info" | "warning" | "success") || "info";
 
     if (!title || !message) return { error: "Missing fields" };
 
-    await db.insert(notifications).values({
-        title,
-        message,
-        type,
-        // userId: null implies global notification
-        userId: null,
-    });
+    try {
+        const allUsers = await db.query.users.findMany({
+            columns: { id: true }
+        });
 
-    revalidatePath("/dashboard"); // Revalidate user dashboard to show new notif
-    return { success: true };
+        if (allUsers.length > 0) {
+            const notificationsData = allUsers.map(user => ({
+                userId: user.id,
+                title,
+                message,
+                category: "system",
+                level,
+            }));
+
+            await db.insert(notifications).values(notificationsData);
+        }
+
+        revalidatePath("/dashboard");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to send global notifications:", error);
+        return { error: "Failed to send notifications" };
+    }
 }
 
 // --- Banners ---
@@ -38,10 +51,6 @@ export async function createBanner(formData: FormData) {
 
     const message = formData.get("message") as string;
     if (!message) return { error: "Message required" };
-
-    // Deactivate other banners if we want only one active? 
-    // User didn't specify, but usually marquee is one at a time or list.
-    // I'll leave others active unless requested.
 
     await db.insert(banners).values({
         message,

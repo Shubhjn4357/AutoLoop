@@ -46,7 +46,8 @@ export class WorkflowExecutor {
           userId: this.context.userId,
           title: "Workflow Completed Successfully",
           message: `Workflow successfully processed business: ${business?.name}`,
-          type: "success",
+          level: "success",
+          category: "workflow",
         });
       } else {
         // Count recent failures to alert on repeated errors
@@ -64,7 +65,8 @@ export class WorkflowExecutor {
             userId: this.context.userId,
             title: "⚠️ Workflow Repeated Failures",
             message: `Workflow has failed ${recentFailures.length} times recently. Please check configuration and logs.`,
-            type: "warning",
+            level: "warning",
+            category: "workflow",
           });
         }
       }
@@ -78,7 +80,8 @@ export class WorkflowExecutor {
         userId: this.context.userId,
         title: "Workflow Execution Failed",
         message: `Workflow failed: ${errorMsg}`,
-        type: "error",
+        level: "error",
+        category: "workflow",
       });
 
       return { success: false, logs };

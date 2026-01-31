@@ -6,8 +6,9 @@ import { eq } from "drizzle-orm";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  props: { params: Promise<{ id: string }> }
 ) {
+  const params = await props.params;
   const session = await auth();
   const { id } = await params;
 

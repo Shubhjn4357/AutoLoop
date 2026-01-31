@@ -4,8 +4,9 @@ import { NotificationService } from "@/lib/notifications/notification-service";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
+  const params = await props.params;
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -25,8 +26,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
+  const params = await props.params;
   try {
     const session = await auth();
     if (!session?.user?.id) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, LogOut, LayoutDashboard, Building2, Workflow, Mail, FileText, CheckSquare, Settings, Share2, Search } from "lucide-react";
+import { Menu, LogOut, LayoutDashboard, Building2, Workflow, Mail, FileText, CheckSquare, Settings, Share2, Search, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -19,6 +19,7 @@ const navigation = [
   { name: "Analytics", href: "/dashboard/analytics", icon: FileText },
   { name: "Tasks", href: "/dashboard/tasks", icon: CheckSquare },
   { name: "Social Suite", href: "/dashboard/social", icon: Share2 },
+  { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

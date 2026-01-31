@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Store in Redis (TTL 5 mins)
+    if (!redis) {
+      throw new Error("Redis client not initialized");
+    }
     await redis.set(`otp:${phoneNumber}`, code, "EX", 300);
 
     // Send via WhatsApp

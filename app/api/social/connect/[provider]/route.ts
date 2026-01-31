@@ -3,8 +3,9 @@ import { auth } from "@/auth";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ provider: string }> }
+  props: { params: Promise<{ provider: string }> }
 ) {
+  const params = await props.params;
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.redirect(new URL("/auth/signin", req.url));

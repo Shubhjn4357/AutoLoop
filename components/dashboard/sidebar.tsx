@@ -15,6 +15,7 @@ import {
   CheckSquare,
   Share2,
   Search,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -32,6 +33,7 @@ const navigation = [
   { name: "Analytics", href: "/dashboard/analytics", icon: FileText },
   { name: "Tasks", href: "/dashboard/tasks", icon: CheckSquare },
   { name: "Social Suite", href: "/dashboard/social", icon: Share2 },
+  { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

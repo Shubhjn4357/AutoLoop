@@ -13,6 +13,10 @@ export interface StandardAPIResponse<T = unknown> {
     timestamp?: string;
 }
 
+export interface RouteContext {
+    params: Promise<Record<string, string>>;
+}
+
 /**
  * Success response
  */
@@ -100,11 +104,11 @@ export function apiRateLimitError(
  * Wrapper for API route handlers with error handling
  */
 export function withErrorHandling(
-    handler: (req: Request, context?: { params: Record<string, string> }) => Promise<NextResponse>
+    handler: (req: Request, context?: { params: Promise<Record<string, string>> }) => Promise<NextResponse>
 ) {
     return async (
         req: Request,
-        context?: { params: Record<string, string> }
+        context?: { params: Promise<Record<string, string>> }
     ): Promise<NextResponse> => {
         try {
             return await handler(req, context);

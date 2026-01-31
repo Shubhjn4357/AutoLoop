@@ -83,7 +83,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 linkedinSessionCookie: null,
                 whatsappBusinessPhone: null,
                 whatsappAccessToken: null,
-                whatsappVerifyToken: null
+                whatsappVerifyToken: null,
+                role: "admin"
               };
             }
 
@@ -125,6 +126,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const { redis } = await import("@/lib/redis");
 
         // Verify Code
+        if (!redis) {
+          throw new Error("Redis client not initialized");
+        }
         const storedCode = await redis.get(`otp:${phoneNumber}`);
         if (!storedCode || storedCode !== code) {
           throw new Error("Invalid or expired OTP");

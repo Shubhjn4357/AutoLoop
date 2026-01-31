@@ -2,17 +2,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Queue, Worker, Job } from "bullmq";
 import { redis as connection } from "./redis";
+import Redis from "ioredis";
 import { db } from "@/db";
 import { emailLogs, businesses, emailTemplates, users } from "@/db/schema";
 import { eq, sql, and, gte, lt } from "drizzle-orm";
 import { interpolateTemplate, sendColdEmail } from "./email";
 import type { ScraperSourceName } from "./scrapers/types";
 
+// Ensure we have a valid Redis instance for BullMQ (even if disconnected/null in lib/redis)
+const safeConnection = connection || new Redis({
+  maxRetriesPerRequest: null,
+  lazyConnect: true
+});
+
 // Email queue
-export const emailQueue = new Queue("email-outreach", { connection: connection as any });
+export const emailQueue = new Queue("email-outreach", { connection: safeConnection as any });
 
 // Scraping queue
-export const scrapingQueue = new Queue("google-maps-scraping", { connection: connection as any });
+export const scrapingQueue = new Queue("google-maps-scraping", { connection: safeConnection as any });
 
 interface EmailJobData {
   userId: string;
@@ -213,7 +220,7 @@ export const emailWorker = new Worker(
       throw new Error(errorMessage);
     }
   },
-  { connection: connection as any }
+  { connection: safeConnection as any }
 );
 
 /**
@@ -364,7 +371,7 @@ export const scrapingWorker = new Worker(
     }
   },
   {
-    connection: connection as any,
+    connection: safeConnection as any,
     concurrency: 5 // Allow 5 concurrent jobs
   }
 );
@@ -382,7 +389,7 @@ scrapingWorker.on("failed", (job, err) => {
 /**
  * Workflow execution queue
  */
-export const workflowQueue = new Queue("workflow-execution", { connection: connection as any });
+export const workflowQueue = new Queue("workflow-execution", { connection: safeConnection as any });
 
 interface WorkflowJobData {
   workflowId: string;
@@ -502,7 +509,7 @@ export const workflowWorker = new Worker(
       throw new Error(msg);
     }
   },
-  { connection: connection as any, concurrency: 10 }
+  { connection: safeConnection as any, concurrency: 10 }
 );
 
 workflowWorker.on("completed", (job) => {

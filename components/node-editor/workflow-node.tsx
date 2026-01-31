@@ -23,7 +23,10 @@ const nodeColors = {
   linkedinMessage: "#0077b5",
   abSplit: "#ec4899",
   whatsappNode: "#25D366",
-  database: "#60a5fa", // Blue-400
+  database: "#60a5fa",
+  social_post: "#1877F2", 
+  social_reply: "#25D366", 
+  social_monitor: "#1877F2", 
 };
 
 const nodeIcons = {
@@ -47,6 +50,9 @@ const nodeIcons = {
   abSplit: "🔀",
   whatsappNode: "📱",
   database: "💾",
+  social_post: "📮",
+  social_reply: "💬",
+  social_monitor:"🔍"
 };
 
 export const WorkflowNode = memo(({ data, selected }: NodeProps<NodeData>) => {

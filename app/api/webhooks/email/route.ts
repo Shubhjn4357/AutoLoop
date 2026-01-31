@@ -46,7 +46,8 @@ export async function POST(request: Request) {
             userId: business.userId,
             title: "Email Opened",
             message: `${business.name} opened your email`,
-            type: "info",
+            level: "info",
+            category: "email",
           });
           break;
 
@@ -69,7 +70,8 @@ export async function POST(request: Request) {
             userId: business.userId,
             title: "Link Clicked",
             message: `${business.name} clicked a link in your email`,
-            type: "success",
+            level: "success",
+            category: "email",
           });
           break;
 
@@ -91,7 +93,8 @@ export async function POST(request: Request) {
             userId: business.userId,
             title: "Email Bounced",
             message: `Email to ${business.name} bounced`,
-            type: "error",
+            level: "error",
+            category: "email",
           });
           break;
 
@@ -113,7 +116,8 @@ export async function POST(request: Request) {
             userId: business.userId,
             title: "Spam Report",
             message: `${business.name} reported your email as spam`,
-            type: "error",
+            level: "error",
+            category: "email",
           });
           break;
 
@@ -127,7 +131,8 @@ export async function POST(request: Request) {
             userId: business.userId,
             title: "Unsubscribed",
             message: `${business.name} unsubscribed`,
-            type: "warning",
+            level: "warning",
+            category: "email",
           });
           break;
 

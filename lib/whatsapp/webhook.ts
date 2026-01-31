@@ -125,23 +125,37 @@ async function processMessage(message: WhatsAppMessage) {
 
   if (type !== "text") return; // Only automate text for now
 
-  // 2. Find Automation Rules (Auto-Reply)
+  // 2. Find Automation Rules (Auto-Reply & Commands)
   const rules = await db.query.socialAutomations.findMany({
     where: and(
-      eq(socialAutomations.triggerType, "whatsapp_keyword"),
       eq(socialAutomations.isActive, true)
     )
   });
 
   for (const rule of rules) {
-    if (rule.keywords && rule.keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))) {
-      console.log(`✅ Matched WhatsApp Rule: ${rule.name}`);
+    let matched = false;
+
+    if (rule.triggerType === "whatsapp_keyword") {
+      if (rule.keywords && rule.keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))) {
+        matched = true;
+      }
+    } else if (rule.triggerType === "whatsapp_command") {
+      if (rule.keywords && rule.keywords.some(k => text.toLowerCase().trim() === k.toLowerCase().trim() || text.toLowerCase().startsWith(k.toLowerCase() + " "))) {
+        matched = true;
+      }
+    }
+
+    if (matched) {
+      console.log(`✅ Matched WhatsApp Rule: ${rule.name} (${rule.triggerType})`);
 
       // Send Reply
       await sendWhatsAppMessage({
         to: senderPhone,
         text: rule.responseTemplate || ""
       });
+
+      // Stop after first match? Maybe for commands, yes.
+      if (rule.triggerType === "whatsapp_command") break;
     }
   }
 }
