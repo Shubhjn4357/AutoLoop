@@ -4,8 +4,7 @@ FROM node:20-slim AS base
 RUN apt-get update && apt-get install -y \
     chromium \
     git \
-    valkey \
-    valkey-redis-compat \
+    redis-server \
     # Dependencies for Puppeteer
     gconf-service \
     libasound2 \
@@ -87,5 +86,5 @@ ENV PORT=7860
 EXPOSE 7860
 
 
-# Start Valkey, the worker, and the app
+# Start the local queue backend, the worker, and the app
 CMD ["./start.sh"]
