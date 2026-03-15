@@ -7,6 +7,8 @@ interface SendMessageParams {
   templateLanguage?: string;
   templateComponents?: unknown[];
   text?: string;
+  phoneId?: string;
+  accessToken?: string;
 }
 
 const PHONE_ID = process.env.WHATSAPP_PHONE_ID;
@@ -16,8 +18,8 @@ const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
  * Send a WhatsApp Message via Meta Cloud API
  */
 export async function sendWhatsAppMessage(payload: SendMessageParams): Promise<{ success: boolean; id?: string; error?: string }> {
-  const phoneId = PHONE_ID;
-  const token = ACCESS_TOKEN;
+  const phoneId = payload.phoneId || PHONE_ID;
+  const token = payload.accessToken || ACCESS_TOKEN;
 
   if (!phoneId || !token) {
     return { success: false, error: "Missing WhatsApp Credentials" };

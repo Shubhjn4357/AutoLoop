@@ -123,7 +123,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!phoneNumber || !code) return null;
 
         // Import dynamically to avoid circular deps if any
-        const { redis } = await import("@/lib/redis");
+        const { getRedis } = await import("@/lib/redis");
+        const redis = getRedis();
 
         // Verify Code
         if (!redis) {

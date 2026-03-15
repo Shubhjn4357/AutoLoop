@@ -1,4 +1,4 @@
-import { redis } from "@/lib/redis";
+import { getRedis } from "@/lib/redis";
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 
@@ -52,6 +52,8 @@ export class RateLimiter {
    * @returns { success: boolean, remaining: number, reset: number }
    */
   static async check(key: string, config: RateLimitConfig) {
+    const redis = getRedis();
+
     if (!redis) {
       console.warn("Redis not available, skipping rate limit check");
       return { success: true, remaining: 1, reset: 0 };
@@ -95,6 +97,8 @@ export class RateLimiter {
    * Cleanup rate limit key (clear from Redis)
    */
   static async cleanup(key: string) {
+    const redis = getRedis();
+
     if (redis) {
       await redis.del(key);
     }
@@ -105,6 +109,8 @@ export class RateLimiter {
  * Legacy rate limit function for backward compatibility
  */
 export async function rateLimit(request: Request, context: string = "general") {
+  const redis = getRedis();
+
   if (!redis) return null; // Skip if no Redis
 
   const ip = request.headers.get("x-forwarded-for") || "unknown";
@@ -147,6 +153,8 @@ export async function checkRateLimit(
   reset: number;
   response?: NextResponse;
 }> {
+  const redis = getRedis();
+
   if (!redis) {
     return { limited: false, remaining: 999, reset: 0 };
   }
@@ -193,6 +201,7 @@ export async function getRemainingEmails(userId: string): Promise<number> {
   // Limit: 50 emails per day
   const key = `email_limit:${userId}`;
   const config = RATE_LIMIT_CONFIG.email;
+  const redis = getRedis();
 
   if (!redis) return 50;
 

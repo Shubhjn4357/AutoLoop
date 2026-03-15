@@ -16,10 +16,22 @@ export default async function AutomationsPage() {
     const automations = await db.query.socialAutomations.findMany({
         where: eq(socialAutomations.userId, session.user.id),
         with: {
-            // We haven't defined relation in schema relations.ts yet, so usually we'd fetch manually or define relations.
-            // For now, let's just fetch plain. We might lack account name in UI.
+            account: true,
         }
     });
+
+    const getActionLabel = (actionType: string) => {
+        if (actionType === "reply_comment") return "Reply to Comment";
+        if (actionType === "send_dm") return "Send Direct Message";
+        if (actionType === "whatsapp_reply") return "Send WhatsApp Reply";
+        return actionType;
+    };
+
+    const getPlatformLabel = (triggerType: string, provider?: string | null) => {
+        if (provider) return provider;
+        if (triggerType.startsWith("whatsapp_")) return "whatsapp";
+        return "unassigned";
+    };
 
     return (
         <div className="flex flex-col gap-6 p-6">
@@ -33,7 +45,7 @@ export default async function AutomationsPage() {
                     </Button>
                     <h1 className="text-3xl font-bold tracking-tight">Social Automations</h1>
                     <p className="text-muted-foreground">
-                        Automatically reply to comments and DMs based on keywords.
+                        Automatically handle comments, DMs, mentions, and WhatsApp replies.
                     </p>
                 </div>
                 <Button asChild>
@@ -49,9 +61,14 @@ export default async function AutomationsPage() {
                         <CardHeader className="pb-3">
                             <div className="flex justify-between items-start">
                                 <CardTitle className="text-lg">{auto.name}</CardTitle>
-                                <Badge variant={auto.isActive ? "default" : "secondary"}>
-                                    {auto.isActive ? "Active" : "Paused"}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="capitalize">
+                                        {getPlatformLabel(auto.triggerType, auto.account?.provider)}
+                                    </Badge>
+                                    <Badge variant={auto.isActive ? "default" : "secondary"}>
+                                        {auto.isActive ? "Active" : "Paused"}
+                                    </Badge>
+                                </div>
                             </div>
                             <CardDescription>
                                 Trigger: <span className="font-mono text-xs">{auto.triggerType}</span>
@@ -61,8 +78,18 @@ export default async function AutomationsPage() {
                             <div className="text-sm space-y-2">
                                 <div className="flex items-center gap-2 text-muted-foreground">
                                     <Zap className="h-3 w-3" />
-                                    <span>Action: {auto.actionType === "reply_comment" ? "Reply to Comment" : "Send DM"}</span>
+                                    <span>Action: {getActionLabel(auto.actionType)}</span>
                                 </div>
+                                {auto.account?.name && (
+                                    <div className="text-xs text-muted-foreground">
+                                        Account: {auto.account.name}
+                                    </div>
+                                )}
+                                {auto.keywords && auto.keywords.length > 0 && (
+                                    <div className="text-xs text-muted-foreground">
+                                        Keywords: {auto.keywords.join(", ")}
+                                    </div>
+                                )}
                                 <div className="p-2 bg-muted rounded text-xs truncate">
                                     {auto.responseTemplate}
                                 </div>

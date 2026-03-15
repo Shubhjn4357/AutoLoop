@@ -1,6 +1,7 @@
+import { and, eq } from "drizzle-orm";
+
 import { db } from "@/db";
-import { socialAutomations, whatsappMessages } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { socialAutomations, users, whatsappMessages } from "@/db/schema";
 import { sendWhatsAppMessage } from "./client";
 
 interface WhatsAppChange {
@@ -41,33 +42,26 @@ interface WhatsAppStatus {
   status: string;
   timestamp: string;
   recipient_id: string;
-  conversation?: {
-    id: string;
-    expiration_timestamp?: string;
-    origin?: {
-      type: string;
-    };
-  };
-  pricing?: {
-    billable: boolean;
-    pricing_model: string;
-    category: string;
-  };
 }
 
 export async function handleWhatsAppEvent(body: WhatsAppWebhookBody) {
-  if (body.object === "whatsapp_business_account") {
-    for (const entry of body.entry) {
-      for (const change of entry.changes) {
-        if (change.value.messages) {
-          for (const message of change.value.messages) {
-            await processMessage(message);
-          }
+  if (body.object !== "whatsapp_business_account") {
+    return;
+  }
+
+  for (const entry of body.entry) {
+    for (const change of entry.changes) {
+      const phoneNumberId = change.value.metadata.phone_number_id;
+
+      if (change.value.messages) {
+        for (const message of change.value.messages) {
+          await processMessage(message, phoneNumberId);
         }
-        if (change.value.statuses) {
-          for (const status of change.value.statuses) {
-            await processStatusUpdate(status);
-          }
+      }
+
+      if (change.value.statuses) {
+        for (const status of change.value.statuses) {
+          await processStatusUpdate(status);
         }
       }
     }
@@ -75,87 +69,100 @@ export async function handleWhatsAppEvent(body: WhatsAppWebhookBody) {
 }
 
 async function processStatusUpdate(status: WhatsAppStatus) {
-  // status: { id: 'wamid.HBg...', status: 'sent'|'delivered'|'read', timestamp: '...', recipient_id: '...' }
-  const { id, status: newStatus } = status;
-
   try {
-    await db.update(whatsappMessages)
-      .set({ status: newStatus, updatedAt: new Date() })
-      .where(eq(whatsappMessages.wamid, id));
-
-    // console.log(`🔄 Message ${id} status: ${newStatus}`);
+    await db
+      .update(whatsappMessages)
+      .set({ status: status.status, updatedAt: new Date() })
+      .where(eq(whatsappMessages.wamid, status.id));
   } catch (error) {
-    console.error(`Failed to update status for ${id}:`, error);
+    console.error(`Failed to update status for ${status.id}:`, error);
   }
 }
 
-async function processMessage(message: WhatsAppMessage) {
-  const senderPhone = message.from; // e.g., "15551234567"
+async function processMessage(message: WhatsAppMessage, phoneNumberId: string) {
+  const senderPhone = message.from;
   const messageId = message.id;
-  const timestamp = new Date(parseInt(message.timestamp) * 1000);
+  const timestamp = new Date(parseInt(message.timestamp, 10) * 1000);
 
-  let text = "";
-  const type = message.type; // 'text', 'button', 'interactive'
+  const text =
+    message.type === "text" && message.text
+      ? message.text.body
+      : `[${message.type} message]`;
 
-  if (type === "text" && message.text) {
-    text = message.text.body;
-  } else {
-    // For now, capture type as text but body might be empty or description
-    text = `[${type} message]`;
-  }
-
-  console.log(`📩 WhatsApp Message from ${senderPhone}: ${text}`);
-
-  // 1. Log Inbound Message
   try {
-    // Check if exists (dedup logic if needed, but wamid is unique)
-    await db.insert(whatsappMessages).values({
-      wamid: messageId,
-      phoneNumber: senderPhone,
-      direction: "inbound",
-      type: type,
-      status: "received",
-      body: text,
-      createdAt: timestamp,
-      updatedAt: timestamp
-    }).onConflictDoNothing({ target: whatsappMessages.wamid });
+    await db
+      .insert(whatsappMessages)
+      .values({
+        wamid: messageId,
+        phoneNumber: senderPhone,
+        direction: "inbound",
+        type: message.type,
+        status: "received",
+        body: text,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      .onConflictDoNothing({ target: whatsappMessages.wamid });
   } catch (error) {
-    console.error("Failed to log inbound message:", error);
+    console.error("Failed to log inbound WhatsApp message:", error);
   }
 
-  if (type !== "text") return; // Only automate text for now
+  if (message.type !== "text") {
+    return;
+  }
 
-  // 2. Find Automation Rules (Auto-Reply & Commands)
+  const user = await db.query.users.findFirst({
+    where: eq(users.whatsappBusinessPhone, phoneNumberId),
+    columns: {
+      id: true,
+      whatsappBusinessPhone: true,
+      whatsappAccessToken: true,
+    },
+  });
+
+  if (!user) {
+    console.warn(`No WhatsApp-configured user found for phone number id ${phoneNumberId}`);
+    return;
+  }
+
   const rules = await db.query.socialAutomations.findMany({
     where: and(
+      eq(socialAutomations.userId, user.id),
       eq(socialAutomations.isActive, true)
-    )
+    ),
   });
 
   for (const rule of rules) {
     let matched = false;
 
     if (rule.triggerType === "whatsapp_keyword") {
-      if (rule.keywords && rule.keywords.some(k => text.toLowerCase().includes(k.toLowerCase()))) {
-        matched = true;
-      }
+      matched = !!rule.keywords?.some((keyword) =>
+        text.toLowerCase().includes(keyword.toLowerCase())
+      );
     } else if (rule.triggerType === "whatsapp_command") {
-      if (rule.keywords && rule.keywords.some(k => text.toLowerCase().trim() === k.toLowerCase().trim() || text.toLowerCase().startsWith(k.toLowerCase() + " "))) {
-        matched = true;
-      }
+      matched = !!rule.keywords?.some((keyword) => {
+        const normalizedKeyword = keyword.toLowerCase().trim();
+        const normalizedText = text.toLowerCase().trim();
+        return (
+          normalizedText === normalizedKeyword ||
+          normalizedText.startsWith(`${normalizedKeyword} `)
+        );
+      });
     }
 
-    if (matched) {
-      console.log(`✅ Matched WhatsApp Rule: ${rule.name} (${rule.triggerType})`);
+    if (!matched) {
+      continue;
+    }
 
-      // Send Reply
-      await sendWhatsAppMessage({
-        to: senderPhone,
-        text: rule.responseTemplate || ""
-      });
+    await sendWhatsAppMessage({
+      to: senderPhone,
+      text: rule.responseTemplate || "",
+      phoneId: user.whatsappBusinessPhone || undefined,
+      accessToken: user.whatsappAccessToken || undefined,
+    });
 
-      // Stop after first match? Maybe for commands, yes.
-      if (rule.triggerType === "whatsapp_command") break;
+    if (rule.triggerType === "whatsapp_command") {
+      break;
     }
   }
 }

@@ -5,6 +5,7 @@ export async function GET() {
     try {
         // Get summary of web vitals and API metrics
         const summary = performanceMonitor.getSummary();
+        const apiMetrics = performanceMonitor.getAPIMetrics();
 
         return NextResponse.json({
             lcp: summary.lcp,
@@ -15,6 +16,7 @@ export async function GET() {
             cachedRequests: summary.cachedRequests,
             totalRequests: summary.totalRequests,
             cacheHitRate: summary.cacheHitRate,
+            apiMetrics,
         });
     } catch (error) {
         console.error("Failed to get performance metrics:", error);

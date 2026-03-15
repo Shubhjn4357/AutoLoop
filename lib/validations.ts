@@ -71,8 +71,15 @@ export const controlScrapingSchema = z.object({
 
 export const createSocialAutomationSchema = z.object({
   name: z.string().min(1, "Automation name is required").max(100),
-  connectedAccountId: z.string().min(1, "Connected account is required"),
-  triggerType: z.enum(["comment_keyword", "dm_keyword", "story_mention", "any_comment"]),
+  connectedAccountId: z.string().min(1, "Connected account is required").optional(),
+  triggerType: z.enum([
+    "comment_keyword",
+    "dm_keyword",
+    "story_mention",
+    "any_comment",
+    "whatsapp_keyword",
+    "whatsapp_command",
+  ]),
   keywords: z.array(z.string()).optional(),
   actionType: z.enum(["reply_comment", "send_dm", "whatsapp_reply"]),
   responseTemplate: z.string().min(1, "Response template is required").max(1000),

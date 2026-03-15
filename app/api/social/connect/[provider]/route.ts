@@ -31,9 +31,14 @@ export async function GET(
     const scope = [
       "pages_show_list",
       "pages_read_engagement",
+      "pages_manage_engagement",
+      "pages_manage_metadata",
       "pages_manage_posts", // For posting
+      "pages_messaging",
       "instagram_basic", // For IG info
       "instagram_content_publish", // For IG posting
+      "instagram_manage_comments",
+      "instagram_manage_messages",
       "business_management", // General access
     ].join(",");
 

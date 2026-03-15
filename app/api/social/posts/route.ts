@@ -52,7 +52,10 @@ export async function POST(req: NextRequest) {
         for (const accountId of platforms) {
             // Fetch account details
             const account = await db.query.connectedAccounts.findFirst({
-                where: eq(connectedAccounts.id, accountId)
+                where: and(
+                    eq(connectedAccounts.id, accountId),
+                    eq(connectedAccounts.userId, userId)
+                )
             });
 
             if (!account) {
@@ -94,29 +97,22 @@ export async function POST(req: NextRequest) {
 
                 const payload = {
                     content,
-                    title, // Pass title
                     mediaUrl: fullMediaUrl,
                     accessToken: account.accessToken,
                     providerAccountId: account.providerAccountId,
                     refreshToken: account.refreshToken || undefined
                 };
 
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const provider = account.provider as any;
-
-                if (provider === "facebook") {
+                if (account.provider === "facebook") {
                     platformPostId = await socialPublisher.publishToFacebook(payload);
-                } else if (provider === "instagram") {
-                    const metadata = account.metadata as Record<string, unknown> | null;
-                    if (provider === "facebook" && metadata?.type === "instagram") {
-                        platformPostId = await socialPublisher.publishToFacebook(payload);
-                    } else {
-                        platformPostId = await socialPublisher.publishToFacebook(payload);
-                    }
-                } else if (provider === "linkedin") {
+                } else if (account.provider === "instagram") {
+                    platformPostId = await socialPublisher.publishToInstagram(payload);
+                } else if (account.provider === "linkedin") {
                     platformPostId = await socialPublisher.publishToLinkedin(payload);
-                } else if (provider === "youtube") {
+                } else if (account.provider === "youtube") {
                     platformPostId = await socialPublisher.publishToYoutube(payload);
+                } else {
+                    throw new Error(`Unsupported publishing provider: ${account.provider}`);
                 }
 
                 // Update DB Success

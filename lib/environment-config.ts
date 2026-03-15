@@ -101,7 +101,7 @@ export function isDevelopment(): boolean {
  */
 export function isFeatureEnabled(featureName: string): boolean {
     const env = getEnv();
-    const value = (env as Record<string, any>)[featureName];
+    const value = env[featureName as keyof Environment] as unknown;
     // Validate on import
     if (typeof window === "undefined") {
         try {

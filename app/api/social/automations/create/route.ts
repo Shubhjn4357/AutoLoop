@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { socialAutomations, connectedAccounts } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -12,22 +12,38 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, triggerType, keywords, actionType, responseTemplate } = body;
+    const {
+      name,
+      triggerType,
+      keywords,
+      actionType,
+      responseTemplate,
+      connectedAccountId,
+    } = body;
 
     if (!name || !triggerType || !actionType || !responseTemplate) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // For whatsapp_command, we don't need a connected account as it uses the user's global WhatsApp config
+    const isWhatsAppTrigger =
+      triggerType === "whatsapp_command" || triggerType === "whatsapp_keyword";
+
     let accountId = null;
 
-    if (triggerType !== 'whatsapp_command') {
+    if (!isWhatsAppTrigger) {
+      if (!connectedAccountId) {
+        return NextResponse.json({ error: "Connected account is required" }, { status: 400 });
+      }
+
       const account = await db.query.connectedAccounts.findFirst({
-        where: eq(connectedAccounts.userId, session.user.id)
+        where: and(
+          eq(connectedAccounts.id, connectedAccountId),
+          eq(connectedAccounts.userId, session.user.id)
+        )
       });
 
       if (!account) {
-        return NextResponse.json({ error: "No connected social account found" }, { status: 400 });
+        return NextResponse.json({ error: "Connected social account not found" }, { status: 400 });
       }
       accountId = account.id;
     }

@@ -1,24 +1,42 @@
 /**
- * Server configuration to start background workers
- * This should be called when the server starts
+ * Dedicated worker runtime.
+ * Only the worker process should call these functions.
  */
 
-import { startSocialAutomationWorker } from "@/lib/workers/social-automation";
+import { Logger } from "@/lib/logger";
+import { startTriggerProcessor } from "@/lib/workflow-triggers";
+import { startSocialAutomationWorker, stopSocialAutomationWorker } from "@/lib/workers/social-automation";
+import { startScheduledPostWorker, stopScheduledPostWorker } from "@/lib/workers/scheduled-posts";
+
+let started = false;
 
 export async function startBackgroundWorkers() {
-  console.log("🚀 Starting background workers...");
-
-  try {
-    // Start social automation worker
-    await startSocialAutomationWorker();
-
-    console.log("✅ All background workers started successfully");
-  } catch (error) {
-    console.error("❌ Error starting background workers:", error);
+  if (started) {
+    return;
   }
+
+  started = true;
+
+  Logger.info("Starting background automation services");
+
+  startTriggerProcessor();
+  startScheduledPostWorker();
+
+  if (process.env.ENABLE_SOCIAL_POLLING === "true") {
+    await startSocialAutomationWorker();
+  }
+
+  Logger.info("Background automation services started", {
+    socialPolling: process.env.ENABLE_SOCIAL_POLLING === "true",
+  });
 }
 
-// Auto-start workers in production
-if (process.env.NODE_ENV === "production" || process.env.START_WORKERS === "true") {
-  startBackgroundWorkers();
+export function stopBackgroundWorkers() {
+  stopScheduledPostWorker();
+
+  if (process.env.ENABLE_SOCIAL_POLLING === "true") {
+    stopSocialAutomationWorker();
+  }
+
+  started = false;
 }

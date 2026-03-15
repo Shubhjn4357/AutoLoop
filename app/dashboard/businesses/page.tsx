@@ -36,7 +36,7 @@ export default function BusinessesPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [csrfToken, setCsrfToken] = useState("");
+    const [csrfToken] = useState(() => generateCsrfToken());
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -58,11 +58,6 @@ export default function BusinessesPage() {
 
     const { get: getBusinessesApi, loading: loadingBusinesses } = useApi<{ businesses: Business[], totalPages: number, page: number }>();
     const { get: getCategoriesApi } = useApi<{ categories: string[] }>();
-
-    // Generate CSRF token on mount
-    useEffect(() => {
-        setCsrfToken(generateCsrfToken());
-    }, []);
 
     // Debounce effect
     useEffect(() => {

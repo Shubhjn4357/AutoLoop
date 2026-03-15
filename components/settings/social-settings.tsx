@@ -306,7 +306,7 @@ export function SocialSettings({ connectedAccounts, automations = [] }: SocialSe
               </CardDescription>
             </div>
             <Button asChild>
-              <Link href="/dashboard/social/create-automation">
+              <Link href="/dashboard/social/automations/new">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Rule
               </Link>

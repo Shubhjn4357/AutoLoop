@@ -159,7 +159,9 @@ export type SocialTriggerType =
     | 'comment_keyword'
     | 'dm_keyword'
     | 'story_mention'
-    | 'any_comment';
+    | 'any_comment'
+    | 'whatsapp_keyword'
+    | 'whatsapp_command';
 
 export type SocialActionType = 
     | 'reply_comment'

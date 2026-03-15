@@ -1,4 +1,4 @@
-import { redis } from "@/lib/redis";
+import { getRedis } from "@/lib/redis";
 import { Logger } from "@/lib/logger";
 
 /**
@@ -13,6 +13,8 @@ export async function getCached<T>(
     fetcher: () => Promise<T>,
     ttl = 300
 ): Promise<T> {
+    const redis = getRedis();
+
     if (!redis) {
         return fetcher(); // No Redis, always fetch fresh
     }
@@ -42,6 +44,8 @@ export async function getCached<T>(
  * @param pattern - Pattern to match (e.g., "businesses:user_123:*")
  */
 export async function invalidateCache(pattern: string) {
+    const redis = getRedis();
+
     if (!redis) return;
 
     try {
@@ -69,6 +73,8 @@ export async function setCache<T>(
     data: T,
     ttl = 300
 ): Promise<void> {
+    const redis = getRedis();
+
     if (!redis) return;
 
     try {
@@ -88,6 +94,8 @@ export async function setCache<T>(
  * @returns Cached data or null
  */
 export async function getCache<T>(key: string): Promise<T | null> {
+    const redis = getRedis();
+
     if (!redis) return null;
 
     try {
@@ -107,6 +115,8 @@ export async function getCache<T>(key: string): Promise<T | null> {
  * @param key - Cache key to delete
  */
 export async function deleteCache(key: string): Promise<void> {
+    const redis = getRedis();
+
     if (!redis) return;
 
     try {

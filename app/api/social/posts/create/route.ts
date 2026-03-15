@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { socialPosts, connectedAccounts } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { socialPublisher } from "@/lib/social/publisher";
 const { publishToFacebook, publishToInstagram } = socialPublisher;
 
@@ -22,7 +22,10 @@ export async function POST(req: NextRequest) {
 
     // 1. Fetch Connected Account to get Access Token
     const account = await db.query.connectedAccounts.findFirst({
-      where: eq(connectedAccounts.id, connectedAccountId)
+      where: and(
+        eq(connectedAccounts.id, connectedAccountId),
+        eq(connectedAccounts.userId, session.user.id)
+      )
     });
 
     if (!account) {
@@ -61,10 +64,10 @@ export async function POST(req: NextRequest) {
       platform,
       status: "published",
       publishedAt: new Date(),
-      platformPostId: result?.id
+      platformPostId: typeof result === "string" ? result : result?.id
     });
 
-    return NextResponse.json({ success: true, postId: result?.id });
+    return NextResponse.json({ success: true, postId: typeof result === "string" ? result : result?.id });
 
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);

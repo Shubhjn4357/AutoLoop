@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { redis } from "@/lib/redis";
+import { getRedis } from "@/lib/redis";
 import { Logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +36,8 @@ export async function GET(): Promise<NextResponse<HealthCheck>> {
   // Check Redis
   try {
     const redisStart = performance.now();
+    const redis = getRedis();
+
     if (redis) {
       await redis.ping();
       const redisLatency = Math.round(performance.now() - redisStart);

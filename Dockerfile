@@ -1,10 +1,11 @@
 FROM node:20-slim AS base
 
-# Install necessary system dependencies for Puppeteer AND Redis
+# Install necessary system dependencies for Puppeteer and a local Redis-compatible backend.
 RUN apt-get update && apt-get install -y \
     chromium \
     git \
-    redis-server \
+    valkey \
+    valkey-redis-compat \
     # Dependencies for Puppeteer
     gconf-service \
     libasound2 \
@@ -86,5 +87,5 @@ ENV PORT=7860
 EXPOSE 7860
 
 
-# Start Redis and the App
+# Start Valkey, the worker, and the app
 CMD ["./start.sh"]

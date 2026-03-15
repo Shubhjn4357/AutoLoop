@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
+import { getRedis } from "@/lib/redis";
 import { sendWhatsAppOTP } from "@/lib/whatsapp/client";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Store in Redis (TTL 5 mins)
+    const redis = getRedis();
+
     if (!redis) {
       throw new Error("Redis client not initialized");
     }

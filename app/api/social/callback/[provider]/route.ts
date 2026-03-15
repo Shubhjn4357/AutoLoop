@@ -78,39 +78,95 @@ export async function GET(
             const expiresSeconds = exchangeData.expires_in || 5184000; // 60 days fallback
             const expiresAt = new Date(Date.now() + expiresSeconds * 1000);
 
-            // 3. Fetch User Profile (to get name/id)
-            const meUrl = `https://graph.facebook.com/v19.0/me?fields=id,name,picture&access_token=${longLivedToken}`;
-            const meRes = await fetch(meUrl);
-            const meData = await meRes.json();
+            // 3. Fetch managed pages and linked Instagram business accounts.
+            const pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,picture{url},access_token,instagram_business_account{id,username,profile_picture_url}&access_token=${longLivedToken}`;
+            const pagesRes = await fetch(pagesUrl);
+            const pagesData = await pagesRes.json();
 
-            // 4. Save to DB
-            // Check if exists
-            const existingAccount = await db.query.connectedAccounts.findFirst({
-                where: and(
-                    eq(connectedAccounts.userId, userId),
-                    eq(connectedAccounts.provider, "facebook")
-                )
-            });
+            if (pagesData.error) {
+                throw new Error(pagesData.error.message);
+            }
 
-            if (existingAccount) {
-                await db.update(connectedAccounts).set({
-                    accessToken: longLivedToken,
-                    expiresAt: expiresAt,
-                    updatedAt: new Date(),
-                    name: meData.name,
-                    picture: meData.picture?.data?.url,
-                    providerAccountId: meData.id
-                }).where(eq(connectedAccounts.id, existingAccount.id));
-            } else {
-                await db.insert(connectedAccounts).values({
-                    userId: userId,
-                    provider: "facebook",
-                    providerAccountId: meData.id,
-                    accessToken: longLivedToken,
-                    expiresAt: expiresAt,
-                    name: meData.name,
-                    picture: meData.picture?.data?.url
+            const pages = pagesData.data || [];
+
+            if (pages.length === 0) {
+                throw new Error("No Facebook Pages found. Connect a Page with the required permissions first.");
+            }
+
+            for (const page of pages) {
+                const existingFacebookAccount = await db.query.connectedAccounts.findFirst({
+                    where: and(
+                        eq(connectedAccounts.userId, userId),
+                        eq(connectedAccounts.provider, "facebook"),
+                        eq(connectedAccounts.providerAccountId, page.id)
+                    )
                 });
+
+                const facebookPayload = {
+                    accessToken: page.access_token || longLivedToken,
+                    expiresAt,
+                    updatedAt: new Date(),
+                    name: page.name,
+                    picture: page.picture?.data?.url,
+                    metadata: {
+                        type: "facebook_page",
+                        source: "meta_oauth",
+                    },
+                };
+
+                if (existingFacebookAccount) {
+                    await db
+                        .update(connectedAccounts)
+                        .set(facebookPayload)
+                        .where(eq(connectedAccounts.id, existingFacebookAccount.id));
+                } else {
+                    await db.insert(connectedAccounts).values({
+                        userId,
+                        provider: "facebook",
+                        providerAccountId: page.id,
+                        ...facebookPayload,
+                    });
+                }
+
+                const instagramAccount = page.instagram_business_account;
+
+                if (instagramAccount?.id) {
+                    const existingInstagramAccount = await db.query.connectedAccounts.findFirst({
+                        where: and(
+                            eq(connectedAccounts.userId, userId),
+                            eq(connectedAccounts.provider, "instagram"),
+                            eq(connectedAccounts.providerAccountId, instagramAccount.id)
+                        )
+                    });
+
+                    const instagramPayload = {
+                        accessToken: page.access_token || longLivedToken,
+                        expiresAt,
+                        updatedAt: new Date(),
+                        name: instagramAccount.username || page.name,
+                        picture: instagramAccount.profile_picture_url || page.picture?.data?.url,
+                        metadata: {
+                            type: "instagram_business",
+                            pageId: page.id,
+                            pageName: page.name,
+                            source: "meta_oauth",
+                        },
+                    };
+
+                    if (existingInstagramAccount) {
+                        await db
+                            .update(connectedAccounts)
+                            .set(instagramPayload)
+                            .where(eq(connectedAccounts.id, existingInstagramAccount.id));
+                    } else {
+                        await db.insert(connectedAccounts).values({
+                            userId,
+                            provider: "instagram",
+                            providerAccountId: instagramAccount.id,
+                            ...instagramPayload,
+                        });
+                    }
+                }
             }
 
             return NextResponse.redirect(new URL("/dashboard/settings?success=connected", effectiveBaseUrl));
