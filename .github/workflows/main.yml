@@ -48,19 +48,13 @@ jobs:
       - name: Automation tests
         run: pnpm test:e2e
 
-      - name: Next build
-        run: pnpm build
-
-      - name: Cloudflare adapter build
-        run: pnpm exec opennextjs-cloudflare build
-
   deploy-hugging-face:
     if: github.event_name != 'pull_request'
     needs: [quality]
     runs-on: ubuntu-latest
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
+      HF_SPACE_ID: ${{ vars.HF_SPACE_ID }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -76,34 +70,8 @@ jobs:
 
       - name: Push to Hugging Face Space
         if: env.HF_TOKEN != '' && env.HF_SPACE_ID != ''
-        run: git push --force https://hf:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} main
-
-  deploy-cloudflare:
-    if: github.event_name != 'pull_request'
-    needs: [quality]
-    runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Deploy to Cloudflare Workers
-        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
-        run: pnpm deploy:cloudflare
+        run: |
+          git config --global user.email "ci@autoloop.ai"
+          git config --global user.name "AutoLoop CI"
+          git push --force https://hf:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} HEAD:main
 
