@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && (node -e \"if(process.env.CF_PAGES === 'true') require('child_process').execSync('opennextjs-cloudflare build --build-command true', {stdio: 'inherit'})\" || true)",
+    "build": "next build",
     "build:cloudflare": "pnpm run build",
     "build:next": "next build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
