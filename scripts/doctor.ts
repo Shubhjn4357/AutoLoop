@@ -21,12 +21,16 @@ const envGroups = [
 
 const requiredFiles = [
   "Dockerfile",
+  "wrangler.jsonc",
+  "open-next.config.ts",
   "public/_headers",
   ".github/workflows/main.yml",
 ];
 
 const requiredScripts = [
   "build",
+  "preview",
+  "deploy",
   "typecheck",
   "lint",
   "test",
