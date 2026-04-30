@@ -17,9 +17,6 @@ importers:
       '@libsql/client':
         specifier: ^0.17.3
         version: 0.17.3
-      '@libsql/linux-x64-musl':
-        specifier: ^0.5.2
-        version: 0.5.29
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -7467,7 +7464,8 @@ snapshots:
   '@libsql/linux-x64-gnu@0.5.29':
     optional: true
 
-  '@libsql/linux-x64-musl@0.5.29': {}
+  '@libsql/linux-x64-musl@0.5.29':
+    optional: true
 
   '@libsql/win32-x64-msvc@0.5.29':
     optional: true
