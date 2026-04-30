@@ -1,47 +1,109 @@
-name: Sync to Hugging Face Hub
+name: AutoLoop CI/CD
 
 on:
+  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
 
 jobs:
-  test-and-lint:
+  quality:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
-      - name: Install dependencies
-        run: pnpm install
-      - name: Typecheck
-        run: pnpm tsc --noEmit
-      - name: ESLint
-        run: pnpm eslint src
-      - name: Vitest
-        run: pnpm test
+          cache: pnpm
 
-  sync-to-hub:
-    needs: [test-and-lint]
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Doctor
+        run: pnpm doctor:ci
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      - name: Component tests
+        run: pnpm test:components
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Automation tests
+        run: pnpm test:e2e
+
+      - name: Next build
+        run: pnpm build
+
+      - name: Cloudflare adapter build
+        run: pnpm exec opennextjs-cloudflare build
+
+  deploy-hugging-face:
+    if: github.event_name != 'pull_request'
+    needs: [quality]
     runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE_ID: ${{ secrets.HF_SPACE_ID }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
           lfs: true
+
       - name: Install git-lfs
         run: |
-          sudo apt-get install git-lfs
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
           git lfs install
-      - name: Push to hub
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          git push --force https://shubhjn:$HF_TOKEN@huggingface.co/spaces/shubhjn/autoloop main
+
+      - name: Push to Hugging Face Space
+        if: env.HF_TOKEN != '' && env.HF_SPACE_ID != ''
+        run: git push --force https://hf:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_ID} main
+
+  deploy-cloudflare:
+    if: github.event_name != 'pull_request'
+    needs: [quality]
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy to Cloudflare Workers
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        run: pnpm deploy:cloudflare
+

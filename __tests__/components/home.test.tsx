@@ -23,12 +23,12 @@ describe("Home Page", () => {
 
   it("renders Get Started CTA link", () => {
     render(<Home />);
-    const cta = screen.getByText(/Start Automating Free/i);
+    const cta = screen.getByText(/Open Dashboard/i);
     expect(cta).toBeInTheDocument();
   });
 
   it("renders footer", () => {
     render(<Home />);
-    expect(screen.getByText(/Built for scale/i)).toBeInTheDocument();
+    expect(screen.getByText(/Hugging Face Docker/i)).toBeInTheDocument();
   });
 });

@@ -1,6 +1,17 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { processInstagramMessage } from "@/lib/automation/engine";
 import crypto from "crypto";
+
+function signaturesMatch(expected: string, actual: string) {
+  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(actual);
+
+  if (expectedBuffer.length !== actualBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -20,10 +31,14 @@ export async function POST(request: Request) {
     const textBody = await request.text();
     const signature = request.headers.get("x-hub-signature-256");
 
+    if (process.env.META_APP_SECRET && !signature) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
     if (process.env.META_APP_SECRET && signature) {
       const hmac = crypto.createHmac("sha256", process.env.META_APP_SECRET);
       const digest = "sha256=" + hmac.update(textBody).digest("hex");
-      if (signature !== digest) {
+      if (!signaturesMatch(digest, signature)) {
         console.error("Webhook signature mismatch.");
         return new NextResponse("Unauthorized", { status: 401 });
       }
@@ -32,12 +47,16 @@ export async function POST(request: Request) {
     const body = JSON.parse(textBody);
 
     if (body.object === "instagram") {
-      const backgroundTasks = [];
+      const backgroundTasks: Promise<void>[] = [];
 
       for (const entry of body.entry) {
         for (const messaging of entry.messaging) {
           console.log("Received message:", messaging);
-          if (messaging.message && messaging.message.text) {
+          if (messaging.message?.is_echo) {
+            continue;
+          }
+
+          if (messagingHasTextMessage(messaging)) {
             backgroundTasks.push(
               processInstagramMessage({
                 igUserId: entry.id,
@@ -49,9 +68,7 @@ export async function POST(request: Request) {
         }
       }
 
-      // Fire and forget (Safe for long-lived Node Docker containers like HF)
-      // Ensures the payload is acknowledged to Facebook within milliseconds bypassing blocking logic.
-      Promise.all(backgroundTasks).catch(console.error);
+      after(Promise.all(backgroundTasks).catch(console.error));
 
       return new NextResponse("EVENT_RECEIVED", { status: 200 });
     }
@@ -61,4 +78,18 @@ export async function POST(request: Request) {
     console.error("Webhook processing error:", error);
     return new NextResponse("Error parsing webhook", { status: 500 });
   }
+}
+
+interface InstagramMessagingEvent {
+  sender: { id: string };
+  message?: {
+    text?: string;
+    is_echo?: boolean;
+  };
+}
+
+function messagingHasTextMessage(
+  messaging: InstagramMessagingEvent
+): messaging is InstagramMessagingEvent & { message: { text: string } } {
+  return typeof messaging.message?.text === "string" && messaging.message.text.length > 0;
 }

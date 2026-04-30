@@ -1,6 +1,6 @@
 import { db } from "@/lib/db/client";
 import { messages as dbMessages, instagramAccounts } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth/config";
 import { redirect } from "next/navigation";
 import { MessageSquare } from "lucide-react";
@@ -21,7 +21,7 @@ export default async function MessagesPage() {
   
   if (igUserIds.length > 0) {
     recentMessages = await db.query.messages.findMany({
-      where: eq(dbMessages.igUserId, igUserIds[0]),
+      where: inArray(dbMessages.igUserId, igUserIds),
       orderBy: [desc(dbMessages.timestamp)],
       limit: 50
     });
@@ -45,6 +45,7 @@ export default async function MessagesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Sender ID</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Message Text</TableHead>
                   <TableHead className="text-right">Timestamp</TableHead>
                 </TableRow>
@@ -59,6 +60,11 @@ export default async function MessagesPage() {
                         </div>
                         {msg.senderId}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="rounded-md border px-2 py-1 text-xs capitalize">
+                        {msg.direction} / {msg.status}
+                      </span>
                     </TableCell>
                     <TableCell>{msg.text}</TableCell>
                     <TableCell className="text-right text-muted-foreground text-sm">

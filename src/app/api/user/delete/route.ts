@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
-import { users, accounts, sessions, instagramAccounts, automations } from "@/lib/db/schema";
+import {
+  users,
+  accounts,
+  sessions,
+  instagramAccounts,
+  automations,
+  messages,
+  notificationLogs,
+  scheduledMessages,
+} from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -38,6 +47,9 @@ export async function POST(request: Request) {
       // Delete all user data in order (foreign keys)
       await db.delete(instagramAccounts).where(eq(instagramAccounts.userId, userId));
       await db.delete(automations).where(eq(automations.userId, userId));
+      await db.delete(messages).where(eq(messages.userId, userId));
+      await db.delete(notificationLogs).where(eq(notificationLogs.userId, userId));
+      await db.delete(scheduledMessages).where(eq(scheduledMessages.userId, userId));
       await db.delete(sessions).where(eq(sessions.userId, userId));
       await db.delete(accounts).where(eq(accounts.userId, userId));
       await db.delete(users).where(eq(users.id, userId));

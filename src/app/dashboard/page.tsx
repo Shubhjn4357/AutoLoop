@@ -1,11 +1,10 @@
-import { Bot, MessageCircle, BarChart3 } from "lucide-react";
+import { Bot, MessageCircle, BarChart3, Clock3 } from "lucide-react";
 import Link from "next/link";
-import { db } from "@/lib/db/client";
-import { automations, messages as dbMessages, instagramAccounts } from "@/lib/db/schema";
-import { eq, count, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth/config";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { MessageChart } from "@/components/message-chart";
+import { NotificationLog } from "@/components/dashboard/notification-log";
+import { getDashboardData } from "@/lib/dashboard/data";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -13,61 +12,14 @@ export default async function DashboardPage() {
 
   if (!userId) return null;
 
-  // 1. Gather real metrics
-  const autoCountRes = await db.select({ value: count() })
-    .from(automations)
-    .where(eq(automations.userId, userId));
-    
-  const igAccountsRes = await db.select({ value: count() })
-    .from(instagramAccounts)
-    .where(eq(instagramAccounts.userId, userId));
-
-  // Determine user's primary IG Account to pull message stats
-  const igAccount = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.userId, userId)
-  });
-
-  let messageCount = 0;
-  let chartData: { date: string; messages: number }[] = [];
-
-  if (igAccount?.igUserId) {
-    const msgCountRes = await db.select({ value: count() })
-      .from(dbMessages)
-      .where(eq(dbMessages.igUserId, igAccount.igUserId));
-    
-    messageCount = msgCountRes[0].value;
-
-    // Build Trailing 7 Day Chart Data mapping
-    const rawData = await db.all(sql`
-      SELECT date(timestamp/1000, 'unixepoch') as day, count(id) as c
-      FROM messages
-      WHERE ig_user_id = ${igAccount.igUserId}
-      GROUP BY day
-      ORDER BY day DESC
-      LIMIT 7
-    `);
-    
-    chartData = (rawData as Record<string, unknown>[]).map((row) => ({
-      date: String(row.day),
-      messages: Number(row.c),
-    })).reverse();
-    
-    if (chartData.length === 0) {
-      // Mock data if empty for visual demo
-      chartData = [
-        { date: "Mon", messages: 0 },
-        { date: "Tue", messages: 1 },
-        { date: "Wed", messages: 0 },
-      ];
-    }
-  }
+  const data = await getDashboardData(userId);
 
   return (
     <div className="space-y-6 max-w-6xl">
       <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white mb-6">Overview & Analytics</h2>
       
       {/* Stats row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Connected Accounts</CardTitle>
@@ -76,7 +28,7 @@ export default async function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{igAccountsRes[0].value}</div>
+            <div className="text-2xl font-bold">{data.connectionCount}</div>
           </CardContent>
         </Card>
         
@@ -88,7 +40,7 @@ export default async function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{autoCountRes[0].value}</div>
+            <div className="text-2xl font-bold">{data.activeAutomationCount}</div>
           </CardContent>
         </Card>
         
@@ -100,7 +52,19 @@ export default async function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{messageCount}</div>
+            <div className="text-2xl font-bold">{data.messageCount}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Queued Follow-ups</CardTitle>
+            <div className="p-2 bg-blue-100 rounded-lg dark:bg-blue-900 border border-blue-200 dark:border-blue-800">
+              <Clock3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.pendingFollowUpCount}</div>
           </CardContent>
         </Card>
       </div>
@@ -115,7 +79,7 @@ export default async function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <MessageChart data={chartData} />
+            <MessageChart data={data.chartData} />
           </CardContent>
         </Card>
 
@@ -137,6 +101,7 @@ export default async function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+          <NotificationLog logs={data.recentLogs} />
         </div>
       </div>
     </div>

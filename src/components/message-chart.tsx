@@ -11,8 +11,8 @@ export function MessageChart({ data }: { data: ChartData[] }) {
         <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="colorMsgs" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
-              <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.4} />
+              <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
@@ -33,7 +33,7 @@ export function MessageChart({ data }: { data: ChartData[] }) {
           <Area
             type="monotone"
             dataKey="messages"
-            stroke="#6366f1"
+            stroke="var(--chart-1)"
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#colorMsgs)"

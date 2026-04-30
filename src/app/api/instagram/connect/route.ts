@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 
@@ -8,9 +10,16 @@ export async function POST() {
   }
 
   const clientId = process.env.FACEBOOK_CLIENT_ID;
+  if (!clientId) {
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard/settings?error=missing_meta_config`,
+      303
+    );
+  }
+
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/instagram/callback`;
+  const graphVersion = process.env.META_GRAPH_VERSION || "v21.0";
   
-  // Scopes needed for Instagram Messaging via Graph API
   const scopes = [
     "instagram_basic",
     "instagram_manage_messages",
@@ -18,7 +27,12 @@ export async function POST() {
     "pages_manage_metadata"
   ].join(",");
 
-  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes}&response_type=code&state=${session.user.id}`;
+  const authUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
+  authUrl.searchParams.set("client_id", clientId);
+  authUrl.searchParams.set("redirect_uri", redirectUri);
+  authUrl.searchParams.set("scope", scopes);
+  authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("state", session.user.id);
 
-  return NextResponse.redirect(authUrl);
+  return NextResponse.redirect(authUrl, 303);
 }

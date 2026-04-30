@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
 import { instagramAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { auth } from "@/lib/auth/config";
+import { createNotificationLog } from "@/lib/notifications/logs";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -14,26 +16,44 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/dashboard/settings?error=oauth_failed", request.url));
   }
 
+  const session = await auth();
+  if (!session?.user?.id || session.user.id !== state) {
+    return NextResponse.redirect(new URL("/dashboard/settings?error=oauth_failed", request.url));
+  }
+
   const clientId = process.env.FACEBOOK_CLIENT_ID;
   const clientSecret = process.env.FACEBOOK_CLIENT_SECRET;
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/instagram/callback`;
+  const graphVersion = process.env.META_GRAPH_VERSION || "v21.0";
+
+  if (!clientId || !clientSecret) {
+    return NextResponse.redirect(new URL("/dashboard/settings?error=missing_meta_config", request.url));
+  }
 
   try {
-    // 1. Exchange code for short-lived access token
-    const tokenRes = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?client_id=${clientId}&redirect_uri=${redirectUri}&client_secret=${clientSecret}&code=${code}`);
+    const tokenUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
+    tokenUrl.searchParams.set("client_id", clientId);
+    tokenUrl.searchParams.set("redirect_uri", redirectUri);
+    tokenUrl.searchParams.set("client_secret", clientSecret);
+    tokenUrl.searchParams.set("code", code);
+    const tokenRes = await fetch(tokenUrl);
     const tokenData = await tokenRes.json();
 
-    if (tokenData.error) throw new Error(tokenData.error.message);
+    if (!tokenRes.ok || tokenData.error) throw new Error(tokenData.error?.message ?? "Token exchange failed");
     const shortLivedToken = tokenData.access_token;
 
-    // 2. Exchange short-lived token for long-lived access token
-    const longTokenRes = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${shortLivedToken}`);
+    const longTokenUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
+    longTokenUrl.searchParams.set("grant_type", "fb_exchange_token");
+    longTokenUrl.searchParams.set("client_id", clientId);
+    longTokenUrl.searchParams.set("client_secret", clientSecret);
+    longTokenUrl.searchParams.set("fb_exchange_token", shortLivedToken);
+    const longTokenRes = await fetch(longTokenUrl);
     const longTokenData = await longTokenRes.json();
     const accessToken = longTokenData.access_token || shortLivedToken;
 
-    // 3. Get connected Facebook Pages for the user
-    // (Requires pages_show_list scope)
-    const pagesRes = await fetch(`https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`);
+    const pagesUrl = new URL(`https://graph.facebook.com/${graphVersion}/me/accounts`);
+    pagesUrl.searchParams.set("access_token", accessToken);
+    const pagesRes = await fetch(pagesUrl);
     const pagesData = await pagesRes.json();
 
     if (!pagesData.data || pagesData.data.length === 0) {
@@ -46,7 +66,10 @@ export async function GET(request: Request) {
     let pageAccessToken = null;
 
     for (const page of pagesData.data) {
-      const igRes = await fetch(`https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`);
+      const igUrl = new URL(`https://graph.facebook.com/${graphVersion}/${page.id}`);
+      igUrl.searchParams.set("fields", "instagram_business_account");
+      igUrl.searchParams.set("access_token", page.access_token);
+      const igRes = await fetch(igUrl);
       const igData = await igRes.json();
 
       if (igData.instagram_business_account) {
@@ -61,15 +84,18 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL("/dashboard/settings?error=no_ig_business_found", request.url));
     }
 
-    // 4. Save to Database
-    // Check if it already exists
     const existing = await db.query.instagramAccounts.findFirst({
       where: eq(instagramAccounts.userId, state)
     });
 
     if (existing) {
       await db.update(instagramAccounts)
-        .set({ igUserId: connectedIgUserId, pageId: connectedPageId, accessToken: pageAccessToken })
+        .set({
+          igUserId: connectedIgUserId,
+          pageId: connectedPageId,
+          accessToken: pageAccessToken,
+          connectedAt: new Date(),
+        })
         .where(eq(instagramAccounts.userId, state));
     } else {
       await db.insert(instagramAccounts).values({
@@ -77,9 +103,19 @@ export async function GET(request: Request) {
         userId: state,
         igUserId: connectedIgUserId,
         pageId: connectedPageId,
-        accessToken: pageAccessToken
+        accessToken: pageAccessToken,
+        connectedAt: new Date(),
       });
     }
+
+    await createNotificationLog({
+      userId: state,
+      type: "instagram.connected",
+      title: "Instagram connected",
+      message: `Connected Instagram Business account ${connectedIgUserId}`,
+      status: "success",
+      metadata: { igUserId: connectedIgUserId, pageId: connectedPageId },
+    });
 
     return NextResponse.redirect(new URL("/dashboard/settings?success=1", request.url));
   } catch (err) {
