@@ -21,8 +21,6 @@ const envGroups = [
 
 const requiredFiles = [
   "Dockerfile",
-  "wrangler.jsonc",
-  "open-next.config.ts",
   "public/_headers",
   ".github/workflows/main.yml",
 ];
@@ -37,9 +35,7 @@ const requiredScripts = [
   "test:e2e",
   "db:push",
   "db:generate",
-  "doctor",
-  "preview",
-  "deploy:cloudflare",
+  "doctor"
 ];
 
 function hasAnyEnv(keys: string[]) {
