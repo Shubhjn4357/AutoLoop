@@ -5,20 +5,33 @@ import GitHub from "next-auth/providers/github";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/lib/db/client";
 
-const googleClientId = process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID;
-const googleClientSecret =
-  process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET;
-const githubClientId = process.env.AUTH_GITHUB_ID ?? process.env.GITHUB_CLIENT_ID;
-const githubClientSecret =
-  process.env.AUTH_GITHUB_SECRET ?? process.env.GITHUB_CLIENT_SECRET;
+const googleConfig = {
+  clientId: process.env.AUTH_GOOGLE_ID ?? process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_CLIENT_SECRET,
+};
+
+const githubConfig = {
+  clientId: process.env.AUTH_GITHUB_ID ?? process.env.GITHUB_CLIENT_ID,
+  clientSecret: process.env.AUTH_GITHUB_SECRET ?? process.env.GITHUB_CLIENT_SECRET,
+};
+
+// Diagnostic log (Server-side only)
+if (typeof window === "undefined") {
+  console.log("Auth Config Debug:", {
+    hasGoogleId: !!googleConfig.clientId,
+    hasGoogleSecret: !!googleConfig.clientSecret,
+    hasGithubId: !!githubConfig.clientId,
+    hasGithubSecret: !!githubConfig.clientSecret,
+  });
+}
 
 const providers: NextAuthConfig["providers"] = [];
 
-if (googleClientId && googleClientSecret) {
+if (googleConfig.clientId && googleConfig.clientSecret) {
   providers.push(
     Google({
-      clientId: googleClientId,
-      clientSecret: googleClientSecret,
+      clientId: googleConfig.clientId,
+      clientSecret: googleConfig.clientSecret,
       authorization: {
         params: {
           prompt: "select_account",
@@ -28,17 +41,21 @@ if (googleClientId && googleClientSecret) {
   );
 }
 
-if (githubClientId && githubClientSecret) {
+if (githubConfig.clientId && githubConfig.clientSecret) {
   providers.push(
     GitHub({
-      clientId: githubClientId,
-      clientSecret: githubClientSecret,
+      clientId: githubConfig.clientId,
+      clientSecret: githubConfig.clientSecret,
     })
   );
 }
 
 export function isGoogleAuthConfigured() {
-  return Boolean(googleClientId && googleClientSecret);
+  return Boolean(googleConfig.clientId && googleConfig.clientSecret);
+}
+
+export function isGithubAuthConfigured() {
+  return Boolean(githubConfig.clientId && githubConfig.clientSecret);
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({

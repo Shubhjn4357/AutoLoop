@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && (node -e \"if(process.env.CF_PAGES === 'true') require('child_process').execSync('opennextjs-cloudflare build --build-command true', {stdio: 'inherit'})\" || true)",
+    "build": "next build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
@@ -21,6 +21,7 @@
     "test:e2e": "playwright test",
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
+  
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
     "@base-ui/react": "^1.4.1",
