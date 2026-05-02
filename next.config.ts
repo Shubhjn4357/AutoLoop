@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
-  // Enable standalone only in Docker/CI (set BUILD_STANDALONE=true in environment)
+  // Only enable standalone output if explicitly requested (e.g. CI or OpenNext packaging)
   output: process.env.BUILD_STANDALONE === "true" ? "standalone" : undefined,
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   // Prevent native libsql binaries from being bundled (needed for Cloudflare + HuggingFace)

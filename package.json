@@ -21,7 +21,6 @@
     "test:e2e": "playwright test",
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
-  
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
     "@base-ui/react": "^1.4.1",
@@ -68,8 +67,9 @@
     "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.1.5",
-    "wrangler": "^4.86.0"
+    "wrangler": "^4.87.0"
   },
+  "adapter":" @opennextjs/cloudflare",
   "pnpm": {
     "supportedArchitectures": {
       "os": [
