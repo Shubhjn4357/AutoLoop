@@ -84,4 +84,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return session;
     },
   },
+  logger: {
+    error(code, ...args) {
+      console.error(`[NextAuth Error] ${code}`, ...args);
+    },
+    warn(code, ...args) {
+      console.warn(`[NextAuth Warn] ${code}`, ...args);
+    },
+    debug(code, ...args) {
+      console.debug(`[NextAuth Debug] ${code}`, ...args);
+    },
+  },
 });
