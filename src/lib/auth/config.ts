@@ -15,15 +15,12 @@ const githubConfig = {
   clientSecret: process.env.AUTH_GITHUB_SECRET ?? process.env.GITHUB_CLIENT_SECRET,
 };
 
-// Diagnostic log (Server-side only)
-if (typeof window === "undefined") {
-  console.log("Auth Config Debug:", {
-    hasGoogleId: !!googleConfig.clientId,
-    hasGoogleSecret: !!googleConfig.clientSecret,
-    hasGithubId: !!githubConfig.clientId,
-    hasGithubSecret: !!githubConfig.clientSecret,
-  });
+if (process.env.NODE_ENV === "production") {
+  console.log(`[Runtime] Auth Secret: ${process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET ? "YES" : "NO"}`);
+  console.log(`[Runtime] Google Client: ${githubConfig.clientId ? "YES" : "NO"}`);
 }
+
+
 
 const providers: NextAuthConfig["providers"] = [];
 
@@ -51,11 +48,23 @@ if (githubConfig.clientId && githubConfig.clientSecret) {
 }
 
 export function isGoogleAuthConfigured() {
-  return Boolean(googleConfig.clientId && googleConfig.clientSecret);
+  return Boolean(
+    process.env.AUTH_GOOGLE_ID || 
+    process.env.GOOGLE_CLIENT_ID
+  ) && Boolean(
+    process.env.AUTH_GOOGLE_SECRET || 
+    process.env.GOOGLE_CLIENT_SECRET
+  );
 }
 
 export function isGithubAuthConfigured() {
-  return Boolean(githubConfig.clientId && githubConfig.clientSecret);
+  return Boolean(
+    process.env.AUTH_GITHUB_ID || 
+    process.env.GITHUB_CLIENT_ID
+  ) && Boolean(
+    process.env.AUTH_GITHUB_SECRET || 
+    process.env.GITHUB_CLIENT_SECRET
+  );
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({

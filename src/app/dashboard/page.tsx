@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Bot, MessageCircle, BarChart3, Clock3 } from "lucide-react";
 import Link from "next/link";
 import { auth } from "@/lib/auth/config";
