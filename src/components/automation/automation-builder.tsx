@@ -149,7 +149,7 @@ function ExistingAutomationCard({
             className={cn(
               "rounded-md px-2 py-1 text-xs font-medium",
               automation.isActive
-                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
                 : "bg-muted text-muted-foreground"
             )}
           >
@@ -167,7 +167,7 @@ function ExistingAutomationCard({
         </div>
         {automation.followUpTemplate && (
           <div className="flex items-center gap-2 rounded-md border p-3 text-sm">
-            <Clock3 className="size-4 text-blue-600" />
+            <Clock3 className="size-4 text-primary" />
             <span>
               Follow-up after {automation.followUpDelayMinutes ?? 0} minute(s)
             </span>
@@ -175,7 +175,7 @@ function ExistingAutomationCard({
         )}
         {automation.requireFollower && (
           <div className="flex items-center gap-2 rounded-md border p-3 text-sm">
-            <BellRing className="size-4 text-amber-600" />
+            <BellRing className="size-4 text-amber-500" />
             <span>Follower condition required</span>
           </div>
         )}

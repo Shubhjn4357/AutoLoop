@@ -1,45 +1,25 @@
-/**
- * Hook for Instagram-related API interactions
- */
+"use client";
 
 import { useApi } from "./useApi";
-import type { IGMedia, IGUserProfile } from "@/lib/instagram/graph";
 import { useCallback } from "react";
 
 export function useInstagram() {
-  const { request: fetchMediaReq, loading: mediaLoading } = useApi<IGMedia[]>();
-  const { request: fetchProfileReq, loading: profileLoading } = useApi<IGUserProfile>();
-  const { request: searchReq, loading: searchLoading } = useApi<IGUserProfile & { media?: { data: IGMedia[] } }>();
-  const { request: publishReq, loading: publishLoading } = useApi<{ success: boolean; postId: string }>();
+  const { data: media, loading: loadingMedia, request: fetchMedia } = useApi<unknown[]>();
+  const { data: profile, loading: loadingProfile, request: fetchProfile } = useApi<unknown>();
 
-  const getMedia = useCallback(async () => {
-    return fetchMediaReq("/api/instagram/media");
-  }, [fetchMediaReq]);
+  const getMedia = useCallback((igUserId: string) => {
+    return fetchMedia(`/api/instagram/media?igUserId=${igUserId}`);
+  }, [fetchMedia]);
 
-  const getProfile = useCallback(async () => {
-    return fetchProfileReq("/api/instagram/profile");
-  }, [fetchProfileReq]);
-
-  const searchUser = useCallback(async (username: string) => {
-    return searchReq(`/api/instagram/search?username=${username.replace("@", "")}`);
-  }, [searchReq]);
-
-  const publishPost = useCallback(async (imageUrl: string, caption: string) => {
-    return publishReq("/api/instagram/publish", {
-      method: "POST",
-      body: JSON.stringify({ imageUrl, caption }),
-    });
-  }, [publishReq]);
+  const getProfile = useCallback((igUserId: string) => {
+    return fetchProfile(`/api/instagram/profile?igUserId=${igUserId}`);
+  }, [fetchProfile]);
 
   return {
+    media,
+    profile,
+    loading: loadingMedia || loadingProfile,
     getMedia,
-    getProfile,
-    searchUser,
-    publishPost,
-    loading: mediaLoading || profileLoading || searchLoading || publishLoading,
-    mediaLoading,
-    profileLoading,
-    searchLoading,
-    publishLoading
+    getProfile
   };
 }

@@ -1,45 +1,45 @@
-/**
- * Hook for managing automation rules
- */
+"use client";
 
 import { useApi } from "./useApi";
+import { type automations } from "@/lib/db/schema";
 import { useCallback } from "react";
-import type { automations } from "@/lib/db/schema";
-import { toast } from "sonner";
 
 type Automation = typeof automations.$inferSelect;
 
 export function useAutomations() {
-  const { request, loading } = useApi<Automation[]>();
-  const { request: saveReq, loading: saving } = useApi<Automation>();
-  const { request: deleteReq } = useApi<{ success: boolean }>();
+  const { data, loading, error, request, setData } = useApi<Automation[]>();
 
-  const getAutomations = useCallback(async () => {
+  const fetchAutomations = useCallback(() => {
     return request("/api/automation");
   }, [request]);
 
-  const saveAutomation = useCallback(async (data: Partial<Automation>) => {
-    const res = await saveReq("/api/automation", {
+  const createAutomation = async (automation: Partial<Automation>) => {
+    const result = await request("/api/automation", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify(automation),
     });
-    if (res) toast.success("Automation saved successfully");
-    return res;
-  }, [saveReq]);
+    if (result) {
+      fetchAutomations();
+    }
+    return result;
+  };
 
-  const deleteAutomation = useCallback(async (id: string) => {
-    const res = await deleteReq(`/api/automation?id=${id}`, {
+  const deleteAutomation = async (id: string) => {
+    const result = await request(`/api/automation?id=${id}`, {
       method: "DELETE",
     });
-    if (res) toast.success("Automation deleted");
-    return res;
-  }, [deleteReq]);
+    if (result) {
+      setData(prev => prev ? prev.filter(a => a.id !== id) : null);
+    }
+    return result;
+  };
 
   return {
-    getAutomations,
-    saveAutomation,
-    deleteAutomation,
+    automations: data || [],
     loading,
-    saving
+    error,
+    fetchAutomations,
+    createAutomation,
+    deleteAutomation,
   };
 }
