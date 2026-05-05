@@ -25,6 +25,7 @@ export default async function DashboardLayout({
         userName: session.user.name ?? null,
         connectionCount: dashboardData.connectionCount,
         latestNotificationStatus: dashboardData.recentLogs[0]?.status || "info",
+        recentLogs: dashboardData.recentLogs,
       }}
     >
       <div className="flex h-screen bg-background overflow-hidden">

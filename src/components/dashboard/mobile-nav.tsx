@@ -7,15 +7,19 @@ import {
   LayoutDashboard, 
   Settings, 
   BarChart3, 
-  Sparkles 
+  Sparkles,
+  Search,
+  Bell
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const mobileItems = [
   { label: "Home", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Search", href: "/dashboard/search", icon: Search },
   { label: "Tools", href: "/dashboard/automations", icon: Bot },
   { label: "Posts", href: "/dashboard/content", icon: Sparkles },
   { label: "Data", href: "/dashboard/insights", icon: BarChart3 },
+  { label: "Alerts", href: "/dashboard/notifications", icon: Bell },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

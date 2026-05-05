@@ -7,7 +7,7 @@ import {
   MessageSquare, MessageCircle, UserPlus, BookOpen, Globe,
   ChevronRight, Check, Clock, BellRing, GripVertical,
   Trash2, Plus, Loader2, ArrowLeft,
-  ToggleLeft, ToggleRight, Filter
+  ToggleLeft, ToggleRight, Filter, Bot
 } from "lucide-react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -114,6 +114,7 @@ export function AutomationsWorkspace({
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null); // null = account-wide
   const [selectedTrigger, setSelectedTrigger] = useState("");
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   
   const [isPending, startTransition] = useTransition();
 
@@ -143,6 +144,7 @@ export function AutomationsWorkspace({
     setStep("select-trigger");
     setSelectedTrigger("");
     setFlowSteps([]);
+    setEditingId(null);
   }
 
   function handleBack() {
@@ -163,6 +165,7 @@ export function AutomationsWorkspace({
     data.set("targetPostId", selectedPostId ?? "");
     data.set("triggerType", selectedTrigger);
     data.set("flowJson", JSON.stringify(flowSteps));
+    if (editingId) data.set("id", editingId);
     startTransition(() => createAutomationAction(data));
   }
 
@@ -198,7 +201,7 @@ export function AutomationsWorkspace({
                 selectedPostId === null && step !== "select-target" ? "border-primary bg-primary/10 text-primary font-medium" : "border-white/10 bg-background/40"
               )}
             >
-              <div className="size-10 rounded-lg bg-gradient-to-br from-primary/20 to-fuchsia-500/20 flex items-center justify-center shrink-0">
+              <div className="size-10 rounded-lg bg-linear-to-br from-primary/20 to-fuchsia-500/20 flex items-center justify-center shrink-0">
                 <Globe className="size-5 text-primary" />
               </div>
               <div>
@@ -238,14 +241,14 @@ export function AutomationsWorkspace({
                         fill unoptimized className="object-cover"
                       />
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-transparent" />
                     <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between">
-                      <span className="text-[9px] text-white font-medium bg-black/40 rounded px-1">
+                      <span className="text-[9px] text-foreground font-bold bg-background/80 backdrop-blur-md rounded px-1.5 py-0.5 shadow-sm">
                         {post.media_type === "CAROUSEL_ALBUM" ? "ALBUM" : post.media_type}
                       </span>
                       {selectedPostId === post.id && (
-                        <span className="size-4 bg-primary rounded-full flex items-center justify-center">
-                          <Check className="size-2.5 text-white" />
+                        <span className="size-4 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/20">
+                          <Check className="size-2.5 text-primary-foreground" />
                         </span>
                       )}
                     </div>
@@ -255,27 +258,37 @@ export function AutomationsWorkspace({
             )}
           </div>
 
-          {/* Existing automations for selected target */}
-          {step !== "select-target" && (
-            <div className="glass-card rounded-2xl p-4 space-y-3">
-              <h2 className="font-bold text-xs text-muted-foreground uppercase tracking-wider">
-                Active Rules ({targetAutomations.length})
-              </h2>
-              {targetAutomations.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-3">No rules for this target yet</p>
-              ) : (
-                <div className="space-y-2">
-                  {targetAutomations.map((auto) => (
-                    <div key={auto.id} className="flex items-center gap-2 rounded-xl border border-white/10 bg-background/40 p-3">
+          {/* Existing automations */}
+          <div className="glass-card rounded-2xl p-4 space-y-3">
+            <h2 className="font-bold text-xs text-muted-foreground uppercase tracking-wider">
+              {step === "select-target" ? "All Automation Rules" : "Rules for Target"} ({step === "select-target" ? existingAutomations.length : targetAutomations.length})
+            </h2>
+            {(step === "select-target" ? existingAutomations : targetAutomations).length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-3">No rules found</p>
+            ) : (
+              <div className="space-y-2">
+                {(step === "select-target" ? existingAutomations : targetAutomations).map((auto) => (
+                    <div key={auto.id} className="flex items-center gap-2 rounded-xl border border-border/50 bg-card/40 p-3 backdrop-blur-sm">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold truncate">{auto.name}</p>
                         <p className="text-[10px] text-muted-foreground">{auto.triggerType} · {auto.condition || "any"}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setStep("configure");
+                            setSelectedTrigger(auto.triggerType);
+                            setEditingId(auto.id);
+                          }}
+                          className="text-muted-foreground hover:text-primary transition-colors p-1"
+                        >
+                          <Bot className="size-4" />
+                        </button>
                         <form action={toggleAutomationAction}>
                           <input type="hidden" name="id" value={auto.id} />
                           <input type="hidden" name="isActive" value={auto.isActive ? "false" : "true"} />
-                          <button type="submit" className={cn("text-xs", auto.isActive ? "text-emerald-500" : "text-muted-foreground")}>
+                          <button type="submit" className={cn("text-xs transition-colors", auto.isActive ? "text-emerald-500" : "text-muted-foreground")}>
                             {auto.isActive ? <ToggleRight className="size-5" /> : <ToggleLeft className="size-5" />}
                           </button>
                         </form>
@@ -291,8 +304,7 @@ export function AutomationsWorkspace({
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
 
         {/* RIGHT — Step panel */}
         <div className="glass-card rounded-3xl overflow-hidden">
@@ -391,7 +403,13 @@ export function AutomationsWorkspace({
                   {/* Rule Name */}
                   <div className="space-y-2">
                     <Label htmlFor="name">Rule Name</Label>
-                    <Input id="name" name="name" required placeholder="e.g. Price inquiry reply" />
+                    <Input 
+                      id="name" 
+                      name="name" 
+                      required 
+                      placeholder="e.g. Price inquiry reply" 
+                      defaultValue={existingAutomations.find(a => a.id === editingId)?.name ?? ""}
+                    />
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -402,6 +420,7 @@ export function AutomationsWorkspace({
                         id="conditionOperator"
                         name="conditionOperator"
                         className="w-full h-10 rounded-xl border border-input bg-background/60 px-3 text-sm backdrop-blur"
+                        defaultValue={existingAutomations.find(a => a.id === editingId)?.conditionOperator ?? "contains"}
                       >
                         {conditionOperators.map((op) => (
                           <option key={op} value={op}>{op.replace("_", " ")}</option>
@@ -412,7 +431,12 @@ export function AutomationsWorkspace({
                     {/* Keyword */}
                     <div className="space-y-2">
                       <Label htmlFor="condition">Keyword / Trigger Word</Label>
-                      <Input id="condition" name="condition" placeholder="e.g. price, info, link" />
+                      <Input 
+                        id="condition" 
+                        name="condition" 
+                        placeholder="e.g. price, info, link" 
+                        defaultValue={existingAutomations.find(a => a.id === editingId)?.condition ?? ""}
+                      />
                     </div>
                   </div>
 
@@ -426,6 +450,7 @@ export function AutomationsWorkspace({
                       rows={3}
                       placeholder="Thanks for your message! Here's what you need to know..."
                       className="resize-none"
+                      defaultValue={existingAutomations.find(a => a.id === editingId)?.responseTemplate ?? ""}
                     />
                   </div>
 
@@ -436,6 +461,7 @@ export function AutomationsWorkspace({
                       name="requireFollower"
                       value="true"
                       className="size-4 rounded border-input accent-primary"
+                      defaultChecked={existingAutomations.find(a => a.id === editingId)?.requireFollower ?? false}
                     />
                     <div>
                       <p className="text-sm font-medium">Require follower check</p>
@@ -455,6 +481,7 @@ export function AutomationsWorkspace({
                       rows={2}
                       placeholder="Optional: just checking if you need anything else!"
                       className="resize-none"
+                      defaultValue={existingAutomations.find(a => a.id === editingId)?.followUpTemplate ?? ""}
                     />
                     <div className="flex items-center gap-3">
                       <Clock className="size-4 text-muted-foreground shrink-0" />
@@ -464,7 +491,7 @@ export function AutomationsWorkspace({
                         name="followUpDelayMinutes"
                         type="number"
                         min="0"
-                        defaultValue="60"
+                        defaultValue={existingAutomations.find(a => a.id === editingId)?.followUpDelayMinutes ?? 60}
                         className="w-24 h-8 text-sm"
                       />
                       <span className="text-xs text-muted-foreground">minutes</span>
@@ -484,7 +511,7 @@ export function AutomationsWorkspace({
                           key={ps.id}
                           type="button"
                           onClick={() => handleDropStep(ps)}
-                          className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-background/60 px-3 py-1.5 text-xs hover:border-primary/50 hover:bg-primary/5 transition-all"
+                          className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-card/60 px-3 py-1.5 text-xs hover:border-primary/50 hover:bg-primary/5 transition-all shadow-sm"
                         >
                           <Plus className="size-3" /> {ps.label}
                         </button>

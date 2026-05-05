@@ -6,6 +6,13 @@ interface DashboardContextValue {
   userName: string | null;
   connectionCount: number;
   latestNotificationStatus: string | null;
+  recentLogs: {
+    id: string;
+    title: string;
+    message: string;
+    status: string;
+    createdAt: Date;
+  }[];
 }
 
 const DashboardContext = React.createContext<DashboardContextValue | null>(null);

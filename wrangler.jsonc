@@ -2,6 +2,9 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "autoloop",
   "main": ".open-next/worker.js",
+  "placement": {
+    "mode": "smart"
+  },
   "compatibility_date": "2026-04-30",
   "compatibility_flags": [
     "nodejs_compat"
@@ -23,6 +26,12 @@
     "NODE_ENV": "production"
   },
   "observability": {
-    "enabled": true
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+    },
+    "traces": {
+      "enabled": false,
+    },
   }
 }

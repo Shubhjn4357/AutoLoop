@@ -27,8 +27,11 @@ export async function POST(request: Request) {
   const scopes = [
     "instagram_basic",
     "instagram_manage_messages",
+    "instagram_manage_comments",
+    "instagram_content_publish",
     "pages_show_list",
-    "pages_manage_metadata"
+    "pages_manage_metadata",
+    "pages_read_engagement"
   ].join(",");
 
   const authUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);

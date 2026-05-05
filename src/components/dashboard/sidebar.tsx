@@ -18,7 +18,8 @@ import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { signOut } from "next-auth/react";
-
+import Image from "next/image";
+import Icon from "@/app/icon1.png";
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Automations", href: "/dashboard/automations", icon: Bot },
@@ -29,7 +30,7 @@ const navItems = [
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
-export function Sidebar() {
+export function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -37,13 +38,14 @@ export function Sidebar() {
     <aside 
       className={cn(
         "h-full border-r border-border bg-card/50 backdrop-blur-xl transition-all duration-300 flex flex-col",
-        collapsed ? "w-20" : "w-64"
+        collapsed ? "w-20" : "w-64",
+        className
       )}
     >
       <div className="p-6 flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-3 group">
-          <div className="size-10 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20 transition-transform group-hover:scale-105">
-            <Bot className="size-6" />
+          <div className="size-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20 transition-transform group-hover:scale-105">
+            <Image src={Icon} width={24} height={24} className="size-6 rounded-xl " alt="app-icon"/>
           </div>
           {!collapsed && (
             <span className="text-xl font-bold tracking-tight text-foreground">AutoLoop</span>
@@ -96,6 +98,7 @@ export function Sidebar() {
           className="mt-4 w-full flex items-center justify-center p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl transition-colors"
         >
           {collapsed ? <ChevronRight className="size-5" /> : <ChevronLeft className="size-5" />}
+          {!collapsed && <span className="font-medium text-sm">Toggle Sidebar</span>}
         </button>
       </div>
     </aside>

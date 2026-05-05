@@ -8,7 +8,8 @@ const BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 export interface IGMedia {
   id: string;
-  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REELS";
+  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  media_product_type?: "AD" | "FEED" | "STORY" | "REELS";
   media_url?: string;
   thumbnail_url?: string;
   caption?: string;
@@ -72,7 +73,7 @@ export async function fetchIGMedia(
     `/${igUserId}/media`,
     accessToken,
     {
-      fields: "id,media_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count,permalink",
+      fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count,permalink",
       limit: String(limit),
     }
   );

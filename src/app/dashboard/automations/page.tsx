@@ -34,6 +34,7 @@ export default async function AutomationsPage() {
     const session = await auth();
     if (!session?.user?.id) redirect("/login");
 
+    const id = String(formData.get("id") ?? "");
     const name = String(formData.get("name") ?? "").trim();
     const triggerType = String(formData.get("triggerType") ?? "dm").trim();
     const conditionOperatorRaw = String(formData.get("conditionOperator") ?? "contains");
@@ -51,25 +52,45 @@ export default async function AutomationsPage() {
       triggerType,
     });
 
-    await db.insert(automations).values({
-      id: crypto.randomUUID(),
-      userId: session.user.id,
-      name,
-      triggerType: triggerType || "dm",
-      conditionOperator,
-      condition,
-      responseTemplate,
-      followUpTemplate: followUpTemplate || null,
-      followUpDelayMinutes,
-      requireFollower: formData.get("requireFollower") === "true",
-      flowJson,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    if (id) {
+      // Update existing
+      await db.update(automations).set({
+        name,
+        triggerType,
+        conditionOperator,
+        condition,
+        responseTemplate,
+        followUpTemplate: followUpTemplate || null,
+        followUpDelayMinutes,
+        requireFollower: formData.get("requireFollower") === "true",
+        flowJson,
+        updatedAt: new Date(),
+      }).where(eq(automations.id, id));
+      
+      revalidatePath("/dashboard/automations");
+      redirect("/dashboard/automations?updated=1");
+    } else {
+      // Insert new
+      await db.insert(automations).values({
+        id: crypto.randomUUID(),
+        userId: session.user.id,
+        name,
+        triggerType: triggerType || "dm",
+        conditionOperator,
+        condition,
+        responseTemplate,
+        followUpTemplate: followUpTemplate || null,
+        followUpDelayMinutes,
+        requireFollower: formData.get("requireFollower") === "true",
+        flowJson,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
-    revalidatePath("/dashboard/automations");
-    redirect("/dashboard/automations?created=1");
+      revalidatePath("/dashboard/automations");
+      redirect("/dashboard/automations?created=1");
+    }
   }
 
   async function toggleAutomationAction(formData: FormData) {

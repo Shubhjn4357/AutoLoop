@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, MessageCircle, ExternalLink, Plus, Upload,
   Loader2, ImageIcon, ArrowLeft, Calendar, Link2,
-  Download, BookOpen
+  Download, BookOpen, Users, Globe
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -76,7 +76,11 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
     });
   }
 
-  const filteredMedia = mediaFilter === "ALL" ? media : media.filter((m) => m.media_type === mediaFilter);
+  const filteredMedia = mediaFilter === "ALL" ? media : media.filter((m) => {
+    if (mediaFilter === "REELS") return m.media_product_type === "REELS";
+    if (mediaFilter === "VIDEO") return m.media_type === "VIDEO" && m.media_product_type !== "REELS";
+    return m.media_type === mediaFilter;
+  });
 
   return (
     <div className="space-y-5">
@@ -112,7 +116,7 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
             {filteredMedia.length === 0 ? (
               <div className="glass-card rounded-3xl p-16 text-center text-muted-foreground">
                 <ImageIcon className="size-12 mx-auto mb-4 opacity-30" />
-                <p>No posts found on this account.</p>
+                <p>No {mediaFilter.toLowerCase()} posts found on this account.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
@@ -123,11 +127,11 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
                     onClick={() => openPost(post)}
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
-                    className="group relative aspect-square rounded-2xl overflow-hidden glass-card border border-white/10 cursor-pointer"
+                    className="group relative aspect-square rounded-2xl overflow-hidden glass-card border border-border cursor-pointer"
                   >
-                    {(post.media_url || post.thumbnail_url) ? (
+                    {(post.thumbnail_url || post.media_url) ? (
                       <Image
-                        src={post.media_url ?? post.thumbnail_url!}
+                        src={post.thumbnail_url ?? post.media_url!}
                         alt={post.caption?.substring(0, 30) ?? "post"}
                         fill unoptimized
                         className="object-cover transition-transform duration-500 group-hover:scale-110"
@@ -138,14 +142,14 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
                       </div>
                     )}
                     {/* Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-2">
-                      <div className="flex items-center gap-2 text-white text-xs font-medium">
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-2">
+                      <div className="flex items-center gap-2 text-foreground text-xs font-bold">
                         <span className="flex items-center gap-1"><Heart className="size-3" /> {post.like_count ?? 0}</span>
                         <span className="flex items-center gap-1"><MessageCircle className="size-3" /> {post.comments_count ?? 0}</span>
                       </div>
                     </div>
                     {/* Type badge */}
-                    <div className="absolute top-1.5 left-1.5 text-[9px] text-white font-bold bg-black/50 rounded px-1.5 py-0.5 backdrop-blur">
+                    <div className="absolute top-1.5 left-1.5 text-[9px] text-foreground font-bold bg-background/80 rounded px-1.5 py-0.5 backdrop-blur-md shadow-sm border border-border/20">
                       {post.media_type === "CAROUSEL_ALBUM" ? "ALBUM" : post.media_type}
                     </div>
                   </motion.button>
@@ -164,9 +168,9 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
             <div className="grid md:grid-cols-[1fr_340px] gap-6">
               {/* Post image */}
               <div className="relative aspect-square rounded-3xl overflow-hidden glass-card border border-white/10">
-                {(selectedPost.media_url || selectedPost.thumbnail_url) && (
+                {(selectedPost.thumbnail_url || selectedPost.media_url) && (
                   <Image
-                    src={selectedPost.media_url ?? selectedPost.thumbnail_url!}
+                    src={selectedPost.thumbnail_url ?? selectedPost.media_url!}
                     alt="post"
                     fill unoptimized
                     className="object-cover"
@@ -260,37 +264,98 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
                   <CardDescription>Publish a photo to Instagram via Graph API.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  {/* Preview */}
-                  {imageUrl && (
-                    <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10">
-                      <Image src={imageUrl} alt="preview" fill unoptimized className="object-cover" onError={() => {}} />
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="space-y-4">
+                      {/* Preview or Upload */}
+                      <div className="relative aspect-square rounded-2xl overflow-hidden border-2 border-dashed border-border/50 bg-muted/20 flex flex-col items-center justify-center gap-2 group transition-all hover:border-primary/50">
+                        {imageUrl ? (
+                          <>
+                            <Image src={imageUrl} alt="preview" fill unoptimized className="object-cover" />
+                            <button 
+                              onClick={() => setImageUrl("")}
+                              className="absolute top-2 right-2 size-8 rounded-full bg-background/80 backdrop-blur-md text-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-border/50 shadow-lg"
+                            >
+                              <Plus className="size-4 rotate-45" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="p-4 rounded-full bg-primary/10 text-primary">
+                              <Upload className="size-6" />
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-semibold">Click to upload</p>
+                              <p className="text-[10px] text-muted-foreground uppercase">Supports JPG, PNG</p>
+                            </div>
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              className="absolute inset-0 opacity-0 cursor-pointer"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  // In a real app, we'd upload to R2/S3 here
+                                  // For now, we'll use a local preview
+                                  const url = URL.createObjectURL(file);
+                                  setImageUrl(url);
+                                  toast.info("Image prepared for upload");
+                                }
+                              }}
+                            />
+                          </>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="imageUrl">Or paste a public image URL</Label>
+                        <Input
+                          id="imageUrl"
+                          placeholder="https://example.com/photo.jpg"
+                          value={imageUrl}
+                          onChange={(e) => setImageUrl(e.target.value)}
+                        />
+                      </div>
                     </div>
-                  )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="imageUrl">Image URL (public HTTPS)</Label>
-                    <Input
-                      id="imageUrl"
-                      placeholder="https://example.com/photo.jpg"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                    />
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="caption">Caption</Label>
+                        <Textarea
+                          id="caption"
+                          placeholder="Write your caption… use keywords for automation!"
+                          value={caption}
+                          onChange={(e) => setCaption(e.target.value)}
+                          className="min-h-[160px] resize-none"
+                        />
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <Calendar className="size-3.5 text-primary" /> Schedule Post
+                          </Label>
+                          <Input type="datetime-local" className="bg-background/50" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <Users className="size-3.5 text-primary" /> Tag Users
+                          </Label>
+                          <Input placeholder="@username" className="bg-background/50" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <Globe className="size-3.5 text-primary" /> Location / Settings
+                        </Label>
+                        <Input placeholder="Add location..." className="bg-background/50" />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="caption">Caption</Label>
-                    <Textarea
-                      id="caption"
-                      placeholder="Write your caption…"
-                      value={caption}
-                      onChange={(e) => setCaption(e.target.value)}
-                      className="min-h-[120px] resize-none"
-                    />
-                  </div>
-
-                  <AnimatedButton className="w-full rounded-full" onClick={handlePublish} disabled={isPending}>
+                  <AnimatedButton className="w-full rounded-full h-12 text-lg shadow-xl" onClick={handlePublish} disabled={isPending}>
                     {isPending ? <Loader2 className="size-4 animate-spin mr-2" /> : <Upload className="size-4 mr-2" />}
-                    {isPending ? "Publishing…" : "Publish to Instagram"}
+                    {isPending ? "Preparing & Publishing…" : "Publish to Instagram Now"}
                   </AnimatedButton>
                 </CardContent>
               </Card>

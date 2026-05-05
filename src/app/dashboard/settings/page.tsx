@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { Activity, CheckCircle2, CircleAlert, Link2, PlugZap, Shield } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { AnimatedButton } from "@/components/ui/animated-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -200,12 +201,18 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           {accounts.length === 0 ? (
-            <div className="rounded-md border border-dashed p-6 text-center">
-              <p className="mb-4 text-sm text-muted-foreground">
-                No Instagram Business account is connected.
+            <div className="rounded-xl border border-dashed border-border/50 bg-muted/20 p-8 text-center backdrop-blur-sm">
+              <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-gradient-to-tr from-[#f09433] via-[#dc2743] to-[#bc1888] text-white shadow-lg">
+                <Link2 className="size-8" />
+              </div>
+              <h3 className="mb-2 text-lg font-bold text-foreground">Link your Instagram</h3>
+              <p className="mx-auto mb-6 max-w-xs text-sm text-muted-foreground">
+                Connect your Professional account to start automating your growth.
               </p>
               <form action="/api/instagram/connect" method="POST">
-                <Button type="submit">Connect Meta Account</Button>
+                <AnimatedButton type="submit" className="rounded-full bg-gradient-to-r from-[#833ab4] via-[#fd1d1d] to-[#fcb045] px-10 font-bold text-white hover:opacity-90">
+                  Connect Instagram
+                </AnimatedButton>
               </form>
             </div>
           ) : (

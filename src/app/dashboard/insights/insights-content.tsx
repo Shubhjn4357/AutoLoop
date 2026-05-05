@@ -13,14 +13,25 @@ function sumValues(metric: IGInsightMetric | undefined): number {
 }
 
 export async function InsightsContent({ igUserId, accessToken }: Props) {
+  const until = Math.floor(Date.now() / 1000);
+  const since = until - (7 * 24 * 60 * 60); // 7 days ago
+
   const [profile, metrics] = await Promise.all([
     fetchIGProfile(igUserId, accessToken).catch(() => null),
-    fetchIGInsights(igUserId, accessToken, ["reach", "profile_views", "impressions"], "day").catch(() => []),
+    fetchIGInsights(
+      igUserId, 
+      accessToken, 
+      ["reach", "profile_views", "impressions", "accounts_engaged"], 
+      "day",
+      String(since),
+      String(until)
+    ).catch(() => []),
   ]);
 
   const reach = metrics.find((m) => m.name === "reach");
   const profileViews = metrics.find((m) => m.name === "profile_views");
   const impressions = metrics.find((m) => m.name === "impressions");
+  const engaged = metrics.find((m) => m.name === "accounts_engaged");
 
   const stats = [
     {
@@ -45,8 +56,8 @@ export async function InsightsContent({ igUserId, accessToken }: Props) {
       bg: "bg-fuchsia-500/10",
     },
     {
-      label: "Followers",
-      value: profile?.followers_count?.toLocaleString() ?? "—",
+      label: "Accounts Engaged",
+      value: sumValues(engaged).toLocaleString(),
       icon: TrendingUp,
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",

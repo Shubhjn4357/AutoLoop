@@ -55,13 +55,14 @@ export async function processInstagramMessage({ igUserId, senderId, text }: Engi
   });
 
   const rules = await db.query.automations.findMany({
-    where: eq(automations.userId, igAccount.userId)
+    where: and(
+      eq(automations.userId, igAccount.userId),
+      eq(automations.triggerType, "dm")
+    )
   });
 
   for (const rule of rules) {
-    if (!rule.isActive) {
-      continue;
-    }
+    if (!rule.isActive) continue;
 
     const didMatch = matchesAutomationCondition(
       rule.conditionOperator,
@@ -69,9 +70,7 @@ export async function processInstagramMessage({ igUserId, senderId, text }: Engi
       text
     );
 
-    if (!didMatch) {
-      continue;
-    }
+    if (!didMatch) continue;
 
     if (rule.requireFollower) {
       try {
@@ -88,17 +87,64 @@ export async function processInstagramMessage({ igUserId, senderId, text }: Engi
           continue;
         }
       } catch (error) {
-        await createNotificationLog({
-          userId: igAccount.userId,
-          type: "automation.error",
-          title: "Follower check failed",
-          message: error instanceof Error ? error.message : "Instagram profile lookup failed.",
-          status: "error",
-          metadata: { automationId: rule.id, senderId },
-        });
+        console.error("Follower check failed:", error);
         continue;
       }
     }
+
+    await executeAutomation({
+      accessToken: igAccount.accessToken,
+      automationId: rule.id,
+      followUpDelayMinutes: rule.followUpDelayMinutes ?? 0,
+      followUpTemplate: rule.followUpTemplate,
+      igUserId,
+      recipientId: senderId,
+      responseTemplate: rule.responseTemplate,
+      ruleName: rule.name,
+      userId: igAccount.userId,
+    });
+    return;
+  }
+}
+
+export async function processInstagramComment({ 
+  igUserId, 
+  senderId, 
+  text,
+  mediaId,
+  commentId
+}: EngineParams & { mediaId: string; commentId: string }) {
+  const igAccount = await db.query.instagramAccounts.findFirst({
+    where: eq(instagramAccounts.igUserId, igUserId),
+  });
+
+  if (!igAccount || !igAccount.accessToken) return;
+
+  await createNotificationLog({
+    userId: igAccount.userId,
+    type: "comment.received",
+    title: "New Instagram Comment",
+    message: `Comment from ${senderId}: "${text}"`,
+    metadata: { igUserId, senderId, mediaId, commentId },
+  });
+
+  const rules = await db.query.automations.findMany({
+    where: and(
+      eq(automations.userId, igAccount.userId),
+      eq(automations.triggerType, "comment")
+    )
+  });
+
+  for (const rule of rules) {
+    if (!rule.isActive) continue;
+
+    const didMatch = matchesAutomationCondition(
+      rule.conditionOperator,
+      rule.condition,
+      text
+    );
+
+    if (!didMatch) continue;
 
     await executeAutomation({
       accessToken: igAccount.accessToken,
