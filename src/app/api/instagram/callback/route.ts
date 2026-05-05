@@ -125,6 +125,9 @@ export async function GET(request: Request) {
   } catch (err: unknown) {
     console.error("IG Auth Error:", err);
     const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("No Facebook Pages") || message.includes("no_ig_business_found")) {
+      return NextResponse.redirect(new URL("/dashboard/settings?error=no_ig_business_found", request.url));
+    }
     if (message.includes("verification code") || message.includes("redirect_uri")) {
       return NextResponse.redirect(new URL("/dashboard/settings?error=oauth_failed", request.url));
     }
