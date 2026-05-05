@@ -123,8 +123,23 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Immersive ambient background */
+    background-image: 
+      radial-gradient(at 0% 0%, color-mix(in oklch, var(--primary) 15%, transparent) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, color-mix(in oklch, var(--primary) 10%, transparent) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, color-mix(in oklch, var(--primary) 15%, transparent) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, color-mix(in oklch, var(--primary) 10%, transparent) 0px, transparent 50%);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
   }
+}
+
+@utility glass-card {
+  @apply bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl;
+}
+
+@utility glow-ring {
+  @apply shadow-[0_0_20px_color-mix(in_oklch,var(--primary)_30%,transparent)] ring-1 ring-primary/30;
 }

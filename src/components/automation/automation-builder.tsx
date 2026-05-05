@@ -3,9 +3,11 @@
 import * as React from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { ArrowRight, BellRing, Bot, Clock3, GripVertical, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, BellRing, Bot, Clock3, GripVertical, Plus, Trash2, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { AnimatedButton } from "@/components/ui/animated-button";
+import { Drawer, DrawerContent, DrawerTrigger, DrawerHeader, DrawerTitle, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -139,10 +141,10 @@ function ExistingAutomationCard({
   const flow = parseFlowJson(automation.flowJson);
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="glass-card hover:-translate-y-1 hover:shadow-2xl transition-all duration-300">
+      <CardHeader className="pb-3 border-b border-border/10 mb-3">
         <div className="flex items-start justify-between gap-3">
-          <CardTitle className="text-lg">{automation.name}</CardTitle>
+          <CardTitle className="text-lg font-bold">{automation.name}</CardTitle>
           <span
             className={cn(
               "rounded-md px-2 py-1 text-xs font-medium",
@@ -186,24 +188,24 @@ function ExistingAutomationCard({
             ))}
           </div>
         )}
-        <div className="flex gap-2">
-          <form action={toggleAutomationAction}>
+        <div className="flex gap-3 mt-2">
+          <form action={toggleAutomationAction} className="flex-1">
             <input type="hidden" name="id" value={automation.id} />
             <input
               type="hidden"
               name="isActive"
               value={automation.isActive ? "false" : "true"}
             />
-            <Button type="submit" variant="outline">
+            <AnimatedButton type="submit" variant="outline" disableGlow className="w-full">
               {automation.isActive ? "Pause" : "Activate"}
-            </Button>
+            </AnimatedButton>
           </form>
-          <form action={deleteAutomationAction}>
+          <form action={deleteAutomationAction} className="flex-1">
             <input type="hidden" name="id" value={automation.id} />
-            <Button type="submit" variant="destructive">
-              <Trash2 className="size-4" />
+            <AnimatedButton type="submit" variant="destructive" disableGlow className="w-full">
+              <Trash2 className="size-4 mr-2" />
               Delete
-            </Button>
+            </AnimatedButton>
           </form>
         </div>
       </CardContent>
@@ -218,11 +220,13 @@ export function AutomationBuilder({
   deleteAutomationAction,
 }: AutomationBuilderProps) {
   const [flow, setFlow] = React.useState<FlowBlock[]>(defaultFlow);
+  const [selectedOperator, setSelectedOperator] = React.useState("contains");
 
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Card>
+        <Card className="glass-card">
+
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot className="size-5" />
@@ -237,20 +241,42 @@ export function AutomationBuilder({
                   <Label htmlFor="name">Rule name</Label>
                   <Input id="name" name="name" required placeholder="Price inquiry" />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 flex flex-col">
                   <Label htmlFor="conditionOperator">Condition</Label>
-                  <select
-                    id="conditionOperator"
-                    name="conditionOperator"
-                    className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                    defaultValue="contains"
-                  >
-                    {conditionOperators.map((operator) => (
-                      <option key={operator} value={operator}>
-                        {operator.replace("_", " ")}
-                      </option>
-                    ))}
-                  </select>
+                  <input type="hidden" name="conditionOperator" value={selectedOperator} />
+                  <Drawer>
+                    <DrawerTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between bg-background/50 backdrop-blur-md">
+                        {selectedOperator.replace("_", " ")}
+                        <ChevronDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </DrawerTrigger>
+                    <DrawerContent>
+                      <div className="mx-auto w-full max-w-sm">
+                        <DrawerHeader>
+                          <DrawerTitle>Select Condition</DrawerTitle>
+                        </DrawerHeader>
+                        <div className="p-4 pb-0 grid gap-2">
+                          {conditionOperators.map((operator) => (
+                            <DrawerClose asChild key={operator}>
+                              <Button 
+                                variant={selectedOperator === operator ? "default" : "outline"}
+                                className="w-full justify-start"
+                                onClick={() => setSelectedOperator(operator)}
+                              >
+                                {operator.replace("_", " ")}
+                              </Button>
+                            </DrawerClose>
+                          ))}
+                        </div>
+                        <DrawerFooter>
+                          <DrawerClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                          </DrawerClose>
+                        </DrawerFooter>
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
                 </div>
               </div>
 
@@ -304,10 +330,10 @@ export function AutomationBuilder({
 
               <FlowCanvas flow={flow} setFlow={setFlow} />
 
-              <Button type="submit" className="w-fit">
-                <Plus className="size-4" />
+              <AnimatedButton type="submit" className="w-full sm:w-fit rounded-full px-8">
+                <Plus className="size-4 mr-2" />
                 Save automation
-              </Button>
+              </AnimatedButton>
             </form>
           </CardContent>
         </Card>

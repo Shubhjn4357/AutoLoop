@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -13,15 +14,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-
 export const metadata: Metadata = {
   title: "AutoLoop - Instagram Automation",
   description: "Automate Instagram DMs like a Pro",
-  icons: {
-    icon: "./favicon.svg",
-    shortcut: "./favicon.svg",
-    apple: "./favicon.svg",
-  },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { CheckCircle2, CircleAlert, Link2, PlugZap, Shield } from "lucide-react";
+import { Activity, CheckCircle2, CircleAlert, Link2, PlugZap, Shield } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,7 +101,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="glass-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="size-5" />
@@ -138,7 +138,7 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="glass-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <PlugZap className="size-5" />
@@ -163,7 +163,33 @@ export default async function SettingsPage() {
         </Card>
       </div>
 
-      <Card>
+      <div className="grid gap-6 lg:grid-cols-2 mt-6">
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="size-5 text-emerald-500" />
+              Automation Cron Health
+            </CardTitle>
+            <CardDescription>Background job processor for delayed follow-ups.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Cron Target URL</Label>
+              <div className="flex gap-2">
+                <Input readOnly value={`${appUrl}/api/automation/followups`} className="bg-muted font-mono text-xs" />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Configure your external cron service to hit this URL every 5 minutes.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="w-full">
+                Trigger Manually Now
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="glass-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Link2 className="size-5 text-pink-600" />

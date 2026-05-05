@@ -11,13 +11,19 @@ import {
   CardDescription,
   CardHeader,
 } from "@/components/ui/card";
-import { isGoogleAuthConfigured, isGithubAuthConfigured } from "@/lib/auth/config";
+import { auth, isGoogleAuthConfigured, isGithubAuthConfigured } from "@/lib/auth/config";
+import { redirect } from "next/navigation";
 import { LoginButtons } from "@/components/auth/login-buttons";
 
 const loginImage =
   "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1800&q=80";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const session = await auth();
+  if (session) {
+    redirect("/dashboard");
+  }
+
   const googleConfigured = isGoogleAuthConfigured();
   const githubConfigured = isGithubAuthConfigured();
 

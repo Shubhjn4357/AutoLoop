@@ -1,0 +1,88 @@
+name: Automation Follow-up Cron
+
+on:
+  schedule:
+    # GitHub minimum is every 5 minutes. We compensate by looping
+    # 5 times inside the job with 60-second delays to achieve ~1 min cadence.
+    - cron: "*/5 * * * *"
+  # Allow manual trigger from GitHub Actions UI for testing
+  workflow_dispatch:
+
+jobs:
+  trigger-followups:
+    name: Trigger Follow-up Processor
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: "Ping 1 / 5 — minute 0"
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.AUTOMATION_CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            https://autoloop.shubhamjain-com-in.workers.dev/api/automation/followups)
+          echo "Response: $STATUS"
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "204" ]; then
+            echo "::warning::Ping 1 returned HTTP $STATUS"
+          fi
+
+      - name: "Wait 60 s"
+        run: sleep 60
+
+      - name: "Ping 2 / 5 — minute 1"
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.AUTOMATION_CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            https://autoloop.shubhamjain-com-in.workers.dev/api/automation/followups)
+          echo "Response: $STATUS"
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "204" ]; then
+            echo "::warning::Ping 2 returned HTTP $STATUS"
+          fi
+
+      - name: "Wait 60 s"
+        run: sleep 60
+
+      - name: "Ping 3 / 5 — minute 2"
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.AUTOMATION_CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            https://autoloop.shubhamjain-com-in.workers.dev/api/automation/followups)
+          echo "Response: $STATUS"
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "204" ]; then
+            echo "::warning::Ping 3 returned HTTP $STATUS"
+          fi
+
+      - name: "Wait 60 s"
+        run: sleep 60
+
+      - name: "Ping 4 / 5 — minute 3"
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.AUTOMATION_CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            https://autoloop.shubhamjain-com-in.workers.dev/api/automation/followups)
+          echo "Response: $STATUS"
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "204" ]; then
+            echo "::warning::Ping 4 returned HTTP $STATUS"
+          fi
+
+      - name: "Wait 60 s"
+        run: sleep 60
+
+      - name: "Ping 5 / 5 — minute 4"
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.AUTOMATION_CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            https://autoloop.shubhamjain-com-in.workers.dev/api/automation/followups)
+          echo "Response: $STATUS"
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "204" ]; then
+            echo "::warning::Ping 5 returned HTTP $STATUS"
+          fi

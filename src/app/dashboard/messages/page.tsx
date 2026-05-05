@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+
+import { headers } from "next/headers";
 import { db } from "@/lib/db/client";
 import { messages as dbMessages, instagramAccounts } from "@/lib/db/schema";
 import { desc, eq, inArray } from "drizzle-orm";
@@ -8,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default async function MessagesPage() {
+  await headers();
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 

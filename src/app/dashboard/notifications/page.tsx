@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { NotificationLog } from "@/components/dashboard/notification-log";
@@ -5,6 +8,7 @@ import { auth } from "@/lib/auth/config";
 import { getNotificationLogs } from "@/lib/notifications/logs";
 
 export default async function NotificationsPage() {
+  await headers();
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
