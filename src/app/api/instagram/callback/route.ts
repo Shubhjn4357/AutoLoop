@@ -23,7 +23,10 @@ export async function GET(request: Request) {
 
   const clientId = process.env.FACEBOOK_CLIENT_ID;
   const clientSecret = process.env.FACEBOOK_CLIENT_SECRET;
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/instagram/callback`;
+  const protocol = request.headers.get("x-forwarded-proto") || "https";
+  const host = request.headers.get("host");
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`;
+  const redirectUri = `${baseUrl}/api/instagram/callback`;
   const graphVersion = process.env.META_GRAPH_VERSION || "v21.0";
 
   if (!clientId || !clientSecret) {

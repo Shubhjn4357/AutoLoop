@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 
-export async function POST() {
+export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return new NextResponse("Unauthorized", { status: 401 });
@@ -17,7 +17,10 @@ export async function POST() {
     );
   }
 
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/instagram/callback`;
+  const protocol = request.headers.get("x-forwarded-proto") || "https";
+  const host = request.headers.get("host");
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`;
+  const redirectUri = `${baseUrl}/api/instagram/callback`;
   const graphVersion = process.env.META_GRAPH_VERSION || "v21.0";
   
   const scopes = [
