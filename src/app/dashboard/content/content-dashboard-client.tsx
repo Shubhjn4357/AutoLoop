@@ -78,7 +78,7 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
 
   const filteredMedia = mediaFilter === "ALL" ? media : media.filter((m) => {
     if (mediaFilter === "REELS") return m.media_product_type === "REELS";
-    if (mediaFilter === "VIDEO") return m.media_type === "VIDEO" && m.media_product_type !== "REELS";
+    if (mediaFilter === "VIDEO") return m.media_type === "VIDEO";
     return m.media_type === mediaFilter;
   });
 
@@ -167,15 +167,37 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
             </button>
             <div className="grid md:grid-cols-[1fr_340px] gap-6">
               {/* Post image */}
-              <div className="relative aspect-square rounded-3xl overflow-hidden glass-card border border-white/10">
-                {(selectedPost.thumbnail_url || selectedPost.media_url) && (
-                  <Image
-                    src={selectedPost.thumbnail_url ?? selectedPost.media_url!}
-                    alt="post"
-                    fill unoptimized
-                    className="object-cover"
+              <div className="relative aspect-square rounded-3xl overflow-hidden glass-card border border-border">
+                {selectedPost.media_type === "VIDEO" ? (
+                  <video 
+                    src={selectedPost.media_url} 
+                    controls 
+                    className="size-full object-contain bg-black"
+                    poster={selectedPost.thumbnail_url}
                   />
+                ) : (
+                  (selectedPost.thumbnail_url || selectedPost.media_url) && (
+                    <Image
+                      src={selectedPost.thumbnail_url ?? selectedPost.media_url!}
+                      alt="post"
+                      fill unoptimized
+                      className="object-cover"
+                    />
+                  )
                 )}
+                
+                {/* Download Overlay */}
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <a 
+                    href={selectedPost.media_url} 
+                    download 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="size-10 rounded-full bg-background/80 backdrop-blur-md flex items-center justify-center text-foreground hover:bg-primary hover:text-primary-foreground transition-all border border-border shadow-lg"
+                  >
+                    <Download className="size-5" />
+                  </a>
+                </div>
               </div>
               {/* Post meta + automation binding */}
               <div className="space-y-4">

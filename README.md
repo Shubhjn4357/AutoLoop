@@ -1,14 +1,4 @@
----
-title: AutoLoop
-emoji: ➰
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-pinned: false
-app_port: 7860
----
-
-## AutoLoop Instagram Automation
+# AutoLoop Instagram Automation
 
 AutoLoop is a fast, Edge-ready SaaS that handles Instagram messaging through Meta Graph API utilizing Node webhook handlers.
 

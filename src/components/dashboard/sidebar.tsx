@@ -95,7 +95,7 @@ export function Sidebar({ className }: { className?: string }) {
 
         <button 
           onClick={() => setCollapsed(!collapsed)}
-          className="mt-4 w-full flex items-center justify-center p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl transition-colors"
+          className="mt-4 w-full flex items-center justify-start p-2 gap-3 text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl transition-colors"
         >
           {collapsed ? <ChevronRight className="size-5" /> : <ChevronLeft className="size-5" />}
           {!collapsed && <span className="font-medium text-sm">Toggle Sidebar</span>}

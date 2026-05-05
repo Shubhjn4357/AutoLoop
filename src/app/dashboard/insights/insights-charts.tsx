@@ -15,14 +15,18 @@ interface Props {
 }
 
 export function InsightsCharts({ reachMetric, impressionsMetric, profileViewsMetric }: Props) {
-  // Build unified daily series aligned to reach metric dates
-  const dates = reachMetric?.values.map((v) => v.end_time) ?? [];
+  // Build unified daily series using unique dates from all metrics
+  const allDates = Array.from(new Set([
+    ...(reachMetric?.values.map(v => v.end_time) ?? []),
+    ...(impressionsMetric?.values.map(v => v.end_time) ?? []),
+    ...(profileViewsMetric?.values.map(v => v.end_time) ?? [])
+  ])).sort();
 
-  const areaData = dates.map((end_time, i) => ({
+  const areaData = allDates.map((end_time) => ({
     date: format(new Date(end_time), "EEE"),
-    reach: reachMetric?.values[i]?.value ?? 0,
-    impressions: impressionsMetric?.values[i]?.value ?? 0,
-    profileViews: profileViewsMetric?.values[i]?.value ?? 0,
+    reach: reachMetric?.values.find(v => v.end_time === end_time)?.value ?? 0,
+    impressions: impressionsMetric?.values.find(v => v.end_time === end_time)?.value ?? 0,
+    profileViews: profileViewsMetric?.values.find(v => v.end_time === end_time)?.value ?? 0,
   }));
 
   const hasData = areaData.length > 0;
@@ -49,16 +53,22 @@ export function InsightsCharts({ reachMetric, impressionsMetric, profileViewsMet
                       <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.08)" />
-                  <XAxis dataKey="date" stroke="#888" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#888" fontSize={12} tickLine={false} axisLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.3} />
+                  <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px" }}
-                    itemStyle={{ color: "#fff" }}
+                    contentStyle={{ 
+                      backgroundColor: "hsl(var(--card))", 
+                      border: "1px solid hsl(var(--border))", 
+                      borderRadius: "12px",
+                      boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
+                    }}
+                    itemStyle={{ color: "hsl(var(--foreground))" }}
+                    labelStyle={{ color: "hsl(var(--muted-foreground))", fontWeight: "bold", marginBottom: "4px" }}
                   />
-                  <Legend />
-                  <Area type="monotone" dataKey="reach" name="Reach" stroke="var(--primary)" fill="url(#colorReach)" />
-                  <Area type="monotone" dataKey="impressions" name="Impressions" stroke="#8b5cf6" fill="url(#colorImpressions)" />
+                  <Legend iconType="circle" />
+                  <Area type="monotone" dataKey="reach" name="Reach" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#colorReach)" />
+                  <Area type="monotone" dataKey="impressions" name="Impressions" stroke="#a855f7" strokeWidth={2} fill="url(#colorImpressions)" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (

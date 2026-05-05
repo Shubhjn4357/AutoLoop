@@ -110,8 +110,9 @@ export function AutomationsWorkspace({
   const [loadingMedia, setLoadingMedia] = useState(true);
   const [mediaFilter, setMediaFilter] = useState<"ALL" | "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REELS">("ALL");
   
+  const [activeTab, setActiveTab] = useState<"builder" | "manage">("builder");
   const [step, setStep] = useState<Step>("select-target");
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null); // null = account-wide
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [selectedTrigger, setSelectedTrigger] = useState("");
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -171,7 +172,31 @@ export function AutomationsWorkspace({
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
+      <div className="space-y-6">
+        {/* Workspace Tabs */}
+        <div className="flex items-center gap-4 border-b border-border pb-4">
+          <button 
+            onClick={() => setActiveTab("builder")}
+            className={cn(
+              "px-4 py-2 text-sm font-bold transition-all border-b-2",
+              activeTab === "builder" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Flow Builder
+          </button>
+          <button 
+            onClick={() => setActiveTab("manage")}
+            className={cn(
+              "px-4 py-2 text-sm font-bold transition-all border-b-2",
+              activeTab === "manage" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Manage Rules ({existingAutomations.length})
+          </button>
+        </div>
+
+        {activeTab === "builder" ? (
+          <div className="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
 
         {/* LEFT — Post/Story Selector */}
         <div className="space-y-4">
@@ -542,7 +567,75 @@ export function AutomationsWorkspace({
             )}
 
           </AnimatePresence>
+          </div>
         </div>
+        ) : (
+          /* MANAGE TAB */
+          <div className="glass-card rounded-3xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold">Automation Fleet</h2>
+                <p className="text-sm text-muted-foreground">Monitor and control your entire library of active rules.</p>
+              </div>
+              <AnimatedButton size="sm" onClick={() => setActiveTab("builder")}>
+                <Plus className="size-4 mr-1" /> Create Rule
+              </AnimatedButton>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {existingAutomations.map((auto) => (
+                <div key={auto.id} className="flex flex-col gap-4 p-5 rounded-2xl border border-border/50 bg-card/40 backdrop-blur-sm">
+                  <div className="flex items-start justify-between">
+                    <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+                      <Bot className="size-5" />
+                    </div>
+                    <form action={toggleAutomationAction}>
+                      <input type="hidden" name="id" value={auto.id} />
+                      <input type="hidden" name="isActive" value={auto.isActive ? "false" : "true"} />
+                      <button type="submit" className={cn("transition-all hover:scale-110", auto.isActive ? "text-emerald-500" : "text-muted-foreground")}>
+                        {auto.isActive ? <ToggleRight className="size-8" /> : <ToggleLeft className="size-8" />}
+                      </button>
+                    </form>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-bold text-base">{auto.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      Trigger: <span className="text-foreground font-medium">{auto.triggerType}</span> · 
+                      Match: <span className="text-foreground font-medium">{auto.condition || "Any"}</span>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                    <button 
+                      onClick={() => {
+                        setEditingId(auto.id);
+                        setSelectedTrigger(auto.triggerType);
+                        setActiveTab("builder");
+                        setStep("configure");
+                      }}
+                      className="flex-1 h-9 rounded-lg bg-accent text-accent-foreground text-xs font-bold hover:bg-accent/80 transition-colors"
+                    >
+                      Edit Rule
+                    </button>
+                    <form action={deleteAutomationAction} className="shrink-0">
+                      <input type="hidden" name="id" value={auto.id} />
+                      <button type="submit" className="size-9 rounded-lg border border-border/50 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors">
+                        <Trash2 className="size-4" />
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              ))}
+              {existingAutomations.length === 0 && (
+                <div className="col-span-full py-20 text-center">
+                  <Bot className="size-12 mx-auto text-muted-foreground opacity-20 mb-4" />
+                  <p className="text-muted-foreground">No automations created yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </DndProvider>
   );
