@@ -121,7 +121,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.redirect(new URL("/dashboard/settings?success=1", request.url));
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("IG Auth Error:", err);
     const message = err instanceof Error ? err.message : String(err);
     if (message.includes("verification code") || message.includes("redirect_uri")) {

@@ -52,7 +52,8 @@ export default async function SettingsPage() {
     where: eq(instagramAccounts.userId, session.user.id),
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const rawAppUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl = rawAppUrl.endsWith("/") ? rawAppUrl.slice(0, -1) : rawAppUrl;
   const webhookUrl = `${appUrl}/api/webhook/instagram`;
   const followUpUrl = `${appUrl}/api/automation/followups`;
 

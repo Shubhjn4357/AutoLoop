@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { TopBar } from "@/components/dashboard/top-bar";
 import { auth } from "@/lib/auth/config";
 import { redirect } from "next/navigation";
 import { DashboardProvider } from "@/components/dashboard/dashboard-context";
@@ -34,6 +35,7 @@ export default async function DashboardLayout({
 
         {/* Main content area */}
         <div className="flex flex-col flex-1 overflow-hidden relative">
+          <TopBar />
           <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
             {children}
           </main>
