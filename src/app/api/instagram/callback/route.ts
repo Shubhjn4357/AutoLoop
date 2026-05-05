@@ -121,8 +121,15 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.redirect(new URL("/dashboard/settings?success=1", request.url));
-  } catch (err) {
+  } catch (err: any) {
     console.error("IG Auth Error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("verification code") || message.includes("redirect_uri")) {
+      return NextResponse.redirect(new URL("/dashboard/settings?error=oauth_failed", request.url));
+    }
+    if (message.includes("client_secret") || message.includes("access_token")) {
+      return NextResponse.redirect(new URL("/dashboard/settings?error=missing_meta_config", request.url));
+    }
     return NextResponse.redirect(new URL("/dashboard/settings?error=internal_auth_error", request.url));
   }
 }
