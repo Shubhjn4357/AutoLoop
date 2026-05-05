@@ -25,7 +25,8 @@ export async function GET(request: Request) {
   const clientSecret = process.env.FACEBOOK_CLIENT_SECRET;
   const protocol = request.headers.get("x-forwarded-proto") || "https";
   const host = request.headers.get("host");
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`;
+  const rawBaseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`;
+  const baseUrl = rawBaseUrl.endsWith("/") ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
   const redirectUri = `${baseUrl}/api/instagram/callback`;
   const graphVersion = process.env.META_GRAPH_VERSION || "v21.0";
 
