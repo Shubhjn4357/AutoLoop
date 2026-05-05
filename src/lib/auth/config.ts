@@ -17,7 +17,10 @@ const githubConfig = {
 
 if (process.env.NODE_ENV === "production") {
   console.log(`[Runtime] Auth Secret: ${process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET ? "YES" : "NO"}`);
-  console.log(`[Runtime] Google Client: ${githubConfig.clientId ? "YES" : "NO"}`);
+  console.log(`[Runtime] Auth URL: ${process.env.AUTH_URL || process.env.NEXTAUTH_URL || "NOT SET"}`);
+  console.log(`[Runtime] Google Client: ${googleConfig.clientId ? "YES" : "NO"}`);
+  console.log(`[Runtime] Github Client: ${githubConfig.clientId ? "YES" : "NO"}`);
+  console.log(`[Runtime] DB URL: ${process.env.TURSO_DATABASE_URL ? "YES" : "NO"}`);
 }
 
 
@@ -75,6 +78,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
     signIn: "/login",
   },
+  debug: process.env.NODE_ENV === "production", // Enable debug logs in production for troubleshooting
   callbacks: {
     session({ session, user }) {
       if (session.user && user?.id) {

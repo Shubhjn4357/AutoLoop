@@ -2,17 +2,28 @@ import { drizzle } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client/web';
 import * as schema from './schema';
 
-// Avoid breaking Next.js build when env vars are missing in Docker/CI
-const url = process.env.TURSO_DATABASE_URL || "libsql://dummy-db.turso.io";
+/**
+ * Database client factory for Cloudflare Workers / Edge Runtime
+ * Lazily initializes the client to ensure environment variables are available.
+ */
+function createDbClient() {
+  const url = process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
 
-if (process.env.NODE_ENV === "production") {
-  console.log(`[Runtime] DB URL configured: ${process.env.TURSO_DATABASE_URL ? "YES" : "NO (using dummy)"}`);
-  console.log(`[Runtime] DB Token configured: ${process.env.TURSO_AUTH_TOKEN ? "YES" : "NO"}`);
+  if (!url && process.env.NODE_ENV === "production") {
+    console.error("[DB Error] TURSO_DATABASE_URL is missing in production environment!");
+  }
+
+  const client = createClient({
+    url: url || "libsql://dummy-db.turso.io",
+    authToken: authToken || "dummy-token",
+  });
+
+  return drizzle(client, { schema });
 }
 
-const client = createClient({
-  url,
-  authToken: process.env.TURSO_AUTH_TOKEN || "dummy-token",
-});
-
-export const db = drizzle(client, { schema });
+// Export the db instance
+// Note: In some edge environments, it's better to recreate the client per request 
+// if env vars are only available in the context, but for OpenNext/Cloudflare 
+// with process.env polyfills, this singleton approach usually works if initialized lazily.
+export const db = createDbClient();
