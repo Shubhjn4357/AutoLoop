@@ -69,18 +69,24 @@ export async function GET(request: Request) {
     let connectedPageId = null;
     let pageAccessToken = null;
 
+    console.log(`[IG Auth] Found ${pagesData.data.length} Facebook Pages.`);
+    
     for (const page of pagesData.data) {
+      console.log(`[IG Auth] Checking Page: ${page.name} (${page.id})`);
       const igUrl = new URL(`https://graph.facebook.com/${graphVersion}/${page.id}`);
-      igUrl.searchParams.set("fields", "instagram_business_account");
+      igUrl.searchParams.set("fields", "instagram_business_account,name");
       igUrl.searchParams.set("access_token", page.access_token);
       const igRes = await fetch(igUrl);
       const igData = await igRes.json();
 
       if (igData.instagram_business_account) {
+        console.log(`[IG Auth] SUCCESS: Found IG Business Account ${igData.instagram_business_account.id} on Page ${page.name}`);
         connectedIgUserId = igData.instagram_business_account.id;
         connectedPageId = page.id;
-        pageAccessToken = page.access_token; // We use the Page Access Token to reply to IG messages
+        pageAccessToken = page.access_token;
         break;
+      } else {
+        console.log(`[IG Auth] Page ${page.name} has no linked Instagram Business account.`);
       }
     }
 
