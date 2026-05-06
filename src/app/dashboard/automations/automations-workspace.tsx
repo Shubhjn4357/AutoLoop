@@ -126,7 +126,7 @@ const PALETTE_STEPS: FlowStep[] = [
 ];
 
 interface Props {
-  igUserId: string;
+  externalId: string;
   accessToken: string;
   existingAutomations: Automation[];
   createAutomationAction: (formData: FormData) => Promise<void> | void;

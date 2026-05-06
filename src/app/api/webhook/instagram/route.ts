@@ -67,7 +67,7 @@ export async function POST(request: Request) {
               const storyId = messaging.message.reply_to?.story?.id;
               backgroundTasks.push(
                 processInstagramMessage({
-                  igUserId: entry.id,
+                  externalId: entry.id,
                   senderId: messaging.sender.id,
                   text: messaging.message.text,
                   storyId,
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
               backgroundTasks.push(
                 processInstagramComment({
-                  igUserId: entry.id,
+                  externalId: entry.id,
                   senderId: val.from.id,
                   text: val.text,
                   mediaId: val.media.id,
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
         }
       }
 
-      after(Promise.all(backgroundTasks).catch(console.error));
+      after(() => Promise.all(backgroundTasks).catch(console.error));
       return new NextResponse("EVENT_RECEIVED", { status: 200 });
     }
 

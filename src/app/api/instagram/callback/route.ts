@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
-import { instagramAccounts } from "@/lib/db/schema";
+import { socialAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth/config";
 import { createNotificationLog } from "@/lib/notifications/logs";
@@ -94,24 +94,24 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL("/dashboard/settings?error=no_ig_business_found", request.url));
     }
 
-    const existing = await db.query.instagramAccounts.findFirst({
-      where: eq(instagramAccounts.userId, state)
+    const existing = await db.query.socialAccounts.findFirst({
+      where: eq(socialAccounts.userId, state)
     });
 
     if (existing) {
-      await db.update(instagramAccounts)
+      await db.update(socialAccounts)
         .set({
-          igUserId: connectedIgUserId,
+          externalId: connectedIgUserId,
           pageId: connectedPageId,
           accessToken: pageAccessToken,
           connectedAt: new Date(),
         })
-        .where(eq(instagramAccounts.userId, state));
+        .where(eq(socialAccounts.userId, state));
     } else {
-      await db.insert(instagramAccounts).values({
+      await db.insert(socialAccounts).values({
         id: crypto.randomUUID(),
         userId: state,
-        igUserId: connectedIgUserId,
+        externalId: connectedIgUserId,
         pageId: connectedPageId,
         accessToken: pageAccessToken,
         connectedAt: new Date(),
@@ -124,7 +124,7 @@ export async function GET(request: Request) {
       title: "Instagram connected",
       message: `Connected Instagram Business account ${connectedIgUserId}`,
       status: "success",
-      metadata: { igUserId: connectedIgUserId, pageId: connectedPageId },
+      metadata: { externalId: connectedIgUserId, pageId: connectedPageId },
     });
 
     return NextResponse.redirect(new URL("/dashboard/settings?success=1", request.url));

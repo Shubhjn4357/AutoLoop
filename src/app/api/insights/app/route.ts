@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { messages, automations, contacts, scheduledMessages, instagramAccounts, automationMetrics } from "@/lib/db/schema";
+import { messages, automations, contacts, scheduledMessages, socialAccounts, automationMetrics } from "@/lib/db/schema";
 import { and, count, desc, eq, gte } from "drizzle-orm";
 
 function trailingDays(days: number) {
@@ -59,8 +59,8 @@ export async function GET(request: Request) {
         orderBy: [desc(messages.timestamp)],
         limit: 500,
       }),
-      db.query.instagramAccounts.findMany({
-        where: eq(instagramAccounts.userId, userId),
+      db.query.socialAccounts.findMany({
+        where: eq(socialAccounts.userId, userId),
       }),
     ]);
 

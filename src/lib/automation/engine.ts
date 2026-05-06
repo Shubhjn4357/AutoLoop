@@ -3,9 +3,10 @@ import {
   automations,
   automationMetrics,
   contacts,
-  instagramAccounts,
+  socialAccounts,
   messages as dbMessages,
   scheduledMessages,
+  automationState,
 } from "@/lib/db/schema";
 import { and, asc, desc, eq, lte } from "drizzle-orm";
 import {
@@ -15,17 +16,18 @@ import {
 } from "@/lib/instagram/client";
 import { createNotificationLog } from "@/lib/notifications/logs";
 import { matchesAutomationCondition } from "@/lib/automation/rules";
+import { analyzeSentiment, categorizeLead } from "@/lib/ai";
 
 async function interpolateVariables(
   text: string,
   userId: string,
-  igUserId: string,
+  externalId: string,
   recipientId: string
 ): Promise<string> {
   const contact = await db.query.contacts.findFirst({
     where: and(
       eq(contacts.userId, userId),
-      eq(contacts.igUserId, igUserId),
+      eq(contacts.externalId, externalId),
       eq(contacts.senderId, recipientId)
     ),
   });
@@ -48,7 +50,7 @@ async function interpolateVariables(
 
 async function upsertContact(
   userId: string,
-  igUserId: string,
+  externalId: string,
   senderId: string,
   accessToken: string
 ) {
@@ -56,7 +58,7 @@ async function upsertContact(
     const existing = await db.query.contacts.findFirst({
       where: and(
         eq(contacts.userId, userId),
-        eq(contacts.igUserId, igUserId),
+        eq(contacts.externalId, externalId),
         eq(contacts.senderId, senderId)
       ),
     });
@@ -83,7 +85,7 @@ async function upsertContact(
       await db.insert(contacts).values({
         id: crypto.randomUUID(),
         userId,
-        igUserId,
+        externalId,
         senderId,
         username: profile?.username ?? null,
         name: profile?.name ?? null,
@@ -92,6 +94,7 @@ async function upsertContact(
         firstSeenAt: new Date(),
         lastSeenAt: new Date(),
         status: "automated",
+        aiCategory: "unknown", // Text is not directly available here in the current scope
       });
     }
   } catch (err) {
@@ -133,18 +136,18 @@ async function trackAutomationSend(userId: string, automationId: string) {
 }
 
 interface EngineParams {
-  igUserId: string;
+  externalId: string;
   senderId: string;
   text: string;
   storyId?: string;
 }
 
-export async function processInstagramMessage({ igUserId, senderId, text, storyId }: EngineParams) {
+export async function processInstagramMessage({ externalId, senderId, text, storyId }: EngineParams) {
   const messageId = crypto.randomUUID();
 
   await db.insert(dbMessages).values({
     id: messageId,
-    igUserId,
+    externalId,
     senderId,
     direction: "inbound",
     status: "received",
@@ -152,12 +155,15 @@ export async function processInstagramMessage({ igUserId, senderId, text, storyI
     timestamp: new Date(),
   });
 
-  const igAccount = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.igUserId, igUserId),
+  const { sentiment } = await analyzeSentiment(text);
+  await db.update(dbMessages).set({ sentiment }).where(eq(dbMessages.id, messageId));
+
+  const igAccount = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.externalId, externalId),
   });
 
   if (!igAccount || !igAccount.accessToken) {
-    console.error("[Engine] No system user/token found for IG user:", igUserId);
+    console.error("[Engine] No system user/token found for IG user:", externalId);
     return;
   }
 
@@ -166,15 +172,50 @@ export async function processInstagramMessage({ igUserId, senderId, text, storyI
     .set({ userId: igAccount.userId })
     .where(eq(dbMessages.id, messageId));
 
-  await upsertContact(igAccount.userId, igUserId, senderId, igAccount.accessToken);
+  await upsertContact(igAccount.userId, externalId, senderId, igAccount.accessToken);
 
   await createNotificationLog({
     userId: igAccount.userId,
     type: "message.received",
     title: "Incoming Instagram DM",
     message: `Message received from ${senderId}`,
-    metadata: { igUserId, senderId, messageId },
+    metadata: { externalId, senderId, messageId },
   });
+
+  // Check for active flow state (Waiting for response)
+  const activeState = await db.query.automationState.findFirst({
+    where: and(
+      eq(automationState.userId, igAccount.userId),
+      eq(automationState.externalId, externalId),
+      eq(automationState.recipientId, senderId)
+    )
+  });
+
+  if (activeState) {
+    const automation = await db.query.automations.findFirst({ 
+      where: eq(automations.id, activeState.automationId) 
+    });
+    
+    if (automation) {
+      await executeAutomation({
+        accessToken: igAccount.accessToken,
+        automationId: activeState.automationId,
+        followUpDelayMinutes: 0,
+        followUpTemplate: null,
+        externalId: externalId,
+        recipientId: senderId,
+        responseTemplate: "",
+        dmTemplate: null,
+        targetUrl: null,
+        ruleName: automation.name,
+        userId: igAccount.userId,
+        triggerType: "flow_resume",
+        flowJson: automation.flowJson,
+        resumeFromNodeId: activeState.currentNodeId,
+      });
+      return;
+    }
+  }
 
   const triggerType = storyId ? "story_reply" : "dm";
   const rules = await db.query.automations.findMany({
@@ -230,7 +271,7 @@ export async function processInstagramMessage({ igUserId, senderId, text, storyI
       automationId: rule.id,
       followUpDelayMinutes: rule.followUpDelayMinutes ?? 0,
       followUpTemplate: rule.followUpTemplate,
-      igUserId,
+      externalId,
       recipientId: senderId,
       responseTemplate: rule.responseTemplate,
       dmTemplate: rule.dmTemplate,
@@ -245,14 +286,14 @@ export async function processInstagramMessage({ igUserId, senderId, text, storyI
 }
 
 export async function processInstagramComment({ 
-  igUserId, 
+  externalId, 
   senderId, 
   text,
   mediaId,
   commentId
 }: EngineParams & { mediaId: string; commentId: string }) {
-  const igAccount = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.igUserId, igUserId),
+  const igAccount = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.externalId, externalId),
   });
 
   if (!igAccount || !igAccount.accessToken) return;
@@ -262,7 +303,7 @@ export async function processInstagramComment({
     type: "comment.received",
     title: "New Instagram Comment",
     message: `Comment from ${senderId}: "${text}"`,
-    metadata: { igUserId, senderId, mediaId, commentId },
+    metadata: { externalId, senderId, mediaId, commentId },
   });
 
   const rules = await db.query.automations.findMany({
@@ -298,7 +339,7 @@ export async function processInstagramComment({
       automationId: rule.id,
       followUpDelayMinutes: rule.followUpDelayMinutes ?? 0,
       followUpTemplate: rule.followUpTemplate,
-      igUserId,
+      externalId,
       recipientId: senderId,
       responseTemplate: rule.responseTemplate,
       dmTemplate: rule.dmTemplate,
@@ -317,7 +358,7 @@ interface ExecuteAutomationParams {
   userId: string;
   automationId: string;
   ruleName: string;
-  igUserId: string;
+  externalId: string;
   recipientId: string;
   responseTemplate: string;
   dmTemplate: string | null;
@@ -328,6 +369,7 @@ interface ExecuteAutomationParams {
   commentId?: string;
   triggerType?: string;
   flowJson?: string | null;
+  resumeFromNodeId?: string;
 }
 
 interface ParsedNode {
@@ -345,7 +387,7 @@ async function executeAutomation({
   automationId,
   followUpDelayMinutes,
   followUpTemplate,
-  igUserId,
+  externalId,
   recipientId,
   responseTemplate,
   dmTemplate,
@@ -355,6 +397,7 @@ async function executeAutomation({
   commentId,
   triggerType,
   flowJson,
+  resumeFromNodeId,
 }: ExecuteAutomationParams) {
   try {
     // Check for new flow nodes
@@ -370,26 +413,28 @@ async function executeAutomation({
       }
     }
 
-    // If we have actual flow nodes (not just the legacy targetPostId object)
     const flowSteps = nodes.filter(n => n && n.type && n.id);
 
     if (flowSteps.length > 0) {
-      // We process the first node immediately.
-      // A full implementation would track current state in automationState
-      // and iterate until a delay or wait condition is hit.
-      // For now, let's sequentially execute all non-blocking nodes.
-      for (const node of flowSteps) {
+      let startIndex = 0;
+      if (resumeFromNodeId) {
+        startIndex = flowSteps.findIndex(n => n.id === resumeFromNodeId) + 1;
+      }
+
+      for (let i = startIndex; i < flowSteps.length; i++) {
+        const node = flowSteps[i];
+        
         if (node.type === "reply" || node.type === "text") {
           const rawText = node.config?.text || responseTemplate;
-          const text = await interpolateVariables(rawText, userId, igUserId, recipientId);
+          const text = await interpolateVariables(rawText, userId, externalId, recipientId);
           if (commentId && triggerType === "comment") {
             await replyToInstagramComment(commentId, text, accessToken);
           } else {
-            await sendInstagramMessage(igUserId, recipientId, text, accessToken);
+            await sendInstagramMessage(externalId, recipientId, text, accessToken);
             await db.insert(dbMessages).values({
               id: crypto.randomUUID(),
               userId,
-              igUserId,
+              externalId,
               senderId: recipientId,
               automationId,
               direction: "outbound",
@@ -399,22 +444,47 @@ async function executeAutomation({
             });
           }
         }
+
+        if (node.type === "wait") {
+          // Save state and pause until next inbound message
+          await db.insert(automationState).values({
+            id: crypto.randomUUID(),
+            userId,
+            externalId,
+            recipientId,
+            automationId,
+            currentNodeId: node.id,
+          }).onConflictDoUpdate({
+            target: automationState.id,
+            set: { currentNodeId: node.id, lastInteractionAt: new Date() }
+          });
+          return;
+        }
+
         if (node.type === "delay") {
-          // schedule remaining nodes and break
-          break;
+          const delayMinutes = node.config?.delayMinutes ?? 1;
+          await db.insert(scheduledMessages).values({
+            id: crypto.randomUUID(),
+            userId,
+            automationId,
+            externalId,
+            recipientId,
+            messageText: "FLOW_RESUME_MARKER", // Special marker
+            status: "pending",
+            dueAt: new Date(Date.now() + delayMinutes * 60_000),
+          });
+          return;
         }
       }
 
-      await trackAutomationSend(userId, automationId);
+      // If we finished the flow, clear the state
+      await db.delete(automationState).where(and(
+        eq(automationState.userId, userId),
+        eq(automationState.externalId, externalId),
+        eq(automationState.recipientId, recipientId)
+      ));
 
-      await createNotificationLog({
-        userId,
-        type: "automation.sent",
-        title: "Flow executed",
-        message: `${ruleName} flow executed for ${recipientId}`,
-        status: "success",
-        metadata: { automationId, igUserId, recipientId, commentId },
-      });
+      await trackAutomationSend(userId, automationId);
       return;
     }
 
@@ -423,7 +493,7 @@ async function executeAutomation({
 
     // 1. Handle Public Comment Reply if triggered by a comment
     if (commentId && triggerType === "comment") {
-      const interpolatedResponse = await interpolateVariables(responseTemplate, userId, igUserId, recipientId);
+      const interpolatedResponse = await interpolateVariables(responseTemplate, userId, externalId, recipientId);
       await replyToInstagramComment(commentId, interpolatedResponse, accessToken);
       didSend = true;
     }
@@ -431,7 +501,7 @@ async function executeAutomation({
     // 2. Handle Private DM if dmTemplate is provided
     let finalDmText = dmTemplate || (triggerType === "dm" ? responseTemplate : null);
     if (finalDmText) {
-      finalDmText = await interpolateVariables(finalDmText, userId, igUserId, recipientId);
+      finalDmText = await interpolateVariables(finalDmText, userId, externalId, recipientId);
     }
 
     if (finalDmText) {
@@ -439,12 +509,12 @@ async function executeAutomation({
         finalDmText += `\n\n${targetUrl}`;
       }
 
-      await sendInstagramMessage(igUserId, recipientId, finalDmText, accessToken);
+      await sendInstagramMessage(externalId, recipientId, finalDmText, accessToken);
 
       await db.insert(dbMessages).values({
         id: crypto.randomUUID(),
         userId,
-        igUserId,
+        externalId,
         senderId: recipientId,
         automationId,
         direction: "outbound",
@@ -465,17 +535,17 @@ async function executeAutomation({
       title: "Automation executed",
       message: `${ruleName} replied to ${recipientId}`,
       status: "success",
-      metadata: { automationId, igUserId, recipientId, commentId },
+      metadata: { automationId, externalId, recipientId, commentId },
     });
 
     if (followUpTemplate?.trim()) {
-      const interpolatedFollowUp = await interpolateVariables(followUpTemplate.trim(), userId, igUserId, recipientId);
+      const interpolatedFollowUp = await interpolateVariables(followUpTemplate.trim(), userId, externalId, recipientId);
       const delayMinutes = Math.max(0, followUpDelayMinutes);
       await db.insert(scheduledMessages).values({
         id: crypto.randomUUID(),
         userId,
         automationId,
-        igUserId,
+        externalId,
         recipientId,
         messageText: interpolatedFollowUp,
         status: "pending",
@@ -488,7 +558,7 @@ async function executeAutomation({
         type: "follow_up.scheduled",
         title: "Follow-up scheduled",
         message: `${ruleName} follow-up is queued for ${delayMinutes} minute(s).`,
-        metadata: { automationId, igUserId, recipientId, delayMinutes },
+        metadata: { automationId, externalId, recipientId, delayMinutes },
       });
     }
   } catch (error) {
@@ -498,7 +568,7 @@ async function executeAutomation({
       title: "Automation send failed",
       message: error instanceof Error ? error.message : "Instagram send failed.",
       status: "error",
-      metadata: { automationId, igUserId, recipientId },
+      metadata: { automationId, externalId, recipientId },
     });
     throw error;
   }
@@ -515,10 +585,10 @@ export async function processDueFollowUps(now = new Date()) {
   });
 
   for (const dueMessage of dueMessages) {
-    const igAccount = await db.query.instagramAccounts.findFirst({
+    const igAccount = await db.query.socialAccounts.findFirst({
       where: and(
-        eq(instagramAccounts.userId, dueMessage.userId),
-        eq(instagramAccounts.igUserId, dueMessage.igUserId)
+        eq(socialAccounts.userId, dueMessage.userId),
+        eq(socialAccounts.externalId, dueMessage.externalId)
       ),
     });
 
@@ -535,8 +605,29 @@ export async function processDueFollowUps(now = new Date()) {
     }
 
     try {
+      if (dueMessage.messageText === "FLOW_RESUME_MARKER") {
+        await executeAutomation({
+          accessToken: igAccount.accessToken,
+          automationId: dueMessage.automationId!,
+          followUpDelayMinutes: 0,
+          followUpTemplate: null,
+          externalId: dueMessage.externalId,
+          recipientId: dueMessage.recipientId,
+          responseTemplate: "",
+          dmTemplate: null,
+          targetUrl: null,
+          ruleName: "Flow Resume",
+          userId: dueMessage.userId,
+          triggerType: "flow_resume",
+          flowJson: (await db.query.automations.findFirst({ where: eq(automations.id, dueMessage.automationId!) }))?.flowJson,
+        });
+
+        await db.update(scheduledMessages).set({ status: "sent", sentAt: new Date() }).where(eq(scheduledMessages.id, dueMessage.id));
+        continue;
+      }
+
       await sendInstagramMessage(
-        dueMessage.igUserId,
+        dueMessage.externalId,
         dueMessage.recipientId,
         dueMessage.messageText,
         igAccount.accessToken
@@ -545,7 +636,7 @@ export async function processDueFollowUps(now = new Date()) {
       await db.insert(dbMessages).values({
         id: crypto.randomUUID(),
         userId: dueMessage.userId,
-        igUserId: dueMessage.igUserId,
+        externalId: dueMessage.externalId,
         senderId: dueMessage.recipientId,
         automationId: dueMessage.automationId,
         direction: "outbound",

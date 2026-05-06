@@ -26,7 +26,7 @@ import { MediaGridSkeleton } from "@/components/dashboard/skeletons";
 type Automation = typeof AutoType.$inferSelect;
 
 interface Props {
-  igUserId: string;
+  externalId: string;
   accessToken: string;
   automations: Automation[];
   initialMedia: IGMedia[];

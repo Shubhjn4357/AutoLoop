@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Send, User, Tag, MessageSquare } from "lucide-react";
+import { Send, User, Tag, MessageSquare, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
   });
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const activeConversation = conversations.find(
     (c) => c.contact.senderId === activeSenderId
@@ -60,13 +61,16 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
         const newMsg: MessageRow = {
           id: crypto.randomUUID(),
           userId: "",
-          igUserId: "",
+          externalId: "",
           senderId: activeSenderId,
           automationId: null,
           direction: "outbound",
           status: "sent",
           text: replyText.trim(),
           timestamp: new Date(),
+          platform: "instagram",
+          sentiment: null,
+          aiReply: null,
         };
         setMessagesMap((prev) => ({
           ...prev,
@@ -78,6 +82,28 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
       console.error("Send failed:", err);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function suggestAI() {
+    if (!activeSenderId) return;
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/ai/suggest-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderId: activeSenderId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.suggestion) {
+          setReplyText(data.suggestion);
+        }
+      }
+    } catch (err) {
+      console.error("AI suggestion failed:", err);
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -236,6 +262,20 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
                 onKeyDown={(e) => e.key === "Enter" && sendReply()}
                 className="flex-1 rounded-xl"
               />
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-xl border-primary/20 hover:bg-primary/5 shrink-0"
+                onClick={suggestAI}
+                disabled={generating || sending}
+                title="Suggest AI Reply"
+              >
+                {generating ? (
+                  <Loader2 className="size-4 animate-spin text-primary" />
+                ) : (
+                  <Sparkles className="size-4 text-primary" />
+                )}
+              </Button>
               <Button
                 size="icon"
                 className="rounded-xl"

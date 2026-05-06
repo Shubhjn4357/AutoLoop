@@ -7,7 +7,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 interface AppInsightsDataProps {
   userId: string;
-  igUserId: string;
+  externalId: string;
 }
 
 interface AppMetrics {
@@ -22,14 +22,14 @@ interface AppMetrics {
   messagesByDay: { date: string; inbound: number; outbound: number }[];
 }
 
-export function AppInsightsData({ userId, igUserId }: AppInsightsDataProps) {
+export function AppInsightsData({ userId, externalId }: AppInsightsDataProps) {
   const [metrics, setMetrics] = useState<AppMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchMetrics() {
       try {
-        const res = await fetch(`/api/insights/app?userId=${userId}&igUserId=${igUserId}`);
+        const res = await fetch(`/api/insights/app?userId=${userId}&externalId=${externalId}`);
         if (res.ok) {
           const data = await res.json();
           setMetrics(data);
@@ -41,7 +41,7 @@ export function AppInsightsData({ userId, igUserId }: AppInsightsDataProps) {
       }
     }
     fetchMetrics();
-  }, [userId, igUserId]);
+  }, [userId, externalId]);
 
   if (loading) {
     return (

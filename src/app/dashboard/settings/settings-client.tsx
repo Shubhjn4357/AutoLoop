@@ -15,7 +15,9 @@ import {
   ShieldCheck,
   Smartphone,
   RefreshCw,
-  Copy
+  Copy,
+  CreditCard,
+  Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,17 +44,20 @@ interface Props {
   webhookToken: string | null;
   notificationPrefs: NotificationPrefs;
   accounts: InstagramAccount[];
+  subscriptionStatus: string | null;
+  stripePriceId: string | null;
 }
 
 const CATEGORIES = [
   { id: "general", label: "General", icon: User },
   { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "billing", label: "Billing", icon: CreditCard },
   { id: "connections", label: "Connections", icon: Link2 },
   { id: "theme", label: "Appearance", icon: Palette },
   { id: "security", label: "Security", icon: ShieldCheck },
 ];
 
-export function SettingsClient({ userName, webhookToken, notificationPrefs, accounts }: Props) {
+export function SettingsClient({ userName, webhookToken, notificationPrefs, accounts, subscriptionStatus, stripePriceId }: Props) {
   const [activeTab, setActiveTab] = useState("general");
   const { theme, setTheme } = useTheme();
   const [isSaving, setIsSaving] = useState(false);
@@ -357,6 +362,35 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
                         <span className="font-bold">Warning:</span> Keep these credentials secret. The API token allows external access, and the webhook URL receives Instagram events.
                        </p>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {activeTab === "billing" && (
+              <Card className="glass-card">
+                <CardHeader>
+                  <CardTitle>Subscription & Billing</CardTitle>
+                  <CardDescription>Manage your plan and billing details.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="p-6 rounded-2xl border border-primary/20 bg-primary/5 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Zap className="size-5 text-primary" />
+                        <h4 className="font-bold">{subscriptionStatus === "active" ? "Pro Plan" : "Free Plan"}</h4>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {subscriptionStatus === "active" 
+                          ? "You have full access to all AI features and multi-account support." 
+                          : "Upgrade to Pro to unlock AI smart replies and connect up to 10 accounts."}
+                      </p>
+                    </div>
+                    <form action={subscriptionStatus === "active" ? "/api/billing/portal" : "/api/billing/checkout"} method="POST">
+                       <Button type="submit" className="rounded-xl shadow-lg shadow-primary/20">
+                         {subscriptionStatus === "active" ? "Manage Subscription" : "Upgrade to Pro"}
+                       </Button>
+                    </form>
                   </div>
                 </CardContent>
               </Card>

@@ -1,11 +1,11 @@
 export async function sendInstagramMessage(
-  igUserId: string,
+  externalId: string,
   recipientId: string,
   messageText: string,
   accessToken: string
 ) {
   const graphVersion = process.env.META_GRAPH_VERSION || "v21.0";
-  const url = `https://graph.instagram.com/${graphVersion}/${igUserId}/messages`;
+  const url = `https://graph.instagram.com/${graphVersion}/${externalId}/messages`;
   
   const payload = {
     recipient: {

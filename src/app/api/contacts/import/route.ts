@@ -46,7 +46,7 @@ export async function POST(req: Request) {
           .values({
             id: crypto.randomUUID(),
             userId: session.user.id,
-            igUserId: "",
+            externalId: "",
             senderId: user.id,
             name: user.name || user.username,
             username: user.username,

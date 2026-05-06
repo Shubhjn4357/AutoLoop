@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { instagramAccounts, automations } from "@/lib/db/schema";
+import { socialAccounts, automations } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { MediaGridSkeleton } from "@/components/dashboard/skeletons";
@@ -15,8 +15,8 @@ export default async function ContentPage() {
   if (!session?.user?.id) redirect("/login");
 
   const [account, userAutomations] = await Promise.all([
-    db.query.instagramAccounts.findFirst({
-      where: eq(instagramAccounts.userId, session.user.id),
+    db.query.socialAccounts.findFirst({
+      where: eq(socialAccounts.userId, session.user.id),
     }),
     db.query.automations.findMany({
       where: eq(automations.userId, session.user.id),
@@ -32,12 +32,12 @@ export default async function ContentPage() {
         </p>
       </div>
 
-      {!account?.igUserId ? (
+      {!account?.externalId ? (
         <NoConnectionBanner />
       ) : (
         <Suspense fallback={<MediaGridSkeleton />}>
           <ContentDashboard
-            igUserId={account.igUserId}
+            externalId={account.externalId}
             accessToken={account.accessToken!}
             automations={userAutomations}
           />

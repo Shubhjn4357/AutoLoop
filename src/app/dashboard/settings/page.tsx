@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { instagramAccounts, users } from "@/lib/db/schema";
+import { socialAccounts, users } from "@/lib/db/schema";
 import { SettingsClient } from "./settings-client";
 import { fetchIGProfile } from "@/lib/instagram/graph";
 import { getNotificationPrefs } from "@/lib/utils/settings";
@@ -17,8 +17,8 @@ export default async function SettingsPage() {
     db.query.users.findFirst({
       where: eq(users.id, session.user.id),
     }),
-    db.query.instagramAccounts.findMany({
-      where: eq(instagramAccounts.userId, session.user.id),
+    db.query.socialAccounts.findMany({
+      where: eq(socialAccounts.userId, session.user.id),
     }),
   ]);
 
@@ -28,8 +28,8 @@ export default async function SettingsPage() {
   const enrichedAccounts = await Promise.all(
     dbAccounts.map(async (acc) => {
       try {
-        if (acc.igUserId && acc.accessToken) {
-          const profile = await fetchIGProfile(acc.igUserId, acc.accessToken);
+        if (acc.externalId && acc.accessToken) {
+          const profile = await fetchIGProfile(acc.externalId, acc.accessToken);
           return {
             id: acc.id,
             instagramUsername: profile.username,
@@ -61,6 +61,8 @@ export default async function SettingsPage() {
         webhookToken={dbUser.webhookToken ?? null}
         notificationPrefs={notificationPrefs}
         accounts={enrichedAccounts} 
+        subscriptionStatus={dbUser.subscriptionStatus ?? null}
+        stripePriceId={dbUser.stripePriceId ?? null}
       />
     </div>
   );

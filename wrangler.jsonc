@@ -24,7 +24,9 @@
     "LINKEDIN_CLIENT_ID": "77d8rap022787s",
     "TURSO_DATABASE_URL": "libsql://autoloop-shubhjn4357.aws-ap-south-1.turso.io",
     "META_GRAPH_VERSION": "v22.0",
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "GOOGLE_GENERATIVE_AI_API_KEY": "PLACEHOLDER",
+    "STRIPE_PRO_PRICE_ID": "PLACEHOLDER"
   },
   // NOTE: Cron triggers require a `scheduled` event handler.
   // With OpenNext, use an external cron service (e.g. cron-job.org)

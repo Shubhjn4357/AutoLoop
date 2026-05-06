@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { instagramAccounts } from "@/lib/db/schema";
+import { socialAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { fuzzySearchIGUsers, searchIGUser } from "@/lib/instagram/graph";
 
@@ -18,11 +18,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Query required" }, { status: 400 });
   }
 
-  const account = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.userId, session.user.id),
+  const account = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.userId, session.user.id),
   });
 
-  if (!account?.accessToken || !account.igUserId) {
+  if (!account?.accessToken || !account.externalId) {
     return NextResponse.json(
       { error: "Instagram account not connected" },
       { status: 400 }
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
     let exactMatch = null;
     try {
       exactMatch = await searchIGUser(
-        account.igUserId,
+        account.externalId,
         account.accessToken,
         query.toLowerCase()
       );
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
 
     // Get fuzzy results from hashtag search
     const fuzzyResults = await fuzzySearchIGUsers(
-      account.igUserId,
+      account.externalId,
       account.accessToken,
       query.toLowerCase()
     );

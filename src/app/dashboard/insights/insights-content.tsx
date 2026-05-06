@@ -5,7 +5,7 @@ import { AppInsightsData } from "./app-insights-data";
 import { TrendingUp, Users, Eye, BarChart2, AlertCircle } from "lucide-react";
 
 interface Props {
-  igUserId: string;
+  externalId: string;
   accessToken: string;
   userId: string;
 }
@@ -16,7 +16,7 @@ function sumValues(metric: IGInsightMetric | undefined): number {
   return total;
 }
 
-export async function InsightsContent({ igUserId, accessToken, userId }: Props) {
+export async function InsightsContent({ externalId, accessToken, userId }: Props) {
   const until = Math.floor(Date.now() / 1000);
   const since = until - (7 * 24 * 60 * 60); // 7 days ago
 
@@ -26,9 +26,9 @@ export async function InsightsContent({ igUserId, accessToken, userId }: Props) 
 
   try {
     [profile, metrics] = await Promise.all([
-      fetchIGProfile(igUserId, accessToken),
+      fetchIGProfile(externalId, accessToken),
       fetchIGInsights(
-        igUserId,
+        externalId,
         accessToken,
         ["reach", "profile_views", "accounts_engaged", "total_interactions"],
         "day",
@@ -147,7 +147,7 @@ export async function InsightsContent({ igUserId, accessToken, userId }: Props) 
       )}
 
       {/* App-Level Fallback Data */}
-      <AppInsightsData userId={userId} igUserId={igUserId} />
+      <AppInsightsData userId={userId} externalId={externalId} />
     </>
   );
 }

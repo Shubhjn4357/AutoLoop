@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { instagramAccounts } from "@/lib/db/schema";
+import { socialAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { searchIGUser } from "@/lib/instagram/graph";
 
@@ -19,11 +19,11 @@ export async function GET(req: Request) {
   }
 
   // Find a connected account to use for Business Discovery
-  const account = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.userId, session.user.id),
+  const account = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.userId, session.user.id),
   });
 
-  if (!account || !account.accessToken || !account.igUserId) {
+  if (!account || !account.accessToken || !account.externalId) {
     return NextResponse.json(
       { error: "Instagram account not connected" },
       { status: 400 }
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
 
   try {
     const data = await searchIGUser(
-      account.igUserId,
+      account.externalId,
       account.accessToken,
       username
     );

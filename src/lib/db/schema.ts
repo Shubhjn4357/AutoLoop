@@ -9,6 +9,10 @@ export const users = sqliteTable("user", {
   image: text("image"),
   webhookToken: text("webhook_token"),
   settingsJson: text("settings_json"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripePriceId: text("stripe_price_id"),
+  subscriptionStatus: text("subscription_status"),
 });
 
 export const accounts = sqliteTable(
@@ -53,10 +57,11 @@ export const verificationTokens = sqliteTable(
   })
 );
 
-export const instagramAccounts = sqliteTable("instagram_accounts", {
+export const socialAccounts = sqliteTable("social_accounts", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  igUserId: text("ig_user_id"),
+  platform: text("platform").notNull().default("instagram"),
+  externalId: text("external_id"), // was externalId
   pageId: text("page_id"),
   accessToken: text("access_token"),
   connectedAt: integer("connected_at", { mode: "timestamp_ms" }).$defaultFn(() => new Date()),
@@ -84,12 +89,15 @@ export const automations = sqliteTable("automations", {
 export const messages = sqliteTable("messages", {
   id: text("id").primaryKey(),
   userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
-  igUserId: text("ig_user_id").notNull(),
+  externalId: text("ig_user_id").notNull(),
   senderId: text("sender_id").notNull(),
   automationId: text("automation_id").references(() => automations.id, { onDelete: "set null" }),
   direction: text("direction").notNull().default("inbound"),
   status: text("status").notNull().default("received"),
   text: text("text").notNull(),
+  sentiment: text("sentiment"),
+  aiReply: text("ai_reply"),
+  platform: text("platform").notNull().default("instagram"),
   timestamp: integer("timestamp", { mode: 'timestamp' }).notNull(),
 });
 
@@ -108,7 +116,7 @@ export const scheduledMessages = sqliteTable("scheduled_messages", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   automationId: text("automation_id").references(() => automations.id, { onDelete: "set null" }),
-  igUserId: text("ig_user_id").notNull(),
+  externalId: text("ig_user_id").notNull(),
   recipientId: text("recipient_id").notNull(),
   messageText: text("message_text").notNull(),
   status: text("status").notNull().default("pending"),
@@ -122,17 +130,18 @@ export const scheduledMessages = sqliteTable("scheduled_messages", {
 export const automationState = sqliteTable("automation_state", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  igUserId: text("ig_user_id").notNull(),
+  externalId: text("ig_user_id").notNull(),
   recipientId: text("recipient_id").notNull(),
   automationId: text("automation_id").notNull().references(() => automations.id, { onDelete: "cascade" }),
   currentNodeId: text("current_node_id").notNull(),
+  metadataJson: text("metadata_json"),
   lastInteractionAt: integer("last_interaction_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
 });
 
 export const contacts = sqliteTable("contacts", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  igUserId: text("ig_user_id").notNull(),
+  externalId: text("ig_user_id").notNull(),
   senderId: text("sender_id").notNull(),
   username: text("username"),
   name: text("name"),
@@ -142,6 +151,8 @@ export const contacts = sqliteTable("contacts", {
   lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
   notes: text("notes"),
   status: text("status").notNull().default("automated"),
+  aiCategory: text("ai_category"),
+  platform: text("platform").notNull().default("instagram"),
 });
 
 export const automationMetrics = sqliteTable("automation_metrics", {

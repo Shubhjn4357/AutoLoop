@@ -1,6 +1,6 @@
 /**
  * Instagram Graph API client
- * All calls use the stored Page Access Token from instagramAccounts.accessToken
+ * All calls use the stored Page Access Token from socialAccounts.accessToken
  */
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION ?? "v25.0";
@@ -66,12 +66,12 @@ async function graphFetch<T>(
 
 /** Fetch all media posts for an IG Business account */
 export async function fetchIGMedia(
-  igUserId: string,
+  externalId: string,
   accessToken: string,
   limit = 20
 ): Promise<IGMedia[]> {
   const data = await graphFetch<{ data: IGMedia[] }>(
-    `/${igUserId}/media`,
+    `/${externalId}/media`,
     accessToken,
     {
       fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count,permalink,children{id,media_url,media_type,thumbnail_url}",
@@ -83,11 +83,11 @@ export async function fetchIGMedia(
 
 /** Fetch active stories for an IG Business account */
 export async function fetchIGStories(
-  igUserId: string,
+  externalId: string,
   accessToken: string
 ): Promise<IGMedia[]> {
   const data = await graphFetch<{ data: IGMedia[] }>(
-    `/${igUserId}/stories`,
+    `/${externalId}/stories`,
     accessToken,
     {
       fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,permalink",
@@ -98,7 +98,7 @@ export async function fetchIGStories(
 
 /** Fetch account-level insights */
 export async function fetchIGInsights(
-  igUserId: string,
+  externalId: string,
   accessToken: string,
   metrics: string[] = ["reach", "profile_views", "impressions", "accounts_engaged"],
   period: "day" | "week" | "days_28" = "day",
@@ -127,7 +127,7 @@ export async function fetchIGInsights(
 
     try {
       const lifetimeData = await graphFetch<{ data: IGInsightMetric[] }>(
-        `/${igUserId}/insights`,
+        `/${externalId}/insights`,
         accessToken,
         lifetimeParams
       );
@@ -150,7 +150,7 @@ export async function fetchIGInsights(
 
     try {
       const timeData = await graphFetch<{ data: IGInsightMetric[] }>(
-        `/${igUserId}/insights`,
+        `/${externalId}/insights`,
         accessToken,
         timeParams
       );
@@ -167,11 +167,11 @@ export async function fetchIGInsights(
 
 /** Fetch IG Business user profile */
 export async function fetchIGProfile(
-  igUserId: string,
+  externalId: string,
   accessToken: string
 ): Promise<IGUserProfile> {
   return graphFetch<IGUserProfile>(
-    `/${igUserId}`,
+    `/${externalId}`,
     accessToken,
     {
       fields: "id,name,username,biography,profile_picture_url,followers_count,follows_count,media_count,website",
@@ -181,13 +181,13 @@ export async function fetchIGProfile(
 
 /** Publish a photo post to Instagram */
 export async function publishIGPost(
-  igUserId: string,
+  externalId: string,
   accessToken: string,
   imageUrl: string,
   caption: string
 ): Promise<{ id: string }> {
   // Step 1: Create container
-  const containerUrl = new URL(`${BASE}/${igUserId}/media`);
+  const containerUrl = new URL(`${BASE}/${externalId}/media`);
   containerUrl.searchParams.set("access_token", accessToken);
   containerUrl.searchParams.set("image_url", imageUrl);
   containerUrl.searchParams.set("caption", caption);
@@ -199,7 +199,7 @@ export async function publishIGPost(
   }
 
   // Step 2: Publish container
-  const publishUrl = new URL(`${BASE}/${igUserId}/media_publish`);
+  const publishUrl = new URL(`${BASE}/${externalId}/media_publish`);
   publishUrl.searchParams.set("access_token", accessToken);
   publishUrl.searchParams.set("creation_id", containerData.id);
 
@@ -225,7 +225,7 @@ export interface HashtagMedia extends IGMedia {
 
 /** Search hashtags by name (fuzzy-ish search via hashtag) */
 export async function searchHashtags(
-  igUserId: string,
+  externalId: string,
   accessToken: string,
   hashtagName: string
 ): Promise<HashtagSearchResult[]> {
@@ -233,7 +233,7 @@ export async function searchHashtags(
     "/ig_hashtag_search",
     accessToken,
     {
-      user_id: igUserId,
+      user_id: externalId,
       q: hashtagName,
     }
   );
@@ -259,14 +259,14 @@ export async function getHashtagRecentMedia(
 
 /** Fuzzy-like search: Search hashtags and extract unique usernames from recent posts */
 export async function fuzzySearchIGUsers(
-  igUserId: string,
+  externalId: string,
   accessToken: string,
   query: string
 ): Promise<{ username: string; mediaCount: number; sampleMedia: HashtagMedia }[]> {
   if (!query || query.length < 1) return [];
 
   // Search for hashtags matching the query
-  const hashtags = await searchHashtags(igUserId, accessToken, query);
+  const hashtags = await searchHashtags(externalId, accessToken, query);
 
   if (hashtags.length === 0) return [];
 
@@ -304,13 +304,13 @@ export async function fuzzySearchIGUsers(
 
 /** Business Discovery: Search and fetch other business profiles/media */
 export async function searchIGUser(
-  igUserId: string,
+  externalId: string,
   accessToken: string,
   targetUsername: string
 ): Promise<IGUserProfile & { media?: { data: IGMedia[] } }> {
   // We use the connected IG User ID as the root to discover another account by username
   const res = await graphFetch<{ business_discovery: IGUserProfile & { media?: { data: IGMedia[] } } }>(
-    `/${igUserId}`,
+    `/${externalId}`,
     accessToken,
     {
       fields: `business_discovery.username(${targetUsername}){id,username,biography,name,profile_picture_url,followers_count,follows_count,media_count,media{id,caption,media_url,thumbnail_url,media_type,permalink,timestamp,like_count,comments_count,children{id,media_url,media_type,thumbnail_url}}}`,

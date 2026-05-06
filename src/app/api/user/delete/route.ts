@@ -4,7 +4,7 @@ import {
   users,
   accounts,
   sessions,
-  instagramAccounts,
+  socialAccounts,
   automations,
   messages,
   notificationLogs,
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       const userId = linkedAccount.userId;
 
       // Delete all user data in order (foreign keys)
-      await db.delete(instagramAccounts).where(eq(instagramAccounts.userId, userId));
+      await db.delete(socialAccounts).where(eq(socialAccounts.userId, userId));
       await db.delete(automations).where(eq(automations.userId, userId));
       await db.delete(messages).where(eq(messages.userId, userId));
       await db.delete(notificationLogs).where(eq(notificationLogs.userId, userId));

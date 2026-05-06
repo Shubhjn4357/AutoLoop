@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { automations, instagramAccounts } from "@/lib/db/schema";
+import { automations, socialAccounts } from "@/lib/db/schema";
 import { isConditionOperator } from "@/lib/automation/rules";
 import { QueryToast } from "@/components/dashboard/query-toast";
 import { AutomationsSkeleton } from "@/components/dashboard/skeletons";
@@ -19,8 +19,8 @@ export default async function AutomationsPage() {
   if (!session?.user?.id) redirect("/login");
 
   const [account, userAutomations] = await Promise.all([
-    db.query.instagramAccounts.findFirst({
-      where: eq(instagramAccounts.userId, session.user.id),
+    db.query.socialAccounts.findFirst({
+      where: eq(socialAccounts.userId, session.user.id),
     }),
     db.query.automations.findMany({
       where: eq(automations.userId, session.user.id),
@@ -108,12 +108,12 @@ export default async function AutomationsPage() {
         </p>
       </div>
 
-      {!account?.igUserId ? (
+      {!account?.externalId ? (
         <NoConnectionBanner />
       ) : (
         <Suspense fallback={<AutomationsSkeleton />}>
           <AutomationsWorkspace
-            igUserId={account.igUserId}
+            externalId={account.externalId}
             accessToken={account.accessToken!}
             existingAutomations={userAutomations}
             createAutomationAction={createAutomationAction}

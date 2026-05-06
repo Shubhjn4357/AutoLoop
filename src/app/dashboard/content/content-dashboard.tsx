@@ -5,17 +5,17 @@ import { ContentDashboardClient } from "./content-dashboard-client";
 type Automation = typeof AutomationType.$inferSelect;
 
 interface Props {
-  igUserId: string;
+  externalId: string;
   accessToken: string;
   automations: Automation[];
 }
 
-export async function ContentDashboard({ igUserId, accessToken, automations }: Props) {
-  const media = await fetchIGMedia(igUserId, accessToken, 30).catch(() => []);
+export async function ContentDashboard({ externalId, accessToken, automations }: Props) {
+  const media = await fetchIGMedia(externalId, accessToken, 30).catch(() => []);
 
   return (
     <ContentDashboardClient
-      igUserId={igUserId}
+      externalId={externalId}
       accessToken={accessToken}
       automations={automations}
       initialMedia={media}

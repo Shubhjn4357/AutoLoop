@@ -4,11 +4,11 @@ import { Users, BookOpen, Heart, MessageCircle, Globe } from "lucide-react";
 
 interface Props {
   query: string;
-  igUserId: string;
+  externalId: string;
   accessToken: string;
 }
 
-export async function SearchResults({ query, igUserId, accessToken }: Props) {
+export async function SearchResults({ query, externalId, accessToken }: Props) {
   if (!query) {
     return (
       <div className="glass-card rounded-3xl p-16 text-center text-muted-foreground">
@@ -19,7 +19,7 @@ export async function SearchResults({ query, igUserId, accessToken }: Props) {
   }
 
   try {
-    const profile = await searchIGUser(igUserId, accessToken, query);
+    const profile = await searchIGUser(externalId, accessToken, query);
 
     return (
       <div className="space-y-6">

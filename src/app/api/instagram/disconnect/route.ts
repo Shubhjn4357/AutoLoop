@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { instagramAccounts } from "@/lib/db/schema";
+import { socialAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -18,15 +18,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing accountId" }, { status: 400 });
   }
 
-  const account = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.id, accountId),
+  const account = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.id, accountId),
   });
 
   if (!account || account.userId !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  await db.delete(instagramAccounts).where(eq(instagramAccounts.id, accountId));
+  await db.delete(socialAccounts).where(eq(socialAccounts.id, accountId));
 
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/insights");

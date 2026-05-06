@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { contacts, instagramAccounts, scheduledMessages, contactTags } from "@/lib/db/schema";
+import { contacts, socialAccounts, scheduledMessages, contactTags } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { createNotificationLog } from "@/lib/notifications/logs";
 
@@ -22,11 +22,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "messageText is required" }, { status: 400 });
   }
 
-  const account = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.userId, session.user.id),
+  const account = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.userId, session.user.id),
   });
 
-  if (!account?.igUserId || !account?.accessToken) {
+  if (!account?.externalId || !account?.accessToken) {
     return NextResponse.json({ error: "No Instagram account connected" }, { status: 404 });
   }
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     targetContacts = await db.query.contacts.findMany({
       where: and(
         eq(contacts.userId, session.user.id),
-        eq(contacts.igUserId, account.igUserId),
+        eq(contacts.externalId, account.externalId),
         inArray(contacts.senderId, senderIds)
       ),
     });
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       targetContacts = await db.query.contacts.findMany({
         where: and(
           eq(contacts.userId, session.user.id),
-          eq(contacts.igUserId, account.igUserId),
+          eq(contacts.externalId, account.externalId),
           inArray(contacts.id, contactIds)
         ),
       });
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     await db.insert(scheduledMessages).values({
       id: crypto.randomUUID(),
       userId: session.user.id,
-      igUserId: account.igUserId,
+      externalId: account.externalId,
       recipientId: contact.senderId,
       messageText: messageText.trim(),
       status: "pending",

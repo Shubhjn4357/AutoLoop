@@ -92,3 +92,33 @@
 @utility glow-ring {
   @apply shadow-[0_0_20px_oklch(var(--primary)/0.2)] ring-1 ring-primary/20;
 }
+
+@utility perspective-1000 {
+  perspective: 1000px;
+}
+
+/* Lenis Recommended CSS */
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
+::selection {
+  background: oklch(var(--primary));
+  color: oklch(var(--primary-foreground));
+}

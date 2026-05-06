@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { instagramAccounts } from "@/lib/db/schema";
+import { socialAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { SearchResults } from "./search-results";
@@ -19,8 +19,8 @@ export default async function SearchPage({ searchParams }: PageProps) {
 
   const { q: query } = await searchParams;
 
-  const account = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.userId, session.user.id),
+  const account = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.userId, session.user.id),
   });
 
   return (
@@ -32,13 +32,13 @@ export default async function SearchPage({ searchParams }: PageProps) {
         </p>
       </div>
 
-      {!account?.igUserId ? (
+      {!account?.externalId ? (
         <NoConnectionBanner />
       ) : (
         <Suspense fallback={<div className="h-64 animate-pulse bg-muted/40 rounded-3xl" />}>
           <SearchResults 
             query={query || ""} 
-            igUserId={account.igUserId} 
+            externalId={account.externalId} 
             accessToken={account.accessToken!} 
           />
         </Suspense>

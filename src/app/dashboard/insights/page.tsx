@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { instagramAccounts } from "@/lib/db/schema";
+import { socialAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { InsightsSkeleton } from "@/components/dashboard/skeletons";
@@ -14,8 +14,8 @@ export default async function InsightsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const account = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.userId, session.user.id),
+  const account = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.userId, session.user.id),
   });
 
   return (
@@ -27,12 +27,12 @@ export default async function InsightsPage() {
         </p>
       </div>
 
-      {!account?.igUserId ? (
+      {!account?.externalId ? (
         <NoConnectionBanner />
       ) : (
         <Suspense fallback={<InsightsSkeleton />}>
           <InsightsContent
-            igUserId={account.igUserId}
+            externalId={account.externalId}
             accessToken={account.accessToken!}
               userId={session.user.id}
           />

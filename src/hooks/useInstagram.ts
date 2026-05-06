@@ -7,12 +7,12 @@ export function useInstagram() {
   const { data: media, loading: loadingMedia, request: fetchMedia } = useApi<unknown[]>();
   const { data: profile, loading: loadingProfile, request: fetchProfile } = useApi<unknown>();
 
-  const getMedia = useCallback((igUserId: string) => {
-    return fetchMedia(`/api/instagram/media?igUserId=${igUserId}`);
+  const getMedia = useCallback((externalId: string) => {
+    return fetchMedia(`/api/instagram/media?externalId=${externalId}`);
   }, [fetchMedia]);
 
-  const getProfile = useCallback((igUserId: string) => {
-    return fetchProfile(`/api/instagram/profile?igUserId=${igUserId}`);
+  const getProfile = useCallback((externalId: string) => {
+    return fetchProfile(`/api/instagram/profile?externalId=${externalId}`);
   }, [fetchProfile]);
 
   return {

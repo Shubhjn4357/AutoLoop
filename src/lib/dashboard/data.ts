@@ -4,7 +4,7 @@ import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   automations,
-  instagramAccounts,
+  socialAccounts,
   messages as dbMessages,
   scheduledMessages,
 } from "@/lib/db/schema";
@@ -37,8 +37,8 @@ export const getDashboardData = cache(async (userId: string) => {
         .select({ value: count() })
         .from(automations)
         .where(and(eq(automations.userId, userId), eq(automations.isActive, true))),
-      db.query.instagramAccounts.findMany({
-        where: eq(instagramAccounts.userId, userId),
+      db.query.socialAccounts.findMany({
+        where: eq(socialAccounts.userId, userId),
       }),
       db
         .select({ value: count() })
@@ -47,19 +47,19 @@ export const getDashboardData = cache(async (userId: string) => {
       getNotificationLogs(userId, 8),
     ]);
 
-  const igUserIds = accounts
-    .map((account) => account.igUserId)
+  const externalIds = accounts
+    .map((account) => account.externalId)
     .filter((id): id is string => Boolean(id));
 
   const [messageCount, recentMessages] =
-    igUserIds.length > 0
+    externalIds.length > 0
       ? await Promise.all([
           db
             .select({ value: count() })
             .from(dbMessages)
-            .where(inArray(dbMessages.igUserId, igUserIds)),
+            .where(inArray(dbMessages.externalId, externalIds)),
           db.query.messages.findMany({
-            where: inArray(dbMessages.igUserId, igUserIds),
+            where: inArray(dbMessages.externalId, externalIds),
             orderBy: [desc(dbMessages.timestamp)],
             limit: 500,
           }),

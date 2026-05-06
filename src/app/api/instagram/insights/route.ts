@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { instagramAccounts } from "@/lib/db/schema";
+import { socialAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { fetchIGInsights } from "@/lib/instagram/graph";
 
@@ -14,17 +14,17 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const period = (searchParams.get("period") ?? "day") as "day" | "week" | "days_28";
 
-  const account = await db.query.instagramAccounts.findFirst({
-    where: eq(instagramAccounts.userId, session.user.id),
+  const account = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.userId, session.user.id),
   });
 
-  if (!account?.igUserId || !account?.accessToken) {
+  if (!account?.externalId || !account?.accessToken) {
     return NextResponse.json({ error: "No Instagram account connected" }, { status: 404 });
   }
 
   try {
     const metrics = await fetchIGInsights(
-      account.igUserId,
+      account.externalId,
       account.accessToken,
       ["reach", "profile_views", "impressions"],
       period
