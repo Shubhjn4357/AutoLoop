@@ -1,9 +1,21 @@
 import Stripe from "stripe";
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2026-04-22.dahlia", // Latest version for this environment
-  typescript: true,
-  httpClient: Stripe.createFetchHttpClient(), // Important for Cloudflare/Edge
+let _stripe: Stripe | null = null;
+
+export const stripe = new Proxy({} as Stripe, {
+  get(_, prop) {
+    if (!_stripe) {
+      const apiKey = process.env.STRIPE_SECRET_KEY || "sk_test_dummy";
+      _stripe = new Stripe(apiKey, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        apiVersion: "2026-04-22.dahlia" as any,
+        typescript: true,
+        httpClient: Stripe.createFetchHttpClient(),
+      });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (_stripe as any)[prop];
+  },
 });
 
 export const PLANS = {

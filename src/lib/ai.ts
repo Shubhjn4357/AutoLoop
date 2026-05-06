@@ -1,6 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY || "");
+let _genAI: GoogleGenerativeAI | null = null;
+const getGenAI = () => {
+  if (!_genAI) {
+    _genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY || "");
+  }
+  return _genAI;
+};
 
 export async function analyzeSentiment(text: string) {
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
@@ -8,7 +14,7 @@ export async function analyzeSentiment(text: string) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = getGenAI().getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = `Analyze the sentiment of the following Instagram message and return ONLY a JSON object with "sentiment" (positive, negative, or neutral) and "confidence" (0-1).
     
     Message: "${text}"`;
@@ -27,7 +33,7 @@ export async function generateSmartReply(history: { role: "user" | "model"; cont
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) return null;
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = getGenAI().getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const chatHistory = history.map(h => ({
       role: h.role,
@@ -57,7 +63,7 @@ export async function categorizeLead(text: string) {
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) return "unknown";
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = getGenAI().getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = `Categorize this potential lead based on their message. Return ONLY one of these tags: "interested", "support", "complaint", "partnership", "spam", or "other".
     
     Message: "${text}"`;

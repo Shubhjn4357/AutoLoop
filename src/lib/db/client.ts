@@ -15,7 +15,7 @@ function createDbClient() {
   }
 
   const client = createClient({
-    url: url || "libsql://dummy-db.turso.io",
+    url: url || "http://localhost:8080",
     authToken: authToken || "dummy-token",
   });
 
@@ -23,7 +23,4 @@ function createDbClient() {
 }
 
 // Export the db instance
-// Note: In some edge environments, it's better to recreate the client per request 
-// if env vars are only available in the context, but for OpenNext/Cloudflare 
-// with process.env polyfills, this singleton approach usually works if initialized lazily.
 export const db = createDbClient();
