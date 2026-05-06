@@ -21,7 +21,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
       {/* Main content area */}
       <div className="flex flex-col flex-1 overflow-hidden relative w-full">
         <TopBar />
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8" data-lenis-prevent>
           {children}
         </main>
       </div>
