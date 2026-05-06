@@ -53,7 +53,7 @@ export function TestimonialsCarousel() {
             >
               <Quote className="size-12 text-primary opacity-20 mb-8" />
               <p className="text-xl md:text-2xl font-medium leading-relaxed mb-8 italic">
-                "{TESTIMONIALS[index].text}"
+                &quot;{TESTIMONIALS[index].text}&quot;
               </p>
               
               <div className="flex items-center gap-4">

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { generateSmartReply } from "@/lib/ai";
 import { db } from "@/lib/db/client";
 import { messages } from "@/lib/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { auth } from "@/lib/auth/config";
 
 export async function POST(req: Request) {

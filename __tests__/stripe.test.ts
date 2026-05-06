@@ -47,7 +47,9 @@ describe("Stripe Webhook API", () => {
       },
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (stripe.webhooks.constructEvent as any).mockReturnValue(mockSession);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (stripe.subscriptions.retrieve as any).mockResolvedValue(mockSubscription);
 
     const req = new Request("http://localhost/api/webhook/stripe", {
@@ -59,7 +61,9 @@ describe("Stripe Webhook API", () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((db as any).update).toHaveBeenCalled();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((db as any).set).toHaveBeenCalledWith(expect.objectContaining({
       stripeCustomerId: "cus_123",
       stripeSubscriptionId: "sub_123",

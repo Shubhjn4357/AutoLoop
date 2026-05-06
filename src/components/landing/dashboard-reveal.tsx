@@ -2,7 +2,7 @@
 
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
-import Image from "next/image";
+
 
 export function DashboardReveal() {
   const containerRef = useRef<HTMLDivElement>(null);

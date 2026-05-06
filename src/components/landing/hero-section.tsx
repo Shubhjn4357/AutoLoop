@@ -93,7 +93,7 @@ export function HeroSection() {
              </div>
              <p className="text-xs font-bold">AI Reply Generated</p>
            </div>
-           <p className="text-[10px] text-muted-foreground">"Hey! I've analyzed your request..."</p>
+           <p className="text-[10px] text-muted-foreground">&quot;Hey! I&apos;ve analyzed your request...&quot;</p>
         </div>
       </motion.div>
     </section>

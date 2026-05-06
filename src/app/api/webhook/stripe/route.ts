@@ -20,6 +20,7 @@ export async function POST(req: Request) {
     return new NextResponse(`Webhook Error: ${err instanceof Error ? err.message : "Unknown Error"}`, { status: 400 });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const session = event.data.object as any;
 
   switch (event.type) {

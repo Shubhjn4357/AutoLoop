@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "@/app/api/ai/suggest-reply/route";
-import { generateSmartReply } from "@/lib/ai";
-import { db } from "@/lib/db/client";
 import { auth } from "@/lib/auth/config";
 
 vi.mock("@/lib/ai", () => ({
@@ -30,6 +28,7 @@ describe("AI Suggest Reply API", () => {
   });
 
   it("should reject unauthorized requests", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (auth as any).mockResolvedValue(null);
     const req = new Request("http://localhost/api/ai/suggest-reply", {
       method: "POST",
@@ -40,6 +39,7 @@ describe("AI Suggest Reply API", () => {
   });
 
   it("should return a suggestion for authorized requests", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (auth as any).mockResolvedValue({ user: { id: "user_123" } });
     const req = new Request("http://localhost/api/ai/suggest-reply", {
       method: "POST",

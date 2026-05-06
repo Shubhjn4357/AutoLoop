@@ -57,7 +57,7 @@ const CATEGORIES = [
   { id: "security", label: "Security", icon: ShieldCheck },
 ];
 
-export function SettingsClient({ userName, webhookToken, notificationPrefs, accounts, subscriptionStatus, stripePriceId }: Props) {
+export function SettingsClient({ userName, webhookToken, notificationPrefs, accounts, subscriptionStatus }: Props) {
   const [activeTab, setActiveTab] = useState("general");
   const { theme, setTheme } = useTheme();
   const [isSaving, setIsSaving] = useState(false);

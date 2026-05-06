@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { processInstagramMessage } from "@/lib/automation/engine";
 import { db } from "@/lib/db/client";
-import { socialAccounts, automations, automationState } from "@/lib/db/schema";
+import { automationState } from "@/lib/db/schema";
 
 vi.mock("@/lib/db/client", () => ({
   db: {
@@ -55,8 +55,11 @@ describe("Automation Engine - Stateful Flows", () => {
       ]),
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (db.query.socialAccounts.findFirst as any).mockResolvedValue(mockAccount);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (db.query.automations.findMany as any).mockResolvedValue([mockAutomation]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (db.query.automationState.findFirst as any).mockResolvedValue(null);
 
     await processInstagramMessage({
@@ -92,8 +95,11 @@ describe("Automation Engine - Stateful Flows", () => {
       ]),
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (db.query.socialAccounts.findFirst as any).mockResolvedValue(mockAccount);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (db.query.automationState.findFirst as any).mockResolvedValue(mockState);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (db.query.automations.findFirst as any).mockResolvedValue(mockAutomation);
 
     await processInstagramMessage({

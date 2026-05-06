@@ -59,7 +59,7 @@ export function ImmersiveContact() {
                   <CheckCircle className="size-12" />
                 </div>
                 <h3 className="text-3xl font-bold">Message Received!</h3>
-                <p className="text-muted-foreground">We'll get back to you within 24 hours.</p>
+                <p className="text-muted-foreground">We&apos;ll get back to you within 24 hours.</p>
                 <Button variant="outline" onClick={() => setIsSent(false)}>Send Another</Button>
               </motion.div>
             ) : (

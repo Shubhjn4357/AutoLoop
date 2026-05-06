@@ -16,7 +16,7 @@ import {
 } from "@/lib/instagram/client";
 import { createNotificationLog } from "@/lib/notifications/logs";
 import { matchesAutomationCondition } from "@/lib/automation/rules";
-import { analyzeSentiment, categorizeLead } from "@/lib/ai";
+import { analyzeSentiment } from "@/lib/ai";
 
 async function interpolateVariables(
   text: string,
