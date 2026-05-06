@@ -30,7 +30,7 @@ export async function InsightsContent({ igUserId, accessToken, userId }: Props) 
       fetchIGInsights(
         igUserId,
         accessToken,
-        ["reach", "profile_views", "impressions", "accounts_engaged"],
+        ["reach", "profile_views", "accounts_engaged", "total_interactions"],
         "day",
         String(since),
         String(until)
@@ -45,7 +45,7 @@ export async function InsightsContent({ igUserId, accessToken, userId }: Props) 
 
   const reach = metrics.find((m) => m.name === "reach");
   const profileViews = metrics.find((m) => m.name === "profile_views");
-  const impressions = metrics.find((m) => m.name === "impressions");
+  const interactions = metrics.find((m) => m.name === "total_interactions");
   const engaged = metrics.find((m) => m.name === "accounts_engaged");
 
   const igStats = [
@@ -64,8 +64,8 @@ export async function InsightsContent({ igUserId, accessToken, userId }: Props) 
       bg: "bg-blue-500/10",
     },
     {
-      label: "Impressions",
-      value: sumValues(impressions).toLocaleString(),
+      label: "Interactions",
+      value: sumValues(interactions).toLocaleString(),
       icon: BarChart2,
       color: "text-fuchsia-500",
       bg: "bg-fuchsia-500/10",
@@ -140,7 +140,7 @@ export async function InsightsContent({ igUserId, accessToken, userId }: Props) 
 
           <InsightsCharts
             reachMetric={reach}
-            impressionsMetric={impressions}
+            interactionsMetric={interactions}
             profileViewsMetric={profileViews}
           />
         </>

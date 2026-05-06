@@ -22,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -204,19 +205,17 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
                     { key: "connectionAlerts" as const, label: "Connection Alerts", desc: "Immediate warning if your Instagram account disconnects." },
                     { key: "weeklyDigest" as const, label: "Weekly Insights Digest", desc: "A summary of your account performance every Monday." },
                   ].map((item) => (
-                    <label key={item.key} className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-background/40 hover:bg-accent/50 transition-all cursor-pointer">
+                    <div key={item.key} className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-background/40">
                       <div className="space-y-0.5">
                         <p className="text-sm font-semibold">{item.label}</p>
                         <p className="text-xs text-muted-foreground">{item.desc}</p>
                       </div>
-                      <input
-                        type="checkbox"
+                      <Switch
                         checked={prefs[item.key]}
-                        onChange={() => togglePref(item.key)}
+                        onCheckedChange={() => togglePref(item.key)}
                         disabled={savingPrefs}
-                        className="size-5 accent-primary rounded-lg"
                       />
-                    </label>
+                    </div>
                   ))}
                 </CardContent>
               </Card>
@@ -307,27 +306,46 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
                   <CardDescription>Manage your API keys and session preferences.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="p-6 rounded-2xl border border-border/50 bg-background/40 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Your API Token</Label>
-                      <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-bold" onClick={handleGenerateToken} disabled={isSaving}>
-                        <RefreshCw className={cn("size-3 mr-1", isSaving && "animate-spin")} />
-                        Regenerate
-                      </Button>
+                  <div className="p-6 rounded-2xl border border-border/50 bg-background/40 space-y-6">
+                    {/* API Token */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Your API Token</Label>
+                        <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-bold" onClick={handleGenerateToken} disabled={isSaving}>
+                          <RefreshCw className={cn("size-3 mr-1", isSaving && "animate-spin")} />
+                          Regenerate
+                        </Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          value={currentToken || "Click regenerate to create a token"}
+                          readOnly
+                          className="font-mono text-xs bg-muted/20 border-border/50"
+                        />
+                        <Button variant="outline" size="icon" className="shrink-0" onClick={() => currentToken && copyToClipboard(currentToken)}>
+                          <Copy className="size-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Input 
-                        value={currentToken || "Click regenerate to create a token"} 
-                        readOnly 
-                        className="font-mono text-xs bg-muted/20 border-border/50" 
-                      />
-                      <Button variant="outline" size="icon" className="shrink-0" onClick={() => currentToken && copyToClipboard(currentToken)}>
-                        <Copy className="size-4" />
-                      </Button>
+
+                    {/* Webhook URL */}
+                    <div className="space-y-4">
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Your Webhook URL</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={currentToken ? `${window.location.origin}/api/webhook/instagram?token=${currentToken}` : "Generate token to see webhook URL"}
+                          readOnly
+                          className="font-mono text-xs bg-muted/20 border-border/50"
+                        />
+                        <Button variant="outline" size="icon" className="shrink-0" onClick={() => currentToken && copyToClipboard(`${window.location.origin}/api/webhook/instagram?token=${currentToken}`)}>
+                          <Copy className="size-4" />
+                        </Button>
+                      </div>
                     </div>
+
                     <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/10">
                        <p className="text-[10px] text-amber-500 leading-relaxed font-medium">
-                         <span className="font-bold">Warning:</span> Keep this token secret. It allows external applications to trigger your automations via webhook.
+                        <span className="font-bold">Warning:</span> Keep these credentials secret. The API token allows external access, and the webhook URL receives Instagram events.
                        </p>
                     </div>
                   </div>

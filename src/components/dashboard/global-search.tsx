@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Search, Loader2, User, ImageIcon, Download, ExternalLink, Heart, MessageCircle, AlertCircle } from "lucide-react";
+import { Search, Loader2, User, ImageIcon, Download, ExternalLink, Heart, MessageCircle, AlertCircle, X, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
 
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger, DrawerClose, DrawerFooter } from "@/components/ui/drawer";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AnimatedButton } from "@/components/ui/animated-button";
@@ -18,10 +19,13 @@ export function GlobalSearch() {
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<(IGUserProfile & { media?: { data: IGMedia[] } }) | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = React.useState<IGMedia | null>(null);
+  const [currentMediaIndex, setCurrentMediaIndex] = React.useState(0);
+  const [isViewerOpen, setIsViewerOpen] = React.useState(false);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const cleanUsername = query.replace("@", "").trim();
+    const cleanUsername = query.replace("@", "").trim().toLowerCase();
     if (!cleanUsername) return;
 
     setLoading(true);
@@ -53,8 +57,29 @@ export function GlobalSearch() {
     toast.success("Opening media in new tab...");
   };
 
+  const openMediaViewer = (post: IGMedia, index: number) => {
+    setSelectedMedia(post);
+    setCurrentMediaIndex(index);
+    setIsViewerOpen(true);
+  };
+
+  const closeMediaViewer = () => {
+    setIsViewerOpen(false);
+    setSelectedMedia(null);
+  };
+
+  const navigateMedia = (direction: "prev" | "next") => {
+    if (!result?.media?.data) return;
+    const newIndex = direction === "next"
+      ? Math.min(currentMediaIndex + 1, result.media.data.length - 1)
+      : Math.max(currentMediaIndex - 1, 0);
+    setCurrentMediaIndex(newIndex);
+    setSelectedMedia(result.media.data[newIndex]);
+  };
+
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <>
+      <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
         <AnimatedButton
           variant="outline"
@@ -71,7 +96,7 @@ export function GlobalSearch() {
           <Search className="size-5" />
         </AnimatedButton>
       </DrawerTrigger>
-      <DrawerContent className="max-h-[90vh]">
+        <DrawerContent className="h-[100vh] max-h-[100vh] rounded-none">
         <div className="mx-auto w-full max-w-4xl overflow-hidden flex flex-col h-full">
           <DrawerHeader className="shrink-0 border-b pb-4">
             <DrawerTitle className="flex items-center gap-2">
@@ -105,13 +130,19 @@ export function GlobalSearch() {
                <div className="flex flex-col items-center justify-center h-64 gap-4 text-center p-8 bg-rose-500/5 rounded-3xl border border-rose-500/20 animate-in fade-in zoom-in-95">
                  <AlertCircle className="size-12 text-rose-500" />
                  <div className="space-y-1">
-                   <p className="font-bold text-rose-500">Discovery Failed</p>
+                      <p className="font-bold text-rose-500">Account Not Found</p>
                    <p className="text-sm text-muted-foreground max-w-xs mx-auto">{error}</p>
+                      <p className="text-xs text-muted-foreground mt-2">Try searching with the exact username (case-insensitive)</p>
                  </div>
-                 <Button variant="outline" size="sm" className="rounded-xl border-rose-500/20 text-rose-500" onClick={() => window.location.href='/dashboard/settings'}>
-                   Go to Settings
-                 </Button>
-               </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setQuery("")}>
+                        Try Another Search
+                      </Button>
+                      <Button variant="outline" size="sm" className="rounded-xl border-rose-500/20 text-rose-500" onClick={() => window.location.href = '/dashboard/settings'}>
+                        Go to Settings
+                      </Button>
+                    </div>
+                  </div>
             ) : result ? (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {/* Profile Header */}
@@ -151,10 +182,14 @@ export function GlobalSearch() {
                   <h4 className="text-sm font-bold uppercase tracking-widest text-muted-foreground px-1">Recent Content</h4>
                   {result.media && result.media.data && result.media.data.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                      {result.media.data.map((post: IGMedia) => {
+                            {result.media.data.map((post: IGMedia, index: number) => {
                         const mediaSrc = post.media_url || post.thumbnail_url;
                         return (
-                          <div key={post.id} className="group relative aspect-square rounded-2xl overflow-hidden glass-card border border-border hover:shadow-2xl transition-all duration-300">
+                          <div
+                            key={post.id}
+                            className="group relative aspect-square rounded-2xl overflow-hidden glass-card border border-border hover:shadow-2xl transition-all duration-300 cursor-pointer"
+                            onClick={() => openMediaViewer(post, index)}
+                          >
                             {post.media_type === "CAROUSEL_ALBUM" && post.children ? (
                               <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar h-full">
                                 {post.children.data.map((child) => (
@@ -173,7 +208,7 @@ export function GlobalSearch() {
                                 <span className="flex items-center gap-1"><Heart className="size-3 fill-current text-rose-500" /> {post.like_count || 0}</span>
                                 <span className="flex items-center gap-1"><MessageCircle className="size-3 fill-current text-primary" /> {post.comments_count || 0}</span>
                               </div>
-                              <div className="flex gap-1">
+                              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                                 {mediaSrc && (
                                   <Button size="icon" variant="secondary" className="size-8 rounded-lg bg-background/80 backdrop-blur" onClick={() => downloadMedia(mediaSrc)}>
                                     <Download className="size-4" />
@@ -219,5 +254,103 @@ export function GlobalSearch() {
         </div>
       </DrawerContent>
     </Drawer>
+
+      {/* Media Viewer Modal */}
+      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 overflow-hidden bg-background/95 backdrop-blur-xl">
+          <DialogTitle className="sr-only">Media Viewer</DialogTitle>
+          {selectedMedia && (
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-border/50">
+                <div className="flex items-center gap-3">
+                  {result?.profile_picture_url ? (
+                    <Image src={result.profile_picture_url} alt="" width={32} height={32} className="rounded-full" unoptimized />
+                  ) : null}
+                  <div>
+                    <p className="font-semibold text-sm">@{result?.username}</p>
+                    <p className="text-xs text-muted-foreground">{selectedMedia?.media_type === "VIDEO" ? "Video" : selectedMedia?.media_type === "CAROUSEL_ALBUM" ? "Carousel" : "Photo"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" className="gap-2" onClick={() => selectedMedia?.media_url && downloadMedia(selectedMedia.media_url)}>
+                    <Download className="size-4" />
+                    Download
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={closeMediaViewer}>
+                    <X className="size-5" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Media */}
+              <div className="flex-1 relative flex items-center justify-center bg-black/50">
+                {result?.media?.data && result.media.data.length > 1 ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute left-4 z-10 bg-background/20 hover:bg-background/40 text-white"
+                      onClick={() => navigateMedia("prev")}
+                      disabled={currentMediaIndex === 0}
+                    >
+                      <ChevronLeft className="size-6" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-4 z-10 bg-background/20 hover:bg-background/40 text-white"
+                      onClick={() => navigateMedia("next")}
+                      disabled={currentMediaIndex === (result.media?.data?.length ?? 0) - 1}
+                    >
+                      <ChevronRight className="size-6" />
+                    </Button>
+                  </>
+                ) : null}
+                {selectedMedia?.media_type === "VIDEO" ? (
+                  selectedMedia?.media_url ? (
+                    <video
+                      src={selectedMedia.media_url}
+                      controls
+                      className="max-w-full max-h-full"
+                      poster={selectedMedia.thumbnail_url || undefined}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-4">
+                      <Play className="size-16 text-white/50" />
+                      <p className="text-white/70">Video preview not available</p>
+                    </div>
+                  )
+                ) : (
+                  <Image
+                    src={selectedMedia?.media_url || selectedMedia?.thumbnail_url || ""}
+                    alt=""
+                    fill
+                    className="object-contain"
+                    unoptimized
+                  />
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-border/50">
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1 text-sm"><Heart className="size-4 fill-rose-500 text-rose-500" /> {selectedMedia?.like_count || 0}</span>
+                  <span className="flex items-center gap-1 text-sm"><MessageCircle className="size-4" /> {selectedMedia?.comments_count || 0}</span>
+                  {result?.media?.data ? (
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {currentMediaIndex + 1} / {result.media.data.length}
+                    </span>
+                  ) : null}
+                </div>
+                {selectedMedia?.caption ? (
+                  <p className="text-sm mt-3 line-clamp-3">{selectedMedia.caption}</p>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

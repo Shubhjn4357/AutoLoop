@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { User, Tag, Search, Users } from "lucide-react";
+import { User, Tag, Search, Users, UserPlus, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { contacts } from "@/lib/db/schema";
+import { ContactImportModal } from "@/components/contacts/contact-import-modal";
+import type { IGUserProfile } from "@/lib/instagram/graph";
+import Link from "next/link";
 
 type Contact = typeof contacts.$inferSelect & { tags: string[] };
 
@@ -21,6 +24,7 @@ export function ContactsClient({ contacts }: Props) {
   const [addingTagContactId, setAddingTagContactId] = useState<string | null>(null);
   const [newTag, setNewTag] = useState("");
   const [localContacts, setLocalContacts] = useState(contacts);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const allTags = Array.from(
     new Set(localContacts.flatMap((c) => c.tags))
@@ -81,18 +85,50 @@ export function ContactsClient({ contacts }: Props) {
     }
   }
 
+  const handleImportUsers = async (users: IGUserProfile[]) => {
+    try {
+      const res = await fetch("/api/contacts/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ users }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Import failed");
+      }
+
+      const { imported } = await res.json();
+
+      setLocalContacts((prev) => [...imported, ...prev]);
+    } catch (err) {
+      console.error("Failed to import contacts:", err);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Search + Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Search contacts..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 rounded-xl"
-          />
+      <ContactImportModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImport={handleImportUsers}
+      />
+
+      {/* Search + Actions */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Search contacts..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 rounded-xl"
+            />
+          </div>
+          <Button onClick={() => setImportModalOpen(true)} className="gap-2">
+            <UserPlus className="size-4" />
+            Import
+          </Button>
         </div>
         {allTags.length > 0 && (
           <div className="flex gap-2 flex-wrap">
