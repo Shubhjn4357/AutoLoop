@@ -8,7 +8,10 @@ import { MessageChart } from "@/components/message-chart";
 import { NotificationLog } from "@/components/dashboard/notification-log";
 import { getDashboardData } from "@/lib/dashboard/data";
 
+import { headers } from "next/headers";
+
 export default async function DashboardPage() {
+  await headers();
   const session = await auth();
   const userId = session?.user?.id;
 

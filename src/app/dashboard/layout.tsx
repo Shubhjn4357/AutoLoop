@@ -4,11 +4,14 @@ import { DashboardProvider } from "@/components/dashboard/dashboard-context";
 import { getDashboardData } from "@/lib/dashboard/data";
 import LayoutWrapper from "./layout-wrapper";
 
+import { headers } from "next/headers";
+
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await headers();
   const session = await auth();
 
   if (!session?.user?.id) {

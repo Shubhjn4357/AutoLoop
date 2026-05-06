@@ -8,7 +8,13 @@ import { Button } from "@/components/ui/button";
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-background selection:bg-primary selection:text-primary-foreground">
+    <main className="min-h-screen bg-background selection:bg-primary selection:text-primary-foreground relative">
+      {/* Global Background Glow */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] size-[600px] bg-primary/5 blur-[180px] rounded-full animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] size-[600px] bg-fuchsia-500/5 blur-[180px] rounded-full animate-pulse delay-1000" />
+      </div>
+
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-[100] p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4 glass-card rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl">

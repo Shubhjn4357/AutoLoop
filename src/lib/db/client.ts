@@ -14,6 +14,10 @@ function createDbClient() {
     console.error("[DB Error] TURSO_DATABASE_URL is missing in production environment!");
   }
 
+  // Log masked URL for debugging
+  const maskedUrl = url ? (url.includes("libsql://") ? url.split(".")[0] + "..." : "Local/File") : "MISSING";
+  console.log(`[DB] Initializing with URL: ${maskedUrl} | Env: ${process.env.NODE_ENV}`);
+
   const client = createClient({
     url: url || "http://localhost:8080",
     authToken: authToken || "dummy-token",

@@ -34,11 +34,23 @@ export function TestimonialsCarousel() {
 
   return (
     <section className="py-32 bg-background relative overflow-hidden">
-      <div className="container px-4">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(#6366f1_1px,transparent_1px)] [background-size:40px_40px]" />
+      </div>
+
+      <div className="container relative z-10 px-4">
         <div className="max-w-4xl mx-auto text-center mb-20">
-          <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-6">
-            Loved by <span className="text-primary italic">Modern</span> Businesses.
-          </h2>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="text-5xl md:text-7xl font-black tracking-tight mb-6">
+              Loved by <span className="text-primary italic underline decoration-primary/20">Modern</span> <br /> 
+              Brands Worldwide.
+            </h2>
+          </motion.div>
         </div>
 
         <div className="relative h-[400px] max-w-2xl mx-auto flex items-center justify-center">
