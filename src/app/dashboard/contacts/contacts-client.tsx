@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { User, Tag, Search, Users, UserPlus, MessageSquare } from "lucide-react";
+import { Search, Users, UserPlus, User, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import type { contacts } from "@/lib/db/schema";
 import { ContactImportModal } from "@/components/contacts/contact-import-modal";
 import type { IGUserProfile } from "@/lib/instagram/graph";
-import Link from "next/link";
 
 type Contact = typeof contacts.$inferSelect & { tags: string[] };
 

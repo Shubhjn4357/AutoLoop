@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Upload, Search, X, UserPlus, AtSign, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, Search, UserPlus, AtSign, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,7 +64,7 @@ export function ContactImportModal({ open, onClose, onImport }: ContactImportMod
       if (data.errors?.length > 0) {
         toast.warning(`${data.errors.length} users not found`);
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to search users");
     } finally {
       setLoading(false);
@@ -204,6 +204,7 @@ export function ContactImportModal({ open, onClose, onImport }: ContactImportMod
                         <>
                           <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                             {result.data?.profile_picture_url ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
                               <img
                                 src={result.data.profile_picture_url}
                                 alt=""

@@ -22,9 +22,11 @@ import { AutomationToggle } from "./automation-toggle";
 import { deleteAutomation } from "@/lib/actions/automations";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { conditionOperators } from "@/lib/automation/rules";
 import type { IGMedia } from "@/lib/instagram/graph";
 import type { automations as AutoType } from "@/lib/db/schema";
+import { AutomationsSkeleton } from "@/components/dashboard/skeletons";
 
 type Automation = typeof AutoType.$inferSelect;
 
@@ -137,8 +139,9 @@ export function AutomationsWorkspace({
   createAutomationAction,
 }: Props) {
   const [media, setMedia] = useState<IGMedia[]>([]);
+  const [stories, setStories] = useState<IGMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(true);
-  const [mediaFilter, setMediaFilter] = useState<"ALL" | "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REELS">("ALL");
+  const [mediaFilter, setMediaFilter] = useState<"ALL" | "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | "REELS" | "STORY">("ALL");
   
   const [activeTab, setActiveTab] = useState<"builder" | "manage">("builder");
   const [step, setStep] = useState<Step>("select-target");
@@ -146,36 +149,57 @@ export function AutomationsWorkspace({
   const [selectedTrigger, setSelectedTrigger] = useState("");
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedOperator, setSelectedOperator] = useState("contains");
   
   const [isPending, startTransition] = useTransition();
 
   // Auto-fetch real Instagram media on mount
   useEffect(() => {
-    fetch("/api/instagram/media")
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d.data)) setMedia(d.data); })
+    Promise.all([
+      fetch("/api/instagram/media").then((r) => r.json()),
+      fetch("/api/instagram/stories").then((r) => r.json()),
+    ])
+      .then(([mRes, sRes]) => {
+        if (Array.isArray(mRes.data)) setMedia(mRes.data);
+        if (Array.isArray(sRes.data)) setStories(sRes.data);
+      })
       .catch(() => {})
       .finally(() => setLoadingMedia(false));
   }, []);
 
-  const selectedPost = media.find((m) => m.id === selectedPostId) ?? null;
-  const filteredMedia = mediaFilter === "ALL" ? media : media.filter((m) => m.media_type === mediaFilter);
+  if (loadingMedia) return <AutomationsSkeleton />;
+
+  const allItems = [...media, ...stories];
+  const selectedPost = allItems.find((m) => m.id === selectedPostId) ?? null;
+  const filteredMedia = mediaFilter === "ALL" 
+    ? allItems 
+    : mediaFilter === "STORY" 
+      ? stories 
+      : media.filter((m) => m.media_type === mediaFilter);
   
   // Automations for this specific target
   const targetAutomations = existingAutomations.filter((a) => {
     try {
       const flow = JSON.parse(a.flowJson ?? "{}");
-      if (selectedPostId === null) return !flow.targetPostId;
-      return flow.targetPostId === selectedPostId;
+      const targetPostId = flow.targetPostId;
+      if (selectedPostId === null) return !targetPostId;
+      return targetPostId === selectedPostId;
     } catch { return false; }
   });
 
   function handleSelectPost(id: string | null) {
     setSelectedPostId(id);
-    setStep("select-trigger");
+    // If there are automations for this post, we might want to stay in select-target 
+    // to see them, but the user said "select from it or create it".
+    // Let's stay in select-target but the Right panel will show the list if we have any.
+    // Otherwise, it prompts to create.
+    setStep("select-target"); 
     setSelectedTrigger("");
     setFlowSteps([]);
     setEditingId(null);
+    setSelectedOperator("contains");
   }
 
   function handleBack() {
@@ -195,7 +219,11 @@ export function AutomationsWorkspace({
     const data = new FormData(e.currentTarget);
     data.set("targetPostId", selectedPostId ?? "");
     data.set("triggerType", selectedTrigger);
-    data.set("flowJson", JSON.stringify(flowSteps));
+    const flowJson = JSON.stringify({
+      targetPostId: selectedPostId || null,
+      steps: flowSteps
+    });
+    data.set("flowJson", flowJson);
     
     // Ensure required fields for non-visible triggers have defaults
     if (!data.get("responseTemplate")) data.set("responseTemplate", "Reply sent!");
@@ -238,15 +266,15 @@ export function AutomationsWorkspace({
             <h2 className="font-bold text-sm text-foreground uppercase tracking-wider">Select Target</h2>
             
             {/* Filter tabs */}
-            <div className="flex gap-1 bg-muted/30 rounded-xl p-1 text-xs font-medium">
-              {(["ALL", "IMAGE", "VIDEO", "REELS"] as const).map((f) => (
+            <div className="flex gap-1 bg-muted/30 rounded-xl p-1 text-xs font-medium overflow-x-auto">
+              {(["ALL", "IMAGE", "VIDEO", "REELS", "STORY"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
                   onClick={() => setMediaFilter(f as typeof mediaFilter)}
-                  className={cn("flex-1 py-1.5 rounded-lg transition-all", mediaFilter === f ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
+                  className={cn("flex-1 py-1.5 px-3 rounded-lg transition-all whitespace-nowrap", mediaFilter === f ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}
                 >
-                  {f === "ALL" ? "All" : f === "IMAGE" ? "Posts" : f === "VIDEO" ? "Video" : "Reels"}
+                  {f === "ALL" ? "All" : f === "IMAGE" ? "Posts" : f === "VIDEO" ? "Video" : f === "REELS" ? "Reels" : "Stories"}
                 </button>
               ))}
             </div>
@@ -340,8 +368,11 @@ export function AutomationsWorkspace({
                             setSelectedTrigger(auto.triggerType);
                             setEditingId(auto.id);
                             try {
-                              const parsed = JSON.parse(auto.flowJson ?? "[]");
-                              setFlowSteps(Array.isArray(parsed) ? parsed : []);
+                              const autoToEdit = existingAutomations.find(a => a.id === auto.id);
+                              setSelectedOperator(autoToEdit?.conditionOperator ?? "contains");
+                              const parsed = JSON.parse(auto.flowJson ?? "{}");
+                              const steps = Array.isArray(parsed) ? parsed : (parsed.steps || []);
+                              setFlowSteps(steps);
                             } catch { setFlowSteps([]); }
                           }}
                           className="text-muted-foreground hover:text-primary transition-colors p-1"
@@ -351,15 +382,9 @@ export function AutomationsWorkspace({
                         <AutomationToggle id={auto.id} initialStatus={auto.isActive ?? false} />
                         <button 
                           type="button"
-                          onClick={async () => {
-                            if (confirm("Delete this automation?")) {
-                              try {
-                                await deleteAutomation(auto.id);
-                                toast.success("Deleted");
-                              } catch {
-                                toast.error("Failed to delete");
-                              }
-                            }
+                          onClick={() => {
+                            setDeleteId(auto.id);
+                            setIsDeleteDialogOpen(true);
                           }}
                           className="text-muted-foreground hover:text-destructive transition-colors"
                         >
@@ -384,15 +409,66 @@ export function AutomationsWorkspace({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="flex flex-col items-center justify-center p-16 text-center gap-4"
+                className="p-8 space-y-6"
               >
-                <div className="size-16 bg-primary/10 rounded-2xl flex items-center justify-center">
-                  <Filter className="size-8 text-primary" />
+                <div className="flex flex-col items-center justify-center text-center gap-4 mb-4">
+                  <div className="size-16 bg-primary/10 rounded-2xl flex items-center justify-center">
+                    {selectedPostId ? (
+                      <div className="relative size-full rounded-2xl overflow-hidden">
+                        <Image src={selectedPost?.media_url ?? selectedPost?.thumbnail_url ?? ""} alt="" fill className="object-cover opacity-50" unoptimized />
+                        <Bot className="absolute inset-0 m-auto size-8 text-primary drop-shadow-lg" />
+                      </div>
+                    ) : (
+                      <Filter className="size-8 text-primary" />
+                    )}
+                  </div>
+                  <h2 className="text-xl font-bold">{selectedPostId ? "Automations for this Post" : "Select a Target"}</h2>
+                  <p className="text-muted-foreground max-w-sm">
+                    {selectedPostId 
+                      ? "Manage existing rules or create a new automation for this content." 
+                      : "Choose a specific post or story from the left panel, or select Account-wide to trigger on all DMs."}
+                  </p>
                 </div>
-                <h2 className="text-xl font-bold">Select a Target</h2>
-                <p className="text-muted-foreground max-w-sm">
-                  Choose a specific post or story from the left panel, or select Account-wide to trigger on all DMs.
-                </p>
+
+                {selectedPostId && (
+                  <div className="space-y-4">
+                    {targetAutomations.length > 0 && (
+                      <div className="grid gap-3">
+                        {targetAutomations.map((auto) => (
+                          <div key={auto.id} className="flex items-center gap-4 p-4 rounded-2xl border border-border/50 bg-card/40 hover:bg-card/60 transition-all cursor-pointer group"
+                            onClick={() => {
+                              setEditingId(auto.id);
+                              setSelectedTrigger(auto.triggerType);
+                              setSelectedOperator(auto.conditionOperator ?? "contains");
+                              setStep("configure");
+                              try {
+                                const parsed = JSON.parse(auto.flowJson ?? "{}");
+                                setFlowSteps(Array.isArray(parsed) ? parsed : (parsed.steps || []));
+                              } catch { setFlowSteps([]); }
+                            }}
+                          >
+                            <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                              <Bot className="size-5" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-bold text-sm">{auto.name}</p>
+                              <p className="text-xs text-muted-foreground">{auto.triggerType} · Match: {auto.condition || "Any"}</p>
+                            </div>
+                            <ChevronRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <Button 
+                      className="w-full h-14 rounded-2xl text-base font-bold shadow-xl shadow-primary/20 hover:shadow-primary/40 transition-all gap-2"
+                      onClick={() => setStep("select-trigger")}
+                    >
+                      <Plus className="size-5" />
+                      Create New Automation
+                    </Button>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -488,7 +564,8 @@ export function AutomationsWorkspace({
                           id="conditionOperator"
                           name="conditionOperator"
                           className="w-full h-10 rounded-xl border border-input bg-background/60 px-3 text-sm backdrop-blur"
-                          defaultValue={existingAutomations.find(a => a.id === editingId)?.conditionOperator ?? "contains"}
+                          value={selectedOperator}
+                          onChange={(e) => setSelectedOperator(e.target.value)}
                         >
                           {conditionOperators.map((op) => (
                             <option key={op} value={op}>{op.replace("_", " ")}</option>
@@ -497,15 +574,22 @@ export function AutomationsWorkspace({
                       </div>
 
                       {/* Keyword */}
-                      <div className="space-y-2">
-                        <Label htmlFor="condition">Keyword / Trigger Word</Label>
-                        <Input 
-                          id="condition" 
-                          name="condition" 
-                          placeholder="e.g. price, info, link" 
-                          defaultValue={existingAutomations.find(a => a.id === editingId)?.condition ?? ""}
-                        />
-                      </div>
+                      {selectedOperator !== "any" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="condition">Keyword / Trigger Word</Label>
+                          <Input 
+                            id="condition" 
+                            name="condition" 
+                            placeholder="e.g. price, info, link" 
+                            defaultValue={existingAutomations.find(a => a.id === editingId)?.condition ?? ""}
+                          />
+                        </div>
+                      )}
+                      {selectedOperator === "any" && (
+                        <div className="flex items-end h-10">
+                          <p className="text-xs text-muted-foreground mb-2 italic">Triggers on ANY {selectedTrigger} from users.</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -706,15 +790,9 @@ export function AutomationsWorkspace({
                       variant="destructive"
                       size="icon-sm"
                       className="shrink-0 rounded-lg"
-                      onClick={async () => {
-                        if (confirm("Delete this automation?")) {
-                          try {
-                            await deleteAutomation(auto.id);
-                            toast.success("Automation deleted");
-                          } catch {
-                            toast.error("Failed to delete");
-                          }
-                        }
+                      onClick={() => {
+                        setDeleteId(auto.id);
+                        setIsDeleteDialogOpen(true);
                       }}
                     >
                       <Trash2 className="size-4" />
@@ -731,6 +809,27 @@ export function AutomationsWorkspace({
             </div>
           </div>
         )}
+
+        <AlertDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          title="Delete Automation"
+          description="Are you sure you want to delete this automation rule? This action cannot be undone."
+          actionText="Delete"
+          variant="destructive"
+          onAction={async () => {
+            if (deleteId) {
+              try {
+                await deleteAutomation(deleteId);
+                toast.success("Automation deleted");
+              } catch {
+                toast.error("Failed to delete");
+              } finally {
+                setDeleteId(null);
+              }
+            }
+          }}
+        />
       </div>
     </DndProvider>
   );

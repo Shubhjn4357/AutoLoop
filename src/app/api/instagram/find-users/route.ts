@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
 import { instagramAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { searchIGUser, fetchIGProfile } from "@/lib/instagram/graph";
+import { searchIGUser } from "@/lib/instagram/graph";
 
 export async function POST(req: Request) {
   const session = await auth();

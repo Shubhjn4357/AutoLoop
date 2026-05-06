@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db/client";
 import { contacts, contactTags } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import type { IGUserProfile } from "@/lib/instagram/graph";
 import { auth } from "@/lib/auth/config";
 
 export async function POST(req: Request) {

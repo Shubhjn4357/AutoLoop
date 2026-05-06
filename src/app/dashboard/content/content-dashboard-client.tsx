@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { IGMedia } from "@/lib/instagram/graph";
 import type { automations as AutoType } from "@/lib/db/schema";
+import { MediaGridSkeleton } from "@/components/dashboard/skeletons";
 
 type Automation = typeof AutoType.$inferSelect;
 
@@ -113,7 +114,9 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
         {/* GRID VIEW */}
         {view === "grid" && (
           <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            {filteredMedia.length === 0 ? (
+            {loadingMedia ? (
+              <MediaGridSkeleton />
+            ) : filteredMedia.length === 0 ? (
               <div className="glass-card rounded-3xl p-16 text-center text-muted-foreground">
                 <ImageIcon className="size-12 mx-auto mb-4 opacity-30" />
                 <p>No {mediaFilter.toLowerCase()} posts found on this account.</p>

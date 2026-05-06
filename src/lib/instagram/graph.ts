@@ -81,6 +81,21 @@ export async function fetchIGMedia(
   return data.data ?? [];
 }
 
+/** Fetch active stories for an IG Business account */
+export async function fetchIGStories(
+  igUserId: string,
+  accessToken: string
+): Promise<IGMedia[]> {
+  const data = await graphFetch<{ data: IGMedia[] }>(
+    `/${igUserId}/stories`,
+    accessToken,
+    {
+      fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,permalink",
+    }
+  );
+  return data.data ?? [];
+}
+
 /** Fetch account-level insights */
 export async function fetchIGInsights(
   igUserId: string,
@@ -90,18 +105,64 @@ export async function fetchIGInsights(
   since?: string,
   until?: string
 ): Promise<IGInsightMetric[]> {
-  const params: Record<string, string> = {
-    metric: metrics.join(","),
-    period,
-  };
-  if (since) params.since = since;
-  if (until) params.until = until;
-  const data = await graphFetch<{ data: IGInsightMetric[] }>(
-    `/${igUserId}/insights`,
-    accessToken,
-    params
-  );
-  return data.data ?? [];
+  // Metrics that require metric_type=total_value (lifetime metrics)
+  const lifetimeMetrics = ["profile_views", "accounts_engaged", "total_interactions", "followers_count", "follows_count"];
+  // Metrics that work with period (time-series metrics)
+  const timeSeriesMetrics = ["reach", "impressions", "profile_visits", "website_clicks"];
+
+  const lifetimeMetricsToFetch = metrics.filter((m) => lifetimeMetrics.includes(m));
+  const timeSeriesMetricsToFetch = metrics.filter((m) => timeSeriesMetrics.includes(m));
+
+  const results: IGInsightMetric[] = [];
+
+  // Fetch lifetime metrics with metric_type=total_value
+  if (lifetimeMetricsToFetch.length > 0) {
+    const lifetimeParams: Record<string, string> = {
+      metric: lifetimeMetricsToFetch.join(","),
+      period: "lifetime",
+      metric_type: "total_value",
+    };
+    if (since) lifetimeParams.since = since;
+    if (until) lifetimeParams.until = until;
+
+    try {
+      const lifetimeData = await graphFetch<{ data: IGInsightMetric[] }>(
+        `/${igUserId}/insights`,
+        accessToken,
+        lifetimeParams
+      );
+      if (lifetimeData.data) {
+        results.push(...lifetimeData.data);
+      }
+    } catch (err) {
+      console.error("[fetchIGInsights] Lifetime metrics failed:", err);
+    }
+  }
+
+  // Fetch time-series metrics with period
+  if (timeSeriesMetricsToFetch.length > 0) {
+    const timeParams: Record<string, string> = {
+      metric: timeSeriesMetricsToFetch.join(","),
+      period,
+    };
+    if (since) timeParams.since = since;
+    if (until) timeParams.until = until;
+
+    try {
+      const timeData = await graphFetch<{ data: IGInsightMetric[] }>(
+        `/${igUserId}/insights`,
+        accessToken,
+        timeParams
+      );
+      if (timeData.data) {
+        results.push(...timeData.data);
+      }
+    } catch (err) {
+      console.error("[fetchIGInsights] Time-series metrics failed:", err);
+    }
+  }
+
+  return results;
 }
 
 /** Fetch IG Business user profile */
@@ -148,6 +209,97 @@ export async function publishIGPost(
     throw new Error(publishData.error?.message ?? "Failed to publish post");
   }
   return { id: publishData.id };
+}
+
+/** Hashtag search result */
+export interface HashtagSearchResult {
+  id: string;
+  name: string;
+}
+
+/** Media with username info for hashtag results */
+export interface HashtagMedia extends IGMedia {
+  username?: string;
+  owner?: { id: string; username: string };
+}
+
+/** Search hashtags by name (fuzzy-ish search via hashtag) */
+export async function searchHashtags(
+  igUserId: string,
+  accessToken: string,
+  hashtagName: string
+): Promise<HashtagSearchResult[]> {
+  const data = await graphFetch<{ data: HashtagSearchResult[] }>(
+    "/ig_hashtag_search",
+    accessToken,
+    {
+      user_id: igUserId,
+      q: hashtagName,
+    }
+  );
+  return data.data ?? [];
+}
+
+/** Get recent media for a hashtag */
+export async function getHashtagRecentMedia(
+  hashtagId: string,
+  accessToken: string,
+  limit = 25
+): Promise<HashtagMedia[]> {
+  const data = await graphFetch<{ data: HashtagMedia[] }>(
+    `/${hashtagId}/recent_media`,
+    accessToken,
+    {
+      fields: "id,caption,media_url,thumbnail_url,media_type,permalink,timestamp,like_count,comments_count,owner{username}",
+      limit: String(limit),
+    }
+  );
+  return data.data ?? [];
+}
+
+/** Fuzzy-like search: Search hashtags and extract unique usernames from recent posts */
+export async function fuzzySearchIGUsers(
+  igUserId: string,
+  accessToken: string,
+  query: string
+): Promise<{ username: string; mediaCount: number; sampleMedia: HashtagMedia }[]> {
+  if (!query || query.length < 1) return [];
+
+  // Search for hashtags matching the query
+  const hashtags = await searchHashtags(igUserId, accessToken, query);
+
+  if (hashtags.length === 0) return [];
+
+  // Take the top matching hashtag
+  const topHashtag = hashtags[0];
+
+  // Get recent media for this hashtag
+  const media = await getHashtagRecentMedia(topHashtag.id, accessToken, 50);
+
+  // Extract unique usernames and count their media appearances
+  const usernameMap = new Map<string, { count: number; sample: HashtagMedia }>();
+
+  for (const item of media) {
+    const username = item.owner?.username || item.username;
+    if (!username) continue;
+
+    const existing = usernameMap.get(username);
+    if (existing) {
+      existing.count++;
+    } else {
+      usernameMap.set(username, { count: 1, sample: item });
+    }
+  }
+
+  // Convert to array and sort by media count
+  return Array.from(usernameMap.entries())
+    .map(([username, data]) => ({
+      username,
+      mediaCount: data.count,
+      sampleMedia: data.sample,
+    }))
+    .sort((a, b) => b.mediaCount - a.mediaCount)
+    .slice(0, 10);
 }
 
 /** Business Discovery: Search and fetch other business profiles/media */

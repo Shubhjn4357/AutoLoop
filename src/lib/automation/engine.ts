@@ -136,9 +136,10 @@ interface EngineParams {
   igUserId: string;
   senderId: string;
   text: string;
+  storyId?: string;
 }
 
-export async function processInstagramMessage({ igUserId, senderId, text }: EngineParams) {
+export async function processInstagramMessage({ igUserId, senderId, text, storyId }: EngineParams) {
   const messageId = crypto.randomUUID();
 
   await db.insert(dbMessages).values({
@@ -175,15 +176,26 @@ export async function processInstagramMessage({ igUserId, senderId, text }: Engi
     metadata: { igUserId, senderId, messageId },
   });
 
+  const triggerType = storyId ? "story_reply" : "dm";
   const rules = await db.query.automations.findMany({
     where: and(
       eq(automations.userId, igAccount.userId),
-      eq(automations.triggerType, "dm")
+      eq(automations.triggerType, triggerType)
     )
   });
 
   for (const rule of rules) {
     if (!rule.isActive) continue;
+
+    // Match targetPostId
+    try {
+      const flow = JSON.parse(rule.flowJson ?? "{}");
+      const ruleTargetPostId = flow.targetPostId;
+      // If rule specifies a target post/story, it must match the incoming one
+      if (ruleTargetPostId && ruleTargetPostId !== storyId) continue;
+    } catch {
+      // If flowJson is invalid, assume no target filter
+    }
 
     const didMatch = matchesAutomationCondition(
       rule.conditionOperator,
@@ -262,6 +274,16 @@ export async function processInstagramComment({
 
   for (const rule of rules) {
     if (!rule.isActive) continue;
+
+    // Match targetPostId
+    try {
+      const flow = JSON.parse(rule.flowJson ?? "{}");
+      const ruleTargetPostId = flow.targetPostId;
+      // If rule specifies a target post, it must match the incoming mediaId
+      if (ruleTargetPostId && ruleTargetPostId !== mediaId) continue;
+    } catch {
+      // If flowJson is invalid, assume no target filter
+    }
 
     const didMatch = matchesAutomationCondition(
       rule.conditionOperator,

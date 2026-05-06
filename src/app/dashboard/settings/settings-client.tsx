@@ -26,6 +26,7 @@ import { Switch } from "@/components/ui/switch";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 import { useTheme } from "next-themes";
 import { updateUserSettings } from "@/lib/actions/settings";
 import type { NotificationPrefs } from "@/lib/utils/settings";
@@ -60,6 +61,8 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
   const [connectedAccounts, setConnectedAccounts] = useState(accounts);
   const [prefs, setPrefs] = useState<NotificationPrefs>(notificationPrefs);
   const [savingPrefs, setSavingPrefs] = useState(false);
+  const [isDisconnectDialogOpen, setIsDisconnectDialogOpen] = useState(false);
+  const [disconnectId, setDisconnectId] = useState<string | null>(null);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -92,7 +95,13 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
   };
 
   const handleDisconnect = async (accountId: string) => {
-    if (!confirm("Disconnect this Instagram account? This will stop all automations for this account.")) return;
+    setDisconnectId(accountId);
+    setIsDisconnectDialogOpen(true);
+  };
+
+  const confirmDisconnect = async () => {
+    if (!disconnectId) return;
+    const accountId = disconnectId;
     setIsSaving(true);
     try {
       const res = await fetch("/api/instagram/disconnect", {
@@ -355,6 +364,16 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
           </motion.div>
         </AnimatePresence>
       </div>
+      
+      <AlertDialog
+        open={isDisconnectDialogOpen}
+        onOpenChange={setIsDisconnectDialogOpen}
+        title="Disconnect Instagram Account"
+        description="Are you sure you want to disconnect this account? All associated automations will stop immediately."
+        actionText="Disconnect"
+        variant="destructive"
+        onAction={confirmDisconnect}
+      />
     </div>
   );
 }

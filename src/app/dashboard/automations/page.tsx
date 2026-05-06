@@ -45,14 +45,10 @@ export default async function AutomationsPage() {
     const targetUrl = String(formData.get("targetUrl") ?? "").trim();
     const followUpTemplate = String(formData.get("followUpTemplate") ?? "").trim();
     const followUpDelayMinutes = Math.max(0, Number(formData.get("followUpDelayMinutes") ?? 0));
-    const targetPostId = String(formData.get("targetPostId") ?? "").trim();
 
     if (!name || !responseTemplate) redirect("/dashboard/automations?error=invalid_automation");
 
-    const flowJson = JSON.stringify({
-      targetPostId: targetPostId || null,
-      triggerType,
-    });
+    const flowJson = String(formData.get("flowJson") ?? "{}");
 
     if (id) {
       // Update existing

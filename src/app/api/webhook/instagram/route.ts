@@ -64,11 +64,13 @@ export async function POST(request: Request) {
             if (messaging.message?.is_echo) continue;
 
             if (messagingHasTextMessage(messaging)) {
+              const storyId = messaging.message.reply_to?.story?.id;
               backgroundTasks.push(
                 processInstagramMessage({
                   igUserId: entry.id,
                   senderId: messaging.sender.id,
                   text: messaging.message.text,
+                  storyId,
                 }).catch((e) => console.error("DM Process Error:", e))
               );
             }
@@ -114,6 +116,12 @@ interface InstagramMessagingEvent {
   message?: {
     text?: string;
     is_echo?: boolean;
+    reply_to?: {
+      story?: {
+        id: string;
+        url: string;
+      };
+    };
   };
 }
 
