@@ -13,29 +13,43 @@ interface DashboardContextValue {
     status: string;
     createdAt: Date;
   }[];
+  isSidebarCollapsed: boolean;
+  setIsSidebarCollapsed: (value: boolean) => void;
+  isSearchOpen: boolean;
+  setIsSearchOpen: (value: boolean) => void;
 }
 
 const DashboardContext = React.createContext<DashboardContextValue | null>(null);
 
 export function DashboardProvider({
   children,
-  value,
+  initialData,
 }: {
   children: React.ReactNode;
-  value: DashboardContextValue;
+  initialData: Omit<DashboardContextValue, "isSidebarCollapsed" | "setIsSidebarCollapsed" | "isSearchOpen" | "setIsSearchOpen">;
 }) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false);
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+
   return (
-    <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>
+    <DashboardContext.Provider 
+      value={{ 
+        ...initialData, 
+        isSidebarCollapsed, 
+        setIsSidebarCollapsed,
+        isSearchOpen,
+        setIsSearchOpen
+      }}
+    >
+      {children}
+    </DashboardContext.Provider>
   );
 }
 
 export function useDashboardContext() {
   const context = React.useContext(DashboardContext);
-
   if (!context) {
     throw new Error("useDashboardContext must be used inside DashboardProvider");
   }
-
   return context;
 }
-

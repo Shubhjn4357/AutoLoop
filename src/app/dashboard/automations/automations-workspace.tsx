@@ -4,10 +4,11 @@ import React, { useState, useEffect, useTransition } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  MessageSquare, MessageCircle, UserPlus, BookOpen, Globe,
-  ChevronRight, Check, Clock, BellRing, GripVertical,
-  Trash2, Plus, Loader2, ArrowLeft,
-  ToggleLeft, ToggleRight, Filter, Bot
+  MessageSquare, MessageCircle, UserPlus, BookOpen,
+  ChevronRight, GripVertical,
+  Trash2, Plus, Loader2,
+  Bot, Check, ToggleLeft, ToggleRight, Filter, ArrowLeft,
+  BellRing, Clock, Globe
 } from "lucide-react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -15,7 +16,13 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { AnimatedButton } from "@/components/ui/animated-button";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { AutomationToggle } from "./automation-toggle";
+import { deleteAutomation } from "@/lib/actions/automations";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { conditionOperators } from "@/lib/automation/rules";
 import type { IGMedia } from "@/lib/instagram/graph";
@@ -298,7 +305,7 @@ export function AutomationsWorkspace({
                         <p className="text-xs font-semibold truncate">{auto.name}</p>
                         <p className="text-[10px] text-muted-foreground">{auto.triggerType} · {auto.condition || "any"}</p>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center justify-center gap-1 shrink-0">
                         <button 
                           type="button" 
                           onClick={() => {
@@ -589,13 +596,7 @@ export function AutomationsWorkspace({
                     <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
                       <Bot className="size-5" />
                     </div>
-                    <form action={toggleAutomationAction}>
-                      <input type="hidden" name="id" value={auto.id} />
-                      <input type="hidden" name="isActive" value={auto.isActive ? "false" : "true"} />
-                      <button type="submit" className={cn("transition-all hover:scale-110", auto.isActive ? "text-emerald-500" : "text-muted-foreground")}>
-                        {auto.isActive ? <ToggleRight className="size-8" /> : <ToggleLeft className="size-8" />}
-                      </button>
-                    </form>
+                    <AutomationToggle id={auto.id} initialStatus={auto.isActive ?? false} />
                   </div>
                   
                   <div>
@@ -607,23 +608,36 @@ export function AutomationsWorkspace({
                   </div>
 
                   <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-                    <button 
+                    <Button 
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1 rounded-lg font-bold"
                       onClick={() => {
                         setEditingId(auto.id);
                         setSelectedTrigger(auto.triggerType);
                         setActiveTab("builder");
                         setStep("configure");
                       }}
-                      className="flex-1 h-9 rounded-lg bg-accent text-accent-foreground text-xs font-bold hover:bg-accent/80 transition-colors"
                     >
                       Edit Rule
-                    </button>
-                    <form action={deleteAutomationAction} className="shrink-0">
-                      <input type="hidden" name="id" value={auto.id} />
-                      <button type="submit" className="size-9 rounded-lg border border-border/50 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors">
-                        <Trash2 className="size-4" />
-                      </button>
-                    </form>
+                    </Button>
+                    <Button 
+                      variant="destructive"
+                      size="icon-sm"
+                      className="shrink-0 rounded-lg"
+                      onClick={async () => {
+                        if (confirm("Delete this automation?")) {
+                          try {
+                            await deleteAutomation(auto.id);
+                            toast.success("Automation deleted");
+                          } catch (err) {
+                            toast.error("Failed to delete");
+                          }
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   </div>
                 </div>
               ))}

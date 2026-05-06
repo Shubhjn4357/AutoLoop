@@ -9,7 +9,10 @@ interface Props {
 }
 
 function sumValues(metric: IGInsightMetric | undefined): number {
-  return metric?.values.reduce((acc, v) => acc + v.value, 0) ?? 0;
+  if (!metric) return 0;
+  // Some metrics have 'total_value' in the values array, others need summation
+  const total = metric.values.reduce((acc, v) => acc + v.value, 0);
+  return total;
 }
 
 export async function InsightsContent({ igUserId, accessToken }: Props) {
@@ -56,7 +59,7 @@ export async function InsightsContent({ igUserId, accessToken }: Props) {
       bg: "bg-fuchsia-500/10",
     },
     {
-      label: "Accounts Engaged",
+      label: "Total Interactions",
       value: sumValues(engaged).toLocaleString(),
       icon: TrendingUp,
       color: "text-emerald-500",

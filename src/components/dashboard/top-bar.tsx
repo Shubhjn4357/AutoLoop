@@ -4,17 +4,17 @@ import React, { useState, useRef, useEffect } from "react";
 import { Bell, Search, User, X, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "./sidebar";
 import { useDashboard } from "@/hooks/useDashboard";
 import { ThemeToggle } from "./theme-toggle";
-import { cn } from "@/lib/utils";
+import { useDashboardContext } from "./dashboard-context";
+import { GlobalSearch } from "./global-search";
 
 export function TopBar() {
   const { userName, hasIssues, recentLogs } = useDashboard();
-  const [query, setQuery] = useState("");
+  const { setIsSearchOpen } = useDashboardContext();
   const [showNotifications, setShowNotifications] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -28,12 +28,6 @@ export function TopBar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  function handleSearch(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && query.trim()) {
-      router.push(`/dashboard/search?q=${encodeURIComponent(query.trim())}`);
-    }
-  }
 
   return (
     <header className="h-16 border-b border-border bg-card/30 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-30">
@@ -54,15 +48,16 @@ export function TopBar() {
           </Sheet>
         </div>
 
-        <div className="relative w-full max-w-md hidden sm:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search Instagram profiles..." 
-            className="pl-10 bg-background/50 border-border/50 focus-visible:ring-primary/20"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleSearch}
-          />
+        {/* Global Search Trigger */}
+        <div className="flex items-center gap-2">
+           <Button 
+            variant="ghost" 
+            className="md:bg-muted/50 md:hover:bg-muted md:px-4 md:w-64 justify-start text-muted-foreground gap-2 rounded-xl"
+            onClick={() => setIsSearchOpen(true)}
+           >
+             <Search className="size-4" />
+             <span className="hidden md:inline text-xs">Search Instagram profiles...</span>
+           </Button>
         </div>
       </div>
 
@@ -134,6 +129,9 @@ export function TopBar() {
           </div>
         </div>
       </div>
+
+      {/* Embedded Discovery Drawer */}
+      <GlobalSearch />
     </header>
   );
 }

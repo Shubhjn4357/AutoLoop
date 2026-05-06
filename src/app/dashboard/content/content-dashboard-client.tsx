@@ -168,7 +168,19 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
             <div className="grid md:grid-cols-[1fr_340px] gap-6">
               {/* Post image */}
               <div className="relative aspect-square rounded-3xl overflow-hidden glass-card border border-border">
-                {selectedPost.media_type === "VIDEO" ? (
+                {selectedPost.media_type === "CAROUSEL_ALBUM" && selectedPost.children ? (
+                  <div className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar h-full">
+                    {selectedPost.children.data.map((child) => (
+                      <div key={child.id} className="snap-center shrink-0 w-full h-full relative">
+                        {child.media_type === "VIDEO" ? (
+                          <video src={child.media_url} controls className="size-full object-contain bg-black" />
+                        ) : (
+                          <Image src={child.media_url} alt="carousel" fill unoptimized className="object-cover" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : selectedPost.media_type === "VIDEO" ? (
                   <video 
                     src={selectedPost.media_url} 
                     controls 
@@ -184,6 +196,15 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
                       className="object-cover"
                     />
                   )
+                )}
+                
+                {/* Carousel Indicators */}
+                {selectedPost.media_type === "CAROUSEL_ALBUM" && (
+                   <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 p-2 rounded-full bg-background/40 backdrop-blur-md border border-border/50">
+                     {selectedPost.children?.data.map((_, i) => (
+                       <div key={i} className="size-1.5 rounded-full bg-foreground/40" />
+                     ))}
+                   </div>
                 )}
                 
                 {/* Download Overlay */}

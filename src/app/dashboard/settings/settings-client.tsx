@@ -13,7 +13,9 @@ import {
   Save,
   User,
   ShieldCheck,
-  Smartphone
+  Smartphone,
+  RefreshCw,
+  Copy
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +26,7 @@ import { AnimatedButton } from "@/components/ui/animated-button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
+import { updateUserSettings } from "@/lib/actions/settings";
 
 interface InstagramAccount {
   id: string;
@@ -33,6 +36,8 @@ interface InstagramAccount {
 
 interface Props {
   userName: string | null;
+  webhookToken: string | null;
+  settingsJson: string;
   accounts: InstagramAccount[];
 }
 
@@ -44,17 +49,41 @@ const CATEGORIES = [
   { id: "security", label: "Security", icon: ShieldCheck },
 ];
 
-export function SettingsClient({ userName, accounts }: Props) {
+export function SettingsClient({ userName, webhookToken, settingsJson, accounts }: Props) {
   const [activeTab, setActiveTab] = useState("general");
   const { theme, setTheme } = useTheme();
   const [isSaving, setIsSaving] = useState(false);
+  const [localName, setLocalName] = useState(userName || "");
+  const [currentToken, setCurrentToken] = useState(webhookToken);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      await updateUserSettings({ name: localName });
       toast.success("Settings updated successfully");
-    }, 1000);
+    } catch (err) {
+      toast.error("Failed to save settings");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGenerateToken = async () => {
+    setIsSaving(true);
+    try {
+      const res = await updateUserSettings({ generateWebhookToken: true });
+      if (res.webhookToken) setCurrentToken(res.webhookToken);
+      toast.success("New API token generated");
+    } catch (err) {
+      toast.error("Failed to generate token");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard");
   };
 
   return (
@@ -101,12 +130,19 @@ export function SettingsClient({ userName, accounts }: Props) {
                 <CardContent className="space-y-6">
                   <div className="space-y-2">
                     <Label>Display Name</Label>
-                    <Input defaultValue={userName || ""} placeholder="Your name" className="max-w-md bg-background/50" />
+                    <Input 
+                      value={localName} 
+                      onChange={(e) => setLocalName(e.target.value)} 
+                      placeholder="Your name" 
+                      className="max-w-md bg-background/50" 
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email Address</Label>
-                    <Input defaultValue="shubhamjain.com.in@gmail.com" disabled className="max-w-md bg-muted/20" />
-                    <p className="text-[10px] text-muted-foreground">Contact support to change your account email.</p>
+                    <Label>Account Security</Label>
+                    <div className="flex items-center gap-3 p-4 rounded-xl border border-border/50 bg-background/40">
+                       <Shield className="size-5 text-primary" />
+                       <p className="text-sm">Two-factor authentication is managed by your login provider.</p>
+                    </div>
                   </div>
                   <div className="pt-4 border-t border-border">
                     <AnimatedButton onClick={handleSave} disabled={isSaving}>
@@ -153,7 +189,11 @@ export function SettingsClient({ userName, accounts }: Props) {
                     accounts.map((acc) => (
                       <div key={acc.id} className="flex items-center gap-4 p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
                         <div className="size-12 rounded-full overflow-hidden border-2 border-emerald-500/20">
-                           <img src={acc.instagramProfilePicture || ""} alt="" className="size-full object-cover" />
+                           {acc.instagramProfilePicture ? (
+                             <img src={acc.instagramProfilePicture} alt="" className="size-full object-cover" />
+                           ) : (
+                             <div className="size-full bg-muted flex items-center justify-center"><User className="size-6 text-muted-foreground" /></div>
+                           )}
                         </div>
                         <div className="flex-1">
                           <p className="font-bold">@{acc.instagramUsername}</p>
@@ -169,7 +209,9 @@ export function SettingsClient({ userName, accounts }: Props) {
                     <div className="p-8 text-center glass-card rounded-2xl border-dashed border-border/50">
                       <CircleAlert className="size-10 mx-auto text-muted-foreground opacity-20 mb-3" />
                       <p className="text-sm text-muted-foreground">No accounts linked yet.</p>
-                      <Button className="mt-4 rounded-xl">Connect Meta Account</Button>
+                      <form action="/api/instagram/connect" method="POST">
+                        <Button type="submit" className="mt-4 rounded-xl">Connect Meta Account</Button>
+                      </form>
                     </div>
                   )}
                 </CardContent>
@@ -213,13 +255,29 @@ export function SettingsClient({ userName, accounts }: Props) {
                   <CardDescription>Manage your API keys and session preferences.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="p-4 rounded-xl border border-border/50 bg-background/40">
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Your API Token</Label>
-                    <div className="flex gap-2 mt-2">
-                      <Input value="••••••••••••••••••••••••" readOnly className="font-mono bg-muted/20" />
-                      <Button variant="outline">Copy</Button>
+                  <div className="p-6 rounded-2xl border border-border/50 bg-background/40 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Your API Token</Label>
+                      <Button variant="ghost" size="sm" className="h-7 text-[10px] uppercase font-bold" onClick={handleGenerateToken} disabled={isSaving}>
+                        <RefreshCw className={cn("size-3 mr-1", isSaving && "animate-spin")} />
+                        Regenerate
+                      </Button>
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-2">Used for triggering automations via external webhooks.</p>
+                    <div className="flex gap-2">
+                      <Input 
+                        value={currentToken || "Click regenerate to create a token"} 
+                        readOnly 
+                        className="font-mono text-xs bg-muted/20 border-border/50" 
+                      />
+                      <Button variant="outline" size="icon" className="shrink-0" onClick={() => currentToken && copyToClipboard(currentToken)}>
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                    <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                       <p className="text-[10px] text-amber-500 leading-relaxed font-medium">
+                         <span className="font-bold">Warning:</span> Keep this token secret. It allows external applications to trigger your automations via webhook.
+                       </p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

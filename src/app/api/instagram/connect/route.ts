@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     "instagram_manage_messages",
     "instagram_manage_comments",
     "instagram_content_publish",
+    "instagram_manage_insights",
     "pages_show_list",
     "pages_manage_metadata",
     "pages_read_engagement"

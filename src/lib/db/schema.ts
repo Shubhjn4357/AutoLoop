@@ -7,6 +7,8 @@ export const users = sqliteTable("user", {
   email: text("email").unique(),
   emailVerified: integer("emailVerified", { mode: "timestamp_ms" }),
   image: text("image"),
+  webhookToken: text("webhook_token"),
+  settingsJson: text("settings_json"),
 });
 
 export const accounts = sqliteTable(

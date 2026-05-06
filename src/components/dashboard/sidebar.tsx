@@ -15,11 +15,12 @@ import {
   ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { signOut } from "next-auth/react";
 import Image from "next/image";
 import Icon from "@/app/icon1.png";
+import { useDashboardContext } from "./dashboard-context";
+
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Automations", href: "/dashboard/automations", icon: Bot },
@@ -32,7 +33,7 @@ const navItems = [
 
 export function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const { isSidebarCollapsed: collapsed, setIsSidebarCollapsed: setCollapsed } = useDashboardContext();
 
   return (
     <aside 

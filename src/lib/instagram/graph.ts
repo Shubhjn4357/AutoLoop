@@ -17,6 +17,7 @@ export interface IGMedia {
   like_count?: number;
   comments_count?: number;
   permalink?: string;
+  children?: { data: { id: string; media_url: string; media_type: string; thumbnail_url?: string }[] };
 }
 
 export interface IGInsightValue {
@@ -73,7 +74,7 @@ export async function fetchIGMedia(
     `/${igUserId}/media`,
     accessToken,
     {
-      fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count,permalink",
+      fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count,permalink,children{id,media_url,media_type,thumbnail_url}",
       limit: String(limit),
     }
   );
@@ -160,7 +161,7 @@ export async function searchIGUser(
     `/${igUserId}`,
     accessToken,
     {
-      fields: `business_discovery.username(${targetUsername}){id,username,biography,name,profile_picture_url,followers_count,follows_count,media_count,media{id,caption,media_url,thumbnail_url,media_type,permalink,timestamp,like_count,comments_count}}`,
+      fields: `business_discovery.username(${targetUsername}){id,username,biography,name,profile_picture_url,followers_count,follows_count,media_count,media{id,caption,media_url,thumbnail_url,media_type,permalink,timestamp,like_count,comments_count,children{id,media_url,media_type,thumbnail_url}}}`,
     }
   );
   return res.business_discovery;

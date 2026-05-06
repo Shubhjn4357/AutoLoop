@@ -4,17 +4,24 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
-import { instagramAccounts } from "@/lib/db/schema";
+import { instagramAccounts, users } from "@/lib/db/schema";
 import { SettingsClient } from "./settings-client";
 import { fetchIGProfile } from "@/lib/instagram/graph";
 
 export default async function SettingsPage() {
   const session = await auth();
-  if (!session?.user) redirect("/");
+  if (!session?.user?.id) redirect("/");
 
-  const dbAccounts = await db.query.instagramAccounts.findMany({
-    where: eq(instagramAccounts.userId, session.user.id),
-  });
+  const [dbUser, dbAccounts] = await Promise.all([
+    db.query.users.findFirst({
+      where: eq(users.id, session.user.id),
+    }),
+    db.query.instagramAccounts.findMany({
+      where: eq(instagramAccounts.userId, session.user.id),
+    }),
+  ]);
+
+  if (!dbUser) redirect("/");
 
   // Enrich DB accounts with live profile data
   const enrichedAccounts = await Promise.all(
@@ -47,7 +54,9 @@ export default async function SettingsPage() {
       </div>
 
       <SettingsClient 
-        userName={session.user.name ?? null} 
+        userName={dbUser.name ?? null} 
+        webhookToken={dbUser.webhookToken ?? null}
+        settingsJson={dbUser.settingsJson ?? "{}"}
         accounts={enrichedAccounts} 
       />
     </div>
