@@ -4,7 +4,7 @@ import React, { useTransition, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { toggleAutomation } from "@/lib/actions/automations";
 import { toast } from "sonner";
-import { ToggleLeft, ToggleRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -26,7 +26,7 @@ export function AutomationToggle({ id, initialStatus }: Props) {
         if (res.success) {
           toast.success(`Automation ${checked ? "activated" : "deactivated"}`);
         }
-      } catch (err) {
+      } catch {
         // Rollback on failure
         setIsActive(!checked);
         toast.error("Failed to update status");

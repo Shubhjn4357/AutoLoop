@@ -1,5 +1,3 @@
-import { Sidebar } from "@/components/dashboard/sidebar";
-import { TopBar } from "@/components/dashboard/top-bar";
 import { auth } from "@/lib/auth/config";
 import { redirect } from "next/navigation";
 import { DashboardProvider } from "@/components/dashboard/dashboard-context";

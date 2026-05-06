@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Bell, Search, User, X, Menu } from "lucide-react";
+import { Bell, User, X, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,10 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "./sidebar";
 import { useDashboard } from "@/hooks/useDashboard";
 import { ThemeToggle } from "./theme-toggle";
-import { useDashboardContext } from "./dashboard-context";
 import { GlobalSearch } from "./global-search";
 
 export function TopBar() {
   const { userName, hasIssues, recentLogs } = useDashboard();
-  const { setIsSearchOpen } = useDashboardContext();
   const [showNotifications, setShowNotifications] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -46,18 +44,6 @@ export function TopBar() {
               <Sidebar className="border-none" />
             </SheetContent>
           </Sheet>
-        </div>
-
-        {/* Global Search Trigger */}
-        <div className="flex items-center gap-2">
-           <Button 
-            variant="ghost" 
-            className="md:bg-muted/50 md:hover:bg-muted md:px-4 md:w-64 justify-start text-muted-foreground gap-2 rounded-xl"
-            onClick={() => setIsSearchOpen(true)}
-           >
-             <Search className="size-4" />
-             <span className="hidden md:inline text-xs">Search Instagram profiles...</span>
-           </Button>
         </div>
       </div>
 
@@ -122,7 +108,7 @@ export function TopBar() {
         <div className="flex items-center gap-3">
           <div className="text-right hidden md:block">
             <p className="text-sm font-semibold text-foreground leading-none">{userName || "User"}</p>
-            <p className="text-[10px] text-muted-foreground mt-1 font-bold uppercase tracking-wider">Pro Plan</p>
+            <p className="text-[10px] text-muted-foreground mt-1 font-bold uppercase tracking-wider">AutoLoop</p>
           </div>
           <div className="size-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-sm">
             <User className="size-5" />

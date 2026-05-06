@@ -34,6 +34,7 @@ export default async function InsightsPage() {
           <InsightsContent
             igUserId={account.igUserId}
             accessToken={account.accessToken!}
+              userId={session.user.id}
           />
         </Suspense>
       )}

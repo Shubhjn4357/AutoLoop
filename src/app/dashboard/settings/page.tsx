@@ -7,6 +7,7 @@ import { db } from "@/lib/db/client";
 import { instagramAccounts, users } from "@/lib/db/schema";
 import { SettingsClient } from "./settings-client";
 import { fetchIGProfile } from "@/lib/instagram/graph";
+import { getNotificationPrefs } from "@/lib/actions/settings";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -46,6 +47,8 @@ export default async function SettingsPage() {
     })
   );
 
+  const notificationPrefs = getNotificationPrefs(dbUser.settingsJson);
+
   return (
     <div className="flex-1 p-6 lg:p-10 space-y-8 max-w-7xl mx-auto">
       <div className="flex flex-col gap-2">
@@ -56,7 +59,7 @@ export default async function SettingsPage() {
       <SettingsClient 
         userName={dbUser.name ?? null} 
         webhookToken={dbUser.webhookToken ?? null}
-        settingsJson={dbUser.settingsJson ?? "{}"}
+        notificationPrefs={notificationPrefs}
         accounts={enrichedAccounts} 
       />
     </div>

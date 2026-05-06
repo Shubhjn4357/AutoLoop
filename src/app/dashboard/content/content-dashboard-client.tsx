@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, MessageCircle, ExternalLink, Plus, Upload,
   Loader2, ImageIcon, ArrowLeft, Calendar, Link2,
-  Download, BookOpen, Users, Globe
+  Download, BookOpen, Bot
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -330,18 +330,16 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
                               <p className="text-sm font-semibold">Click to upload</p>
                               <p className="text-[10px] text-muted-foreground uppercase">Supports JPG, PNG</p>
                             </div>
-                            <input 
-                              type="file" 
-                              accept="image/*" 
+                              <input
+                                type="file"
+                                accept="image/*"
                               className="absolute inset-0 opacity-0 cursor-pointer"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  // In a real app, we'd upload to R2/S3 here
-                                  // For now, we'll use a local preview
                                   const url = URL.createObjectURL(file);
                                   setImageUrl(url);
-                                  toast.info("Image prepared for upload");
+                                  toast.info("Image prepared. Enter a public URL below for actual publishing.");
                                 }
                               }}
                             />
@@ -372,26 +370,9 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
                         />
                       </div>
 
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <Calendar className="size-3.5 text-primary" /> Schedule Post
-                          </Label>
-                          <Input type="datetime-local" className="bg-background/50" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <Users className="size-3.5 text-primary" /> Tag Users
-                          </Label>
-                          <Input placeholder="@username" className="bg-background/50" />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <Globe className="size-3.5 text-primary" /> Location / Settings
-                        </Label>
-                        <Input placeholder="Add location..." className="bg-background/50" />
+                      <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
+                        <p className="font-medium text-foreground mb-1">Publishing Options</p>
+                        <p>Schedule, tagging, and location features require additional Meta API permissions.</p>
                       </div>
                     </div>
                   </div>
@@ -407,38 +388,31 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
                 <Card className="glass-card">
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
-                      <Link2 className="size-4 text-emerald-500" /> Attach Automation
+                      <Link2 className="size-4 text-emerald-500" /> Keyword Automation
                     </CardTitle>
-                    <CardDescription className="text-xs">Bind a rule before publishing.</CardDescription>
+                    <CardDescription className="text-xs">
+                      Include keywords in your caption to trigger automations automatically.
+                    </CardDescription>
                   </CardHeader>
-                  <CardContent>
-                    <Drawer>
-                      <DrawerTrigger asChild>
-                        <Button variant="outline" className="w-full justify-between text-sm">
-                          {selectedAutomation ? automations.find((a) => a.id === selectedAutomation)?.name ?? "Select" : "Select a rule"}
-                        </Button>
-                      </DrawerTrigger>
-                      <DrawerContent>
-                        <div className="mx-auto w-full max-w-sm">
-                          <DrawerHeader><DrawerTitle>Choose Rule</DrawerTitle></DrawerHeader>
-                          <div className="p-4 space-y-2">
-                            <DrawerClose asChild>
-                              <Button variant="outline" className="w-full justify-start" onClick={() => setSelectedAutomation("")}>None</Button>
-                            </DrawerClose>
-                            {automations.map((a) => (
-                              <DrawerClose asChild key={a.id}>
-                                <Button variant={selectedAutomation === a.id ? "default" : "outline"} className="w-full justify-start" onClick={() => setSelectedAutomation(a.id)}>
-                                  {a.name}
-                                </Button>
-                              </DrawerClose>
-                            ))}
-                          </div>
-                          <DrawerFooter>
-                            <DrawerClose asChild><Button variant="outline">Cancel</Button></DrawerClose>
-                          </DrawerFooter>
+                  <CardContent className="space-y-3">
+                    {automations.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">Active rules that will auto-respond:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {automations.filter(a => a.isActive).slice(0, 3).map((a) => (
+                            <span key={a.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-xs">
+                              <Bot className="size-3" />
+                              {a.name}
+                            </span>
+                          ))}
                         </div>
-                      </DrawerContent>
-                    </Drawer>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No active automations.</p>
+                    )}
+                    <div className="text-xs text-amber-600 bg-amber-500/10 rounded-lg p-2">
+                      Tip: Include trigger keywords like &quot;{automations[0]?.condition || "PRICE"}&quot; in your caption.
+                    </div>
                   </CardContent>
                 </Card>
                 <Card className="glass-card p-4">

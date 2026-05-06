@@ -1,8 +1,6 @@
 import Image from "next/image";
 import { searchIGUser } from "@/lib/instagram/graph";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Users, BookOpen, Heart, MessageCircle, Globe } from "lucide-react";
-import { format } from "date-fns";
 
 interface Props {
   query: string;

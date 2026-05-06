@@ -7,7 +7,7 @@ import {
   MessageSquare, MessageCircle, UserPlus, BookOpen,
   ChevronRight, GripVertical,
   Trash2, Plus, Loader2,
-  Bot, Check, ToggleLeft, ToggleRight, Filter, ArrowLeft,
+  Bot, Check, Filter, ArrowLeft,
   BellRing, Clock, Globe, Link2
 } from "lucide-react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
@@ -18,8 +18,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { AnimatedButton } from "@/components/ui/animated-button";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { AutomationToggle } from "./automation-toggle";
 import { deleteAutomation } from "@/lib/actions/automations";
 import { toast } from "sonner";
@@ -713,7 +711,7 @@ export function AutomationsWorkspace({
                           try {
                             await deleteAutomation(auto.id);
                             toast.success("Automation deleted");
-                          } catch (err) {
+                          } catch {
                             toast.error("Failed to delete");
                           }
                         }

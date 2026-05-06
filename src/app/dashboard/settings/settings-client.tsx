@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { 
-  Settings as SettingsIcon, 
   Bell, 
   Link2, 
   Palette, 
@@ -26,7 +26,7 @@ import { AnimatedButton } from "@/components/ui/animated-button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
-import { updateUserSettings } from "@/lib/actions/settings";
+import { updateUserSettings, type NotificationPrefs } from "@/lib/actions/settings";
 
 interface InstagramAccount {
   id: string;
@@ -37,7 +37,7 @@ interface InstagramAccount {
 interface Props {
   userName: string | null;
   webhookToken: string | null;
-  settingsJson: string;
+  notificationPrefs: NotificationPrefs;
   accounts: InstagramAccount[];
 }
 
@@ -49,19 +49,22 @@ const CATEGORIES = [
   { id: "security", label: "Security", icon: ShieldCheck },
 ];
 
-export function SettingsClient({ userName, webhookToken, settingsJson, accounts }: Props) {
+export function SettingsClient({ userName, webhookToken, notificationPrefs, accounts }: Props) {
   const [activeTab, setActiveTab] = useState("general");
   const { theme, setTheme } = useTheme();
   const [isSaving, setIsSaving] = useState(false);
   const [localName, setLocalName] = useState(userName || "");
   const [currentToken, setCurrentToken] = useState(webhookToken);
+  const [connectedAccounts, setConnectedAccounts] = useState(accounts);
+  const [prefs, setPrefs] = useState<NotificationPrefs>(notificationPrefs);
+  const [savingPrefs, setSavingPrefs] = useState(false);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
       await updateUserSettings({ name: localName });
       toast.success("Settings updated successfully");
-    } catch (err) {
+    } catch {
       toast.error("Failed to save settings");
     } finally {
       setIsSaving(false);
@@ -74,7 +77,7 @@ export function SettingsClient({ userName, webhookToken, settingsJson, accounts 
       const res = await updateUserSettings({ generateWebhookToken: true });
       if (res.webhookToken) setCurrentToken(res.webhookToken);
       toast.success("New API token generated");
-    } catch (err) {
+    } catch {
       toast.error("Failed to generate token");
     } finally {
       setIsSaving(false);
@@ -84,6 +87,40 @@ export function SettingsClient({ userName, webhookToken, settingsJson, accounts 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard");
+  };
+
+  const handleDisconnect = async (accountId: string) => {
+    if (!confirm("Disconnect this Instagram account? This will stop all automations for this account.")) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/instagram/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId }),
+      });
+      if (!res.ok) throw new Error("Disconnect failed");
+      setConnectedAccounts((prev) => prev.filter((a) => a.id !== accountId));
+      toast.success("Account disconnected");
+    } catch {
+      toast.error("Failed to disconnect account");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const togglePref = async (key: keyof NotificationPrefs) => {
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    setSavingPrefs(true);
+    try {
+      await updateUserSettings({ notificationPrefs: next });
+      toast.success("Preferences saved");
+    } catch {
+      toast.error("Failed to save preferences");
+      setPrefs(prefs);
+    } finally {
+      setSavingPrefs(false);
+    }
   };
 
   return (
@@ -162,16 +199,22 @@ export function SettingsClient({ userName, webhookToken, settingsJson, accounts 
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {[
-                    { label: "New Automation Triggered", desc: "Get notified when a rule fires on a comment or DM." },
-                    { label: "Connection Alerts", desc: "Immediate warning if your Instagram account disconnects." },
-                    { label: "Weekly Insights Digest", desc: "A summary of your account performance every Monday." },
-                  ].map((item, i) => (
-                    <label key={i} className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-background/40 hover:bg-accent/50 transition-all cursor-pointer">
+                    { key: "automationTriggered" as const, label: "New Automation Triggered", desc: "Get notified when a rule fires on a comment or DM." },
+                    { key: "connectionAlerts" as const, label: "Connection Alerts", desc: "Immediate warning if your Instagram account disconnects." },
+                    { key: "weeklyDigest" as const, label: "Weekly Insights Digest", desc: "A summary of your account performance every Monday." },
+                  ].map((item) => (
+                    <label key={item.key} className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-background/40 hover:bg-accent/50 transition-all cursor-pointer">
                       <div className="space-y-0.5">
                         <p className="text-sm font-semibold">{item.label}</p>
                         <p className="text-xs text-muted-foreground">{item.desc}</p>
                       </div>
-                      <input type="checkbox" defaultChecked className="size-5 accent-primary rounded-lg" />
+                      <input
+                        type="checkbox"
+                        checked={prefs[item.key]}
+                        onChange={() => togglePref(item.key)}
+                        disabled={savingPrefs}
+                        className="size-5 accent-primary rounded-lg"
+                      />
                     </label>
                   ))}
                 </CardContent>
@@ -185,12 +228,12 @@ export function SettingsClient({ userName, webhookToken, settingsJson, accounts 
                   <CardDescription>Manage your linked Meta accounts and business pages.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {accounts.length > 0 ? (
-                    accounts.map((acc) => (
+                  {connectedAccounts.length > 0 ? (
+                    connectedAccounts.map((acc) => (
                       <div key={acc.id} className="flex items-center gap-4 p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
                         <div className="size-12 rounded-full overflow-hidden border-2 border-emerald-500/20">
                            {acc.instagramProfilePicture ? (
-                             <img src={acc.instagramProfilePicture} alt="" className="size-full object-cover" />
+                            <Image src={acc.instagramProfilePicture} alt="" width={48} height={48} className="size-full object-cover" unoptimized />
                            ) : (
                              <div className="size-full bg-muted flex items-center justify-center"><User className="size-6 text-muted-foreground" /></div>
                            )}
@@ -202,7 +245,15 @@ export function SettingsClient({ userName, webhookToken, settingsJson, accounts 
                             Connected & Healthy
                           </div>
                         </div>
-                        <Button variant="outline" size="sm" className="rounded-xl hover:bg-rose-500/10 hover:text-rose-500 hover:border-rose-500/20">Disconnect</Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl hover:bg-rose-500/10 hover:text-rose-500 hover:border-rose-500/20"
+                          onClick={() => handleDisconnect(acc.id)}
+                          disabled={isSaving}
+                        >
+                          {isSaving ? <Loader2 className="size-4 animate-spin" /> : "Disconnect"}
+                        </Button>
                       </div>
                     ))
                   ) : (

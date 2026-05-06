@@ -1,42 +1,54 @@
 import { fetchIGInsights, fetchIGProfile, type IGInsightMetric } from "@/lib/instagram/graph";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InsightsCharts } from "./insights-charts";
-import { TrendingUp, Users, Eye, BarChart2 } from "lucide-react";
+import { AppInsightsData } from "./app-insights-data";
+import { TrendingUp, Users, Eye, BarChart2, AlertCircle } from "lucide-react";
 
 interface Props {
   igUserId: string;
   accessToken: string;
+  userId: string;
 }
 
 function sumValues(metric: IGInsightMetric | undefined): number {
   if (!metric) return 0;
-  // Some metrics have 'total_value' in the values array, others need summation
   const total = metric.values.reduce((acc, v) => acc + v.value, 0);
   return total;
 }
 
-export async function InsightsContent({ igUserId, accessToken }: Props) {
+export async function InsightsContent({ igUserId, accessToken, userId }: Props) {
   const until = Math.floor(Date.now() / 1000);
   const since = until - (7 * 24 * 60 * 60); // 7 days ago
 
-  const [profile, metrics] = await Promise.all([
-    fetchIGProfile(igUserId, accessToken).catch(() => null),
-    fetchIGInsights(
-      igUserId, 
-      accessToken, 
-      ["reach", "profile_views", "impressions", "accounts_engaged"], 
-      "day",
-      String(since),
-      String(until)
-    ).catch(() => []),
-  ]);
+  let profile: Awaited<ReturnType<typeof fetchIGProfile>> | null = null;
+  let metrics: IGInsightMetric[] = [];
+  let apiError: string | null = null;
+
+  try {
+    [profile, metrics] = await Promise.all([
+      fetchIGProfile(igUserId, accessToken),
+      fetchIGInsights(
+        igUserId,
+        accessToken,
+        ["reach", "profile_views", "impressions", "accounts_engaged"],
+        "day",
+        String(since),
+        String(until)
+      ),
+    ]);
+  } catch (err) {
+    apiError = err instanceof Error ? err.message : "Instagram API unavailable";
+    console.error("[Insights] Failed to fetch IG data:", err);
+  }
+
+  const hasIGData = metrics.length > 0 && profile;
 
   const reach = metrics.find((m) => m.name === "reach");
   const profileViews = metrics.find((m) => m.name === "profile_views");
   const impressions = metrics.find((m) => m.name === "impressions");
   const engaged = metrics.find((m) => m.name === "accounts_engaged");
 
-  const stats = [
+  const igStats = [
     {
       label: "Accounts Reached",
       value: sumValues(reach).toLocaleString(),
@@ -69,17 +81,22 @@ export async function InsightsContent({ igUserId, accessToken }: Props) {
 
   return (
     <>
-      {/* Profile header */}
+      {/* API Error Banner */}
+      {apiError && (
+        <Card className="border-amber-500/20 bg-amber-500/5">
+          <CardContent className="flex items-center gap-3 py-4">
+            <AlertCircle className="size-5 text-amber-500 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-600">Instagram API Unavailable</p>
+              <p className="text-xs text-muted-foreground">Showing AutoLoop app data instead. Error: {apiError}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* IG Profile Header - Only if available */}
       {profile && (
         <div className="glass-card rounded-2xl p-5 flex items-center gap-4">
-          {profile.profile_picture_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.profile_picture_url}
-              alt={profile.username}
-              className="size-14 rounded-full border-2 border-primary/20"
-            />
-          )}
           <div>
             <p className="font-bold text-lg">@{profile.username}</p>
             <p className="text-sm text-muted-foreground">{profile.biography ?? profile.name}</p>
@@ -101,26 +118,36 @@ export async function InsightsContent({ igUserId, accessToken }: Props) {
         </div>
       )}
 
-      {/* Stat cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map(({ label, value, icon: Icon, color, bg }) => (
-          <Card key={label} className="glass-card hover:-translate-y-1 transition-transform">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">{label}</CardTitle>
-              <div className={`p-2 rounded-lg ${bg}`}>
-                <Icon className={`size-4 ${color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{value}</div>
-              <p className="text-xs text-muted-foreground mt-1">Last 7 days</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* IG Stats - Only if available */}
+      {hasIGData && (
+        <>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {igStats.map(({ label, value, icon: Icon, color, bg }) => (
+              <Card key={label} className="glass-card hover:-translate-y-1 transition-transform">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">{label}</CardTitle>
+                  <div className={`p-2 rounded-lg ${bg}`}>
+                    <Icon className={`size-4 ${color}`} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{value}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Last 7 days from Instagram</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-      {/* Charts — client component because recharts needs browser */}
-      <InsightsCharts reachMetric={reach} impressionsMetric={impressions} profileViewsMetric={profileViews} />
+          <InsightsCharts
+            reachMetric={reach}
+            impressionsMetric={impressions}
+            profileViewsMetric={profileViews}
+          />
+        </>
+      )}
+
+      {/* App-Level Fallback Data */}
+      <AppInsightsData userId={userId} igUserId={igUserId} />
     </>
   );
 }
