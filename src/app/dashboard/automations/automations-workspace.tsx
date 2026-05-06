@@ -8,7 +8,7 @@ import {
   ChevronRight, GripVertical,
   Trash2, Plus, Loader2,
   Bot, Check, ToggleLeft, ToggleRight, Filter, ArrowLeft,
-  BellRing, Clock, Globe
+  BellRing, Clock, Globe, Link2
 } from "lucide-react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -39,11 +39,12 @@ const TRIGGER_TYPES = [
 
 interface FlowStep {
   id: string;
-  type: "condition" | "reply" | "delay" | "follow_up";
+  type: "condition" | "reply" | "delay" | "follow_up" | "button";
   label: string;
+  config?: Record<string, unknown>;
 }
 
-function DraggableStep({ step, onRemove }: { step: FlowStep; onRemove: () => void }) {
+function DraggableStep({ step, onRemove, onUpdate, isPalette }: { step: FlowStep; onRemove?: () => void; onUpdate?: (newStep: FlowStep) => void; isPalette?: boolean }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const [{ isDragging }, drag] = useDrag(() => ({
     type: "step",
@@ -55,15 +56,43 @@ function DraggableStep({ step, onRemove }: { step: FlowStep; onRemove: () => voi
     <div
       ref={ref}
       className={cn(
-        "flex items-center gap-3 rounded-xl border bg-background/60 px-3 py-2.5 text-sm backdrop-blur cursor-grab active:cursor-grabbing transition-all",
-        isDragging && "opacity-40"
+        "flex flex-col gap-2 rounded-xl border bg-background/60 p-3 text-sm backdrop-blur transition-all",
+        isDragging && "opacity-40",
+        isPalette ? "cursor-grab active:cursor-grabbing" : ""
       )}
     >
-      <GripVertical className="size-4 text-muted-foreground shrink-0" />
-      <span className="flex-1 font-medium">{step.label}</span>
-      <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-destructive transition-colors">
-        <Trash2 className="size-3.5" />
-      </button>
+      <div className={cn("flex items-center gap-3", !isPalette && "cursor-grab active:cursor-grabbing")}>
+        <GripVertical className="size-4 text-muted-foreground shrink-0" />
+        <span className="flex-1 font-medium">{step.label}</span>
+        {onRemove && (
+          <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-destructive transition-colors">
+            <Trash2 className="size-3.5" />
+          </button>
+        )}
+      </div>
+      {!isPalette && step.type === "reply" && onUpdate && (
+        <div className="pl-7 pr-2 pt-1">
+          <Textarea
+            value={(step.config?.text as string) || ""}
+            onChange={(e) => onUpdate({ ...step, config: { ...step.config, text: e.target.value } })}
+            placeholder="Enter message text..."
+            className="h-16 resize-none text-xs bg-background/50"
+          />
+        </div>
+      )}
+      {!isPalette && step.type === "delay" && onUpdate && (
+        <div className="pl-7 pr-2 pt-1 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Wait for</span>
+          <Input
+            type="number"
+            min="0"
+            value={(step.config?.delayMinutes as number) ?? 60}
+            onChange={(e) => onUpdate({ ...step, config: { ...step.config, delayMinutes: parseInt(e.target.value) || 0 } })}
+            className="w-20 h-8 text-xs bg-background/50"
+          />
+          <span className="text-xs text-muted-foreground">minutes</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -90,10 +119,10 @@ function DropZone({ onDrop }: { onDrop: (step: FlowStep) => void }) {
 }
 
 const PALETTE_STEPS: FlowStep[] = [
-  { id: "cond", type: "condition", label: "Keyword condition" },
-  { id: "reply", type: "reply", label: "Send reply" },
-  { id: "delay", type: "delay", label: "Wait / delay" },
-  { id: "followup", type: "follow_up", label: "Follow-up message" },
+  { id: "cond", type: "condition", label: "Keyword condition", config: {} },
+  { id: "reply", type: "reply", label: "Send reply", config: { text: "" } },
+  { id: "delay", type: "delay", label: "Wait / delay", config: { delayMinutes: 60 } },
+  { id: "followup", type: "follow_up", label: "Follow-up message", config: { text: "" } },
 ];
 
 interface Props {
@@ -101,8 +130,6 @@ interface Props {
   accessToken: string;
   existingAutomations: Automation[];
   createAutomationAction: (formData: FormData) => Promise<void> | void;
-  toggleAutomationAction: (formData: FormData) => Promise<void> | void;
-  deleteAutomationAction: (formData: FormData) => Promise<void> | void;
 }
 
 type Step = "select-target" | "select-trigger" | "configure";
@@ -110,8 +137,6 @@ type Step = "select-target" | "select-trigger" | "configure";
 export function AutomationsWorkspace({
   existingAutomations,
   createAutomationAction,
-  toggleAutomationAction,
-  deleteAutomationAction,
 }: Props) {
   const [media, setMedia] = useState<IGMedia[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(true);
@@ -173,6 +198,10 @@ export function AutomationsWorkspace({
     data.set("targetPostId", selectedPostId ?? "");
     data.set("triggerType", selectedTrigger);
     data.set("flowJson", JSON.stringify(flowSteps));
+    
+    // Ensure required fields for non-visible triggers have defaults
+    if (!data.get("responseTemplate")) data.set("responseTemplate", "Reply sent!");
+    
     if (editingId) data.set("id", editingId);
     startTransition(() => createAutomationAction(data));
   }
@@ -312,24 +341,32 @@ export function AutomationsWorkspace({
                             setStep("configure");
                             setSelectedTrigger(auto.triggerType);
                             setEditingId(auto.id);
+                            try {
+                              const parsed = JSON.parse(auto.flowJson ?? "[]");
+                              setFlowSteps(Array.isArray(parsed) ? parsed : []);
+                            } catch { setFlowSteps([]); }
                           }}
                           className="text-muted-foreground hover:text-primary transition-colors p-1"
                         >
                           <Bot className="size-4" />
                         </button>
-                        <form action={toggleAutomationAction}>
-                          <input type="hidden" name="id" value={auto.id} />
-                          <input type="hidden" name="isActive" value={auto.isActive ? "false" : "true"} />
-                          <button type="submit" className={cn("text-xs transition-colors", auto.isActive ? "text-emerald-500" : "text-muted-foreground")}>
-                            {auto.isActive ? <ToggleRight className="size-5" /> : <ToggleLeft className="size-5" />}
-                          </button>
-                        </form>
-                        <form action={deleteAutomationAction}>
-                          <input type="hidden" name="id" value={auto.id} />
-                          <button type="submit" className="text-muted-foreground hover:text-destructive transition-colors">
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </form>
+                        <AutomationToggle id={auto.id} initialStatus={auto.isActive ?? false} />
+                        <button 
+                          type="button"
+                          onClick={async () => {
+                            if (confirm("Delete this automation?")) {
+                              try {
+                                await deleteAutomation(auto.id);
+                                toast.success("Deleted");
+                              } catch {
+                                toast.error("Failed to delete");
+                              }
+                            }
+                          }}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -444,47 +481,89 @@ export function AutomationsWorkspace({
                     />
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {/* Condition operator */}
-                    <div className="space-y-2">
-                      <Label htmlFor="conditionOperator">Match Type</Label>
-                      <select
-                        id="conditionOperator"
-                        name="conditionOperator"
-                        className="w-full h-10 rounded-xl border border-input bg-background/60 px-3 text-sm backdrop-blur"
-                        defaultValue={existingAutomations.find(a => a.id === editingId)?.conditionOperator ?? "contains"}
-                      >
-                        {conditionOperators.map((op) => (
-                          <option key={op} value={op}>{op.replace("_", " ")}</option>
-                        ))}
-                      </select>
-                    </div>
+                  {(selectedTrigger === "comment" || selectedTrigger === "dm" || selectedTrigger === "story_reply") && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {/* Condition operator */}
+                      <div className="space-y-2">
+                        <Label htmlFor="conditionOperator">Match Type</Label>
+                        <select
+                          id="conditionOperator"
+                          name="conditionOperator"
+                          className="w-full h-10 rounded-xl border border-input bg-background/60 px-3 text-sm backdrop-blur"
+                          defaultValue={existingAutomations.find(a => a.id === editingId)?.conditionOperator ?? "contains"}
+                        >
+                          {conditionOperators.map((op) => (
+                            <option key={op} value={op}>{op.replace("_", " ")}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                    {/* Keyword */}
+                      {/* Keyword */}
+                      <div className="space-y-2">
+                        <Label htmlFor="condition">Keyword / Trigger Word</Label>
+                        <Input 
+                          id="condition" 
+                          name="condition" 
+                          placeholder="e.g. price, info, link" 
+                          defaultValue={existingAutomations.find(a => a.id === editingId)?.condition ?? ""}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Public Comment Response (Only for Comment trigger) */}
+                  {selectedTrigger === "comment" && (
                     <div className="space-y-2">
-                      <Label htmlFor="condition">Keyword / Trigger Word</Label>
-                      <Input 
-                        id="condition" 
-                        name="condition" 
-                        placeholder="e.g. price, info, link" 
-                        defaultValue={existingAutomations.find(a => a.id === editingId)?.condition ?? ""}
+                      <Label htmlFor="responseTemplate">Public Comment Reply</Label>
+                      <Textarea
+                        id="responseTemplate"
+                        name="responseTemplate"
+                        required
+                        rows={2}
+                        placeholder="e.g. Just sent you a DM with the details! Check it out."
+                        className="resize-none"
+                        defaultValue={existingAutomations.find(a => a.id === editingId)?.responseTemplate ?? ""}
                       />
                     </div>
-                  </div>
+                  )}
 
-                  {/* Response */}
-                  <div className="space-y-2">
-                    <Label htmlFor="responseTemplate">Auto Response</Label>
-                    <Textarea
-                      id="responseTemplate"
-                      name="responseTemplate"
-                      required
-                      rows={3}
-                      placeholder="Thanks for your message! Here's what you need to know..."
-                      className="resize-none"
-                      defaultValue={existingAutomations.find(a => a.id === editingId)?.responseTemplate ?? ""}
-                    />
-                  </div>
+                  {/* DM Message + Link (For Comment and DM triggers) */}
+                  {(selectedTrigger === "comment" || selectedTrigger === "dm" || selectedTrigger === "story_reply") && (
+                    <div className="p-4 rounded-2xl border border-primary/20 bg-primary/5 space-y-4">
+                      <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                        <MessageSquare className="size-4" />
+                        Private DM Response
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="dmTemplate">DM Message</Label>
+                        <Textarea
+                          id="dmTemplate"
+                          name="dmTemplate"
+                          required
+                          rows={3}
+                          placeholder="Write the message that will be sent to their inbox..."
+                          className="resize-none bg-background/50"
+                          defaultValue={existingAutomations.find(a => a.id === editingId)?.dmTemplate ?? ""}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="targetUrl">Link to Send (Optional)</Label>
+                        <div className="relative">
+                          <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                          <Input 
+                            id="targetUrl" 
+                            name="targetUrl" 
+                            placeholder="https://yourlink.com/offer" 
+                            className="pl-10 bg-background/50"
+                            defaultValue={existingAutomations.find(a => a.id === editingId)?.targetUrl ?? ""}
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">If provided, this link will be appended to your DM message.</p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Follower check */}
                   <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-background/40 p-4 cursor-pointer hover:bg-white/5 transition-colors">
@@ -553,7 +632,11 @@ export function AutomationsWorkspace({
                     <div className="space-y-2">
                       {flowSteps.map((s, idx) => (
                         <React.Fragment key={s.id}>
-                          <DraggableStep step={s} onRemove={() => setFlowSteps((prev) => prev.filter((x) => x.id !== s.id))} />
+                          <DraggableStep 
+                            step={s} 
+                            onRemove={() => setFlowSteps((prev) => prev.filter((x) => x.id !== s.id))} 
+                            onUpdate={(newStep) => setFlowSteps(prev => prev.map(x => x.id === newStep.id ? newStep : x))}
+                          />
                           {idx < flowSteps.length - 1 && (
                             <div className="flex justify-center">
                               <div className="w-0.5 h-4 bg-border" />

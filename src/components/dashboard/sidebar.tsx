@@ -12,7 +12,8 @@ import {
   Sparkles,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import { useDashboardContext } from "./dashboard-context";
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Automations", href: "/dashboard/automations", icon: Bot },
+  { label: "Contacts", href: "/dashboard/contacts", icon: Users },
   { label: "Content", href: "/dashboard/content", icon: Sparkles },
   { label: "Insights", href: "/dashboard/insights", icon: BarChart3 },
   { label: "Messages", href: "/dashboard/messages", icon: MessageSquare },

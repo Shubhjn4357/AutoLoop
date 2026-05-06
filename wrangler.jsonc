@@ -2,6 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "autoloop",
   "main": ".open-next/worker.js",
+  "minify": true,
   "placement": {
     "mode": "smart"
   },
@@ -24,6 +25,15 @@
     "TURSO_DATABASE_URL": "libsql://autoloop-shubhjn4357.aws-ap-south-1.turso.io",
     "META_GRAPH_VERSION": "v22.0",
     "NODE_ENV": "production"
+  },
+  // NOTE: Cron triggers require a `scheduled` event handler.
+  // With OpenNext, use an external cron service (e.g. cron-job.org)
+  // to POST /api/automation/followups with Authorization: Bearer <AUTOMATION_CRON_SECRET>
+  // OR add a custom worker entrypoint that handles `scheduled` events.
+  "triggers": {
+    "crons": [
+      "*/2 * * * *"
+    ]
   },
   "observability": {
     "logs": {

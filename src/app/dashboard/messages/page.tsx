@@ -1,24 +1,40 @@
-import { Card, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
-import { MessageSquare } from "lucide-react";
+export const dynamic = "force-dynamic";
 
-export default function MessagesPage() {
+import { auth } from "@/lib/auth/config";
+import { redirect } from "next/navigation";
+import { getConversations } from "@/lib/messages/data";
+import { getThreadMessages } from "@/lib/messages/data";
+import { MessagesClient } from "./messages-client";
+
+interface PageProps {
+  searchParams: Promise<{ senderId?: string }>;
+}
+
+export default async function MessagesPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+
+  const { senderId } = await searchParams;
+  const conversations = await getConversations(session.user.id);
+
+  let initialMessages: Awaited<ReturnType<typeof getThreadMessages>> = [];
+  if (senderId) {
+    initialMessages = await getThreadMessages(session.user.id, senderId);
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">Messages</h2>
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight">Inbox</h1>
+        <p className="text-muted-foreground">
+          Manage all your Instagram conversations and manual replies in one place.
+        </p>
       </div>
-
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="p-4 bg-muted rounded-full mb-4">
-            <MessageSquare className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <CardTitle className="mb-2">Unified Inbox Coming Soon</CardTitle>
-          <CardDescription className="max-w-xs">
-            We&apos;re building a unified inbox to manage all your Instagram DMs and automation logs in one place.
-          </CardDescription>
-        </CardContent>
-      </Card>
+      <MessagesClient
+        conversations={conversations}
+        initialMessages={initialMessages}
+        selectedSenderId={senderId ?? null}
+      />
     </div>
   );
 }

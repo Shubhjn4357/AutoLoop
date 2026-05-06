@@ -18,6 +18,8 @@ describe("AutomationBuilder", () => {
             conditionOperator: "contains",
             condition: "price",
             responseTemplate: "Pricing starts at 999.",
+            dmTemplate: "Check your DM!",
+            targetUrl: "https://example.com",
             followUpTemplate: "Need anything else?",
             followUpDelayMinutes: 15,
             requireFollower: true,

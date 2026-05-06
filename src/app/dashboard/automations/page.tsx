@@ -41,6 +41,8 @@ export default async function AutomationsPage() {
     const conditionOperator = isConditionOperator(conditionOperatorRaw) ? conditionOperatorRaw : "contains";
     const condition = String(formData.get("condition") ?? "").trim();
     const responseTemplate = String(formData.get("responseTemplate") ?? "").trim();
+    const dmTemplate = String(formData.get("dmTemplate") ?? "").trim();
+    const targetUrl = String(formData.get("targetUrl") ?? "").trim();
     const followUpTemplate = String(formData.get("followUpTemplate") ?? "").trim();
     const followUpDelayMinutes = Math.max(0, Number(formData.get("followUpDelayMinutes") ?? 0));
     const targetPostId = String(formData.get("targetPostId") ?? "").trim();
@@ -60,6 +62,8 @@ export default async function AutomationsPage() {
         conditionOperator,
         condition,
         responseTemplate,
+        dmTemplate: dmTemplate || null,
+        targetUrl: targetUrl || null,
         followUpTemplate: followUpTemplate || null,
         followUpDelayMinutes,
         requireFollower: formData.get("requireFollower") === "true",
@@ -79,6 +83,8 @@ export default async function AutomationsPage() {
         conditionOperator,
         condition,
         responseTemplate,
+        dmTemplate: dmTemplate || null,
+        targetUrl: targetUrl || null,
         followUpTemplate: followUpTemplate || null,
         followUpDelayMinutes,
         requireFollower: formData.get("requireFollower") === "true",
@@ -91,31 +97,6 @@ export default async function AutomationsPage() {
       revalidatePath("/dashboard/automations");
       redirect("/dashboard/automations?created=1");
     }
-  }
-
-  async function toggleAutomationAction(formData: FormData) {
-    "use server";
-    const session = await auth();
-    if (!session?.user?.id) redirect("/login");
-    const id = String(formData.get("id") ?? "");
-    const isActive = formData.get("isActive") === "true";
-    const automation = await db.query.automations.findFirst({ where: eq(automations.id, id) });
-    if (!automation || automation.userId !== session.user.id) redirect("/dashboard/automations?error=invalid_automation");
-    await db.update(automations).set({ isActive, updatedAt: new Date() }).where(eq(automations.id, id));
-    revalidatePath("/dashboard/automations");
-    redirect("/dashboard/automations?updated=1");
-  }
-
-  async function deleteAutomationAction(formData: FormData) {
-    "use server";
-    const session = await auth();
-    if (!session?.user?.id) redirect("/login");
-    const id = String(formData.get("id") ?? "");
-    const automation = await db.query.automations.findFirst({ where: eq(automations.id, id) });
-    if (!automation || automation.userId !== session.user.id) redirect("/dashboard/automations?error=invalid_automation");
-    await db.delete(automations).where(eq(automations.id, id));
-    revalidatePath("/dashboard/automations");
-    redirect("/dashboard/automations?deleted=1");
   }
 
   return (
@@ -140,8 +121,6 @@ export default async function AutomationsPage() {
             accessToken={account.accessToken!}
             existingAutomations={userAutomations}
             createAutomationAction={createAutomationAction}
-            toggleAutomationAction={toggleAutomationAction}
-            deleteAutomationAction={deleteAutomationAction}
           />
         </Suspense>
       )}

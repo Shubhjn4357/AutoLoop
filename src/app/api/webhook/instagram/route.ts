@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
-import { processInstagramMessage } from "@/lib/automation/engine";
+import { processInstagramMessage, processInstagramComment } from "@/lib/automation/engine";
+import { checkRateLimit, getClientIP } from "@/lib/rate-limit";
 import crypto from "crypto";
 
 function signaturesMatch(expected: string, actual: string) {
@@ -27,6 +28,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIP(request);
+  const rateLimit = checkRateLimit(ip);
+  if (!rateLimit.allowed) {
+    return new NextResponse("Rate limited", { status: 429 });
+  }
+
   try {
     const textBody = await request.text();
     const signature = request.headers.get("x-hub-signature-256");
@@ -50,26 +57,48 @@ export async function POST(request: Request) {
       const backgroundTasks: Promise<void>[] = [];
 
       for (const entry of body.entry) {
-        for (const messaging of entry.messaging) {
-          console.log("Received message:", messaging);
-          if (messaging.message?.is_echo) {
-            continue;
-          }
+        // 1. Handle DMs
+        if (entry.messaging) {
+          for (const messaging of entry.messaging) {
+            console.log("Received message:", messaging);
+            if (messaging.message?.is_echo) continue;
 
-          if (messagingHasTextMessage(messaging)) {
-            backgroundTasks.push(
-              processInstagramMessage({
-                igUserId: entry.id,
-                senderId: messaging.sender.id,
-                text: messaging.message.text,
-              }).catch((e) => console.error("Async Background Task Error:", e))
-            );
+            if (messagingHasTextMessage(messaging)) {
+              backgroundTasks.push(
+                processInstagramMessage({
+                  igUserId: entry.id,
+                  senderId: messaging.sender.id,
+                  text: messaging.message.text,
+                }).catch((e) => console.error("DM Process Error:", e))
+              );
+            }
+          }
+        }
+
+        // 2. Handle Comments
+        if (entry.changes) {
+          for (const change of entry.changes) {
+            console.log("Received change:", change);
+            if (change.field === "comments") {
+              const val = change.value;
+              // Ignore replies to comments to avoid infinite loops
+              if (val.parent_id) continue;
+
+              backgroundTasks.push(
+                processInstagramComment({
+                  igUserId: entry.id,
+                  senderId: val.from.id,
+                  text: val.text,
+                  mediaId: val.media.id,
+                  commentId: val.id,
+                }).catch((e) => console.error("Comment Process Error:", e))
+              );
+            }
           }
         }
       }
 
       after(Promise.all(backgroundTasks).catch(console.error));
-
       return new NextResponse("EVENT_RECEIVED", { status: 200 });
     }
 

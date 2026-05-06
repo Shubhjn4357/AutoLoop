@@ -42,6 +42,44 @@ export async function sendInstagramMessage(
   }
 }
 
+export async function replyToInstagramComment(
+  commentId: string,
+  messageText: string,
+  accessToken: string
+) {
+  const graphVersion = process.env.META_GRAPH_VERSION || "v21.0";
+  const url = `https://graph.instagram.com/${graphVersion}/${commentId}/replies`;
+  
+  const payload = {
+    message: messageText,
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      console.error("[IG Client] Error replying to comment:", data);
+      const apiMessage =
+        typeof data?.error?.message === "string" ? data.error.message : res.statusText;
+      throw new Error(`Instagram API Error: ${apiMessage}`);
+    }
+
+    console.log("[IG Client] Comment reply sent successfully", data);
+    return data;
+  } catch (error) {
+    console.error("[IG Client] Failed to reply to comment", error);
+    throw error;
+  }
+}
+
 export interface InstagramUserProfile {
   id: string;
   name?: string;

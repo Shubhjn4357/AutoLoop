@@ -70,6 +70,8 @@ export const automations = sqliteTable("automations", {
   conditionOperator: text("condition_operator").notNull().default("contains"),
   condition: text("condition"),
   responseTemplate: text("response_template").notNull(),
+  dmTemplate: text("dm_template"),
+  targetUrl: text("target_url"),
   followUpTemplate: text("follow_up_template"),
   followUpDelayMinutes: integer("follow_up_delay_minutes").default(0),
   requireFollower: integer("require_follower", { mode: "boolean" }).default(false),
@@ -115,4 +117,47 @@ export const scheduledMessages = sqliteTable("scheduled_messages", {
   dueAt: integer("due_at", { mode: "timestamp_ms" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
   sentAt: integer("sent_at", { mode: "timestamp_ms" }),
+});
+
+export const automationState = sqliteTable("automation_state", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  igUserId: text("ig_user_id").notNull(),
+  recipientId: text("recipient_id").notNull(),
+  automationId: text("automation_id").notNull().references(() => automations.id, { onDelete: "cascade" }),
+  currentNodeId: text("current_node_id").notNull(),
+  lastInteractionAt: integer("last_interaction_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});
+
+export const contacts = sqliteTable("contacts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  igUserId: text("ig_user_id").notNull(),
+  senderId: text("sender_id").notNull(),
+  username: text("username"),
+  name: text("name"),
+  profilePic: text("profile_pic"),
+  isFollower: integer("is_follower", { mode: "boolean" }).default(false),
+  firstSeenAt: integer("first_seen_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+  lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+  notes: text("notes"),
+  status: text("status").notNull().default("automated"),
+});
+
+export const automationMetrics = sqliteTable("automation_metrics", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  automationId: text("automation_id").notNull().references(() => automations.id, { onDelete: "cascade" }),
+  sendCount: integer("send_count").notNull().default(0),
+  replyCount: integer("reply_count").notNull().default(0),
+  lastSentAt: integer("last_sent_at", { mode: "timestamp_ms" }),
+  lastReplyAt: integer("last_reply_at", { mode: "timestamp_ms" }),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});
+
+export const contactTags = sqliteTable("contact_tags", {
+  id: text("id").primaryKey(),
+  contactId: text("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
+  tag: text("tag").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
 });
