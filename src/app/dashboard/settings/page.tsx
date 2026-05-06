@@ -7,7 +7,7 @@ import { db } from "@/lib/db/client";
 import { instagramAccounts, users } from "@/lib/db/schema";
 import { SettingsClient } from "./settings-client";
 import { fetchIGProfile } from "@/lib/instagram/graph";
-import { getNotificationPrefs } from "@/lib/actions/settings";
+import { getNotificationPrefs } from "@/lib/utils/settings";
 
 export default async function SettingsPage() {
   const session = await auth();

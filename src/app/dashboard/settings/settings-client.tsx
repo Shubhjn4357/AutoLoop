@@ -26,7 +26,8 @@ import { AnimatedButton } from "@/components/ui/animated-button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
-import { updateUserSettings, type NotificationPrefs } from "@/lib/actions/settings";
+import { updateUserSettings } from "@/lib/actions/settings";
+import type { NotificationPrefs } from "@/lib/utils/settings";
 
 interface InstagramAccount {
   id: string;

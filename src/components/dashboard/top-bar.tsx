@@ -46,8 +46,10 @@ export function TopBar() {
           </Sheet>
         </div>
       </div>
-
+        
       <div className="flex items-center gap-4">
+        {/* Embedded Discovery Drawer */}
+        <GlobalSearch />
         <ThemeToggle />
         
         <div className="relative" ref={dropdownRef}>
@@ -116,8 +118,7 @@ export function TopBar() {
         </div>
       </div>
 
-      {/* Embedded Discovery Drawer */}
-      <GlobalSearch />
+    
     </header>
   );
 }
