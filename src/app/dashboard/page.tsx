@@ -4,15 +4,11 @@ import { Bot, MessageCircle, BarChart3, Clock3 } from "lucide-react";
 import Link from "next/link";
 import { auth } from "@/lib/auth/config";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import nextDynamic from "next/dynamic";
+import { MessageChart } from "@/components/charts/message-chart-dynamic";
 import { NotificationLog } from "@/components/dashboard/notification-log";
 import { getDashboardData } from "@/lib/dashboard/data";
 
 import { headers } from "next/headers";
-
-const MessageChart = nextDynamic(() => import("@/components/message-chart").then(mod => mod.MessageChart), {
-  loading: () => <div className="h-[300px] w-full animate-pulse bg-muted/50 rounded-xl" />
-});
 
 export default async function DashboardPage() {
   await headers();

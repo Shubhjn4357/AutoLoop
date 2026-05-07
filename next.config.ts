@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   // Prevent native binaries from being bundled (needed for Cloudflare + HuggingFace)
   serverExternalPackages: ["libsql", "@libsql/isomorphic-ws"],
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts", "framer-motion"],
+  },
 };
 
 export default nextConfig;
