@@ -37,7 +37,7 @@ describe("SimpleAutomationBuilder", () => {
     expect(screen.getByText("Automations")).toBeInTheDocument();
     expect(screen.getByText("1 automation configured")).toBeInTheDocument();
     expect(screen.getByText("Price reply")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { checked: true })).toBeInTheDocument();
   });
 
   it("renders empty state when no automations exist", () => {
