@@ -16,10 +16,12 @@ export default function LandingPage() {
       </div>
 
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-[100] p-6">
+      <nav className="fixed top-0 left-0 right-0 z-100 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4 glass-card rounded-2xl border border-white/10 backdrop-blur-xl shadow-2xl">
-          <Link href="/" className="text-2xl font-black tracking-tighter hover:opacity-80 transition-opacity">
-            Auto<span className="text-primary">Loop</span>
+          <Link href="/" className="hover:opacity-80 transition-opacity">
+            <h2 className="text-2xl font-black tracking-tighter">
+              Auto<span className="text-primary">Loop</span>
+            </h2>
           </Link>
           
           <div className="hidden md:flex items-center gap-8">
@@ -61,7 +63,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="py-20 border-t border-border/50 text-center">
         <div className="container px-4">
-          <p className="text-2xl font-black tracking-tighter mb-4">Auto<span className="text-primary">Loop</span></p>
+          <h2 className="text-2xl font-black tracking-tighter mb-4">Auto<span className="text-primary">Loop</span></h2>
           <p className="text-sm text-muted-foreground">
             © 2026 AutoLoop Business Suite. All rights reserved. <br />
             Built with ❤️ and Gemini 1.5 Flash.

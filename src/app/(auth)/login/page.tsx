@@ -1,8 +1,10 @@
 import { auth, isGoogleAuthConfigured, isGithubAuthConfigured } from "@/lib/auth/config";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { LoginForm } from "@/components/auth/login-form";
 
 export default async function LoginPage() {
+  await headers();
   const session = await auth();
 
   // If already authenticated, redirect to dashboard immediately

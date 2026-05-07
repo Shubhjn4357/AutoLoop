@@ -186,7 +186,9 @@ export async function processWebhookEvent(body: unknown): Promise<{ success: boo
         field: string;
         value: {
           id: string;
-          from: { id: string };
+          from: { id: string; username?: string };
+          to?: { id: string; username?: string };
+          action?: string;
           text: string;
           media?: { id: string };
           parent_id?: string;
@@ -227,27 +229,59 @@ export async function processWebhookEvent(body: unknown): Promise<{ success: boo
       }
     }
 
-    // Handle Comments
+    // Handle Comments, Mentions, and Follows
     if (entry.changes) {
       for (const change of entry.changes) {
-        if (change.field !== "comments") continue;
-        const val = change.value;
-        if (val.parent_id) continue; // Skip replies to comments
+        if (change.field === "comments") {
+          const val = change.value;
+          if (val.parent_id) continue;
 
-        const result = await queueEvent({
-          eventType: "comment",
-          payload: {
+          const result = await queueEvent({
+            eventType: "comment",
+            payload: {
+              externalId,
+              senderId: val.from.id,
+              text: val.text,
+              mediaId: val.media?.id,
+              commentId: val.id,
+            },
             externalId,
-            senderId: val.from.id,
-            text: val.text,
-            mediaId: val.media?.id,
-            commentId: val.id,
-          },
-          externalId,
-          recipientId: val.from.id,
-        });
+            recipientId: val.from.id,
+          });
+          if (result.success) queued++;
+        }
 
-        if (result.success) queued++;
+        if (change.field === "mentions") {
+          const val = change.value;
+          const result = await queueEvent({
+            eventType: "mention",
+            payload: {
+              externalId,
+              senderId: val.from.id,
+              text: val.text,
+              mediaId: val.media?.id,
+              commentId: val.id,
+            },
+            externalId,
+            recipientId: val.from.id,
+          });
+          if (result.success) queued++;
+        }
+
+        if (change.field === "follows" && change.value.action === "follow") {
+          const val = change.value;
+          const result = await queueEvent({
+            eventType: "follow",
+            payload: {
+              externalId,
+              senderId: val.from.id,
+              followerUsername: val.from.username,
+            },
+            externalId,
+            recipientId: val.from.id,
+          });
+          if (result.success) queued++;
+        }
       }
     }
   }
@@ -287,6 +321,12 @@ export async function processQueuedEvent(eventId: string): Promise<{ success: bo
         break;
       case "comment":
         await handleCommentEvent(payload);
+        break;
+      case "follow":
+        await handleFollowEvent(payload);
+        break;
+      case "mention":
+        await handleMentionEvent(payload);
         break;
       case "dm_send":
         await handleDirectSend(payload);
@@ -507,6 +547,127 @@ async function handleCommentEvent(payload: {
   }
 }
 
+// Handle follow events
+async function handleFollowEvent(payload: {
+  externalId: string;
+  senderId: string;
+  followerUsername: string;
+}) {
+  const { externalId, senderId, followerUsername } = payload;
+
+  const igAccount = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.externalId, externalId),
+  });
+
+  if (!igAccount?.accessToken) {
+    throw new Error("Instagram account not found");
+  }
+
+  // Log notification
+  await createNotificationLog({
+    userId: igAccount.userId,
+    type: "follow.received",
+    title: "New Instagram Follower",
+    message: `User ${followerUsername || senderId} followed you!`,
+    metadata: { externalId, senderId, followerUsername },
+  });
+
+  // Track analytics
+  await trackAnalytics({
+    userId: igAccount.userId,
+    eventType: "follow_received",
+    externalId,
+    recipientId: senderId,
+  });
+
+  // Find matching automations
+  const rules = await db.query.automations.findMany({
+    where: and(
+      eq(automations.userId, igAccount.userId),
+      eq(automations.triggerType, "follow"),
+      eq(automations.isActive, true)
+    ),
+    orderBy: [desc(automations.priority)],
+  });
+
+  for (const rule of rules) {
+    // Execute automation
+    await executeAutomation({
+      rule,
+      externalId,
+      recipientId: senderId,
+      accessToken: igAccount.accessToken,
+      messageText: `[NEW_FOLLOW] ${followerUsername || senderId}`,
+    });
+
+    return; // Only execute first matching rule
+  }
+}
+
+// Handle mention events
+async function handleMentionEvent(payload: {
+  externalId: string;
+  senderId: string;
+  text: string;
+  mediaId?: string;
+  commentId?: string;
+}) {
+  const { externalId, senderId, text, mediaId, commentId } = payload;
+
+  const igAccount = await db.query.socialAccounts.findFirst({
+    where: eq(socialAccounts.externalId, externalId),
+  });
+
+  if (!igAccount?.accessToken) {
+    throw new Error("Instagram account not found");
+  }
+
+  // Log notification
+  await createNotificationLog({
+    userId: igAccount.userId,
+    type: "mention.received",
+    title: "New Instagram Mention",
+    message: `User ${senderId} mentioned you: "${text.substring(0, 50)}..."`,
+    metadata: { externalId, senderId, mediaId, commentId },
+  });
+
+  // Track analytics
+  await trackAnalytics({
+    userId: igAccount.userId,
+    eventType: "mention_received",
+    externalId,
+    recipientId: senderId,
+  });
+
+  // Find matching automations
+  const rules = await db.query.automations.findMany({
+    where: and(
+      eq(automations.userId, igAccount.userId),
+      eq(automations.triggerType, "mention"),
+      eq(automations.isActive, true)
+    ),
+    orderBy: [desc(automations.priority)],
+  });
+
+  for (const rule of rules) {
+    // Check condition match
+    const didMatch = matchesAutomationCondition(rule.conditionOperator, rule.condition, text);
+    if (!didMatch) continue;
+
+    // Execute automation
+    await executeAutomation({
+      rule,
+      externalId,
+      recipientId: senderId,
+      accessToken: igAccount.accessToken,
+      messageText: text,
+      commentId: commentId || undefined,
+    });
+
+    return; // Only execute first matching rule
+  }
+}
+
 // Execute automation with AI support
 interface ExecuteParams {
   rule: typeof automations.$inferSelect;
@@ -595,22 +756,24 @@ async function executeAutomation(params: ExecuteParams) {
     await replyToInstagramComment(commentId, interpolatedReply, accessToken);
   }
 
-  // Send DM
-  await sendInstagramMessage(externalId, recipientId, finalDM, accessToken);
+  // Send DM if content exists (making it optional)
+  if (finalDM.trim()) {
+    await sendInstagramMessage(externalId, recipientId, finalDM, accessToken);
 
-  // Store outbound message
-  const outboundId = crypto.randomUUID();
-  await db.insert(dbMessages).values({
-    id: outboundId,
-    userId: rule.userId,
-    externalId,
-    senderId: recipientId,
-    automationId: rule.id,
-    direction: "outbound",
-    status: "sent",
-    text: finalDM,
-    timestamp: new Date(),
-  });
+    // Store outbound message
+    const outboundId = crypto.randomUUID();
+    await db.insert(dbMessages).values({
+      id: outboundId,
+      userId: rule.userId,
+      externalId,
+      senderId: recipientId,
+      automationId: rule.id,
+      direction: "outbound",
+      status: "sent",
+      text: finalDM,
+      timestamp: new Date(),
+    });
+  }
 
   // Schedule follow-ups if configured
   if (rule.followUpTemplate) {

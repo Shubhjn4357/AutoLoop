@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 test("home page renders and links to login", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "AutoLoop" })).toBeVisible();
-  await page.getByRole("link", { name: /Get Started/i }).click();
+  await expect(page.locator("nav").getByRole("heading", { name: "AutoLoop" })).toBeVisible();
+  await page.getByRole("link", { name: "Get Started", exact: true }).click();
   await page.waitForURL(/\/login/);
   await expect(page).toHaveURL(/\/login/);
 });

@@ -21,6 +21,7 @@ import {
   Target,
   Shield,
   Zap,
+  Trash2,
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -215,6 +216,9 @@ export function SimpleAutomationBuilder({
       case "condition":
         return rule.conditionOperator === "any" || !!rule.condition;
       case "response":
+        // DM is optional if it's a comment trigger and public reply is set, or if AI is enabled
+        if (rule.triggerType === "comment" && !!rule.responseTemplate) return true;
+        if (rule.aiEnabled) return true;
         return !!rule.dmTemplate;
       default:
         return true;
@@ -278,9 +282,27 @@ export function SimpleAutomationBuilder({
                       >
                         <TriggerIcon className={cn("size-5", trigger?.textColor)} />
                       </div>
-                      <Badge variant={r.isActive ? "default" : "secondary"}>
-                        {r.isActive ? "Active" : "Paused"}
-                      </Badge>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Switch
+                          checked={r.isActive}
+                          onCheckedChange={async (checked) => {
+                            try {
+                              await onSave({ ...r, isActive: checked });
+                              toast.success(checked ? "Automation active" : "Automation paused");
+                            } catch {
+                              toast.error("Failed to update status");
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-destructive transition-colors"
+                          onClick={() => setDeleteId(r.id || null)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     </div>
                     <CardTitle className="text-lg mt-2">{r.name}</CardTitle>
                   </CardHeader>
@@ -573,7 +595,7 @@ export function SimpleAutomationBuilder({
 
                 {/* DM Response */}
                 <div className="space-y-2">
-                  <Label htmlFor="dmTemplate">Private DM Message</Label>
+                  <Label htmlFor="dmTemplate">Private DM Message (Optional)</Label>
                   <Textarea
                     id="dmTemplate"
                     placeholder="Write your message here..."
