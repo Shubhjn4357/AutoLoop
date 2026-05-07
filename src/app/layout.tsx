@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "@/components/ui/sonner";
-import { SmoothScrollProvider } from "@/components/providers/smooth-scroll-provider";
+import dynamic from "next/dynamic";
+
+const ClientProviders = dynamic(() => import("@/components/providers/client-providers").then(mod => mod.ClientProviders), {
+  ssr: false
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,10 +38,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <SmoothScrollProvider>
+          <ClientProviders>
             {children}
-          </SmoothScrollProvider>
-          <Toaster />
+          </ClientProviders>
         </ThemeProvider>
       </body>
     </html>
