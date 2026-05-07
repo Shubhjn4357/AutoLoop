@@ -4,12 +4,10 @@ import dynamic from "next/dynamic";
 import { TrendingUp, Users, Eye, BarChart2, AlertCircle } from "lucide-react";
 
 const InsightsCharts = dynamic(() => import("./insights-charts").then(mod => mod.InsightsCharts), {
-  ssr: false,
   loading: () => <div className="h-[300px] w-full animate-pulse bg-muted/50 rounded-xl" />
 });
 
 const AppInsightsData = dynamic(() => import("./app-insights-data").then(mod => mod.AppInsightsData), {
-  ssr: false,
   loading: () => <div className="h-[300px] w-full animate-pulse bg-muted/50 rounded-xl mt-6" />
 });
 
@@ -39,7 +37,7 @@ export async function InsightsContent({ externalId, accessToken, userId }: Props
       fetchIGInsights(
         externalId,
         accessToken,
-        ["reach", "profile_views", "accounts_engaged", "total_interactions"],
+        ["reach", "impressions", "profile_visits", "accounts_engaged", "total_interactions"],
         "day",
         String(since),
         String(until)
@@ -53,35 +51,37 @@ export async function InsightsContent({ externalId, accessToken, userId }: Props
   const hasIGData = metrics.length > 0 && profile;
 
   const reach = metrics.find((m) => m.name === "reach");
-  const profileViews = metrics.find((m) => m.name === "profile_views");
+  const profileViews = metrics.find((m) => m.name === "profile_views" || m.name === "profile_visits");
   const interactions = metrics.find((m) => m.name === "total_interactions");
   const engaged = metrics.find((m) => m.name === "accounts_engaged");
 
+  const impressions = metrics.find((m) => m.name === "impressions");
+
   const igStats = [
     {
-      label: "Accounts Reached",
+      label: "Reach",
       value: sumValues(reach).toLocaleString(),
       icon: Users,
       color: "text-primary",
       bg: "bg-primary/10",
     },
     {
-      label: "Profile Views",
-      value: sumValues(profileViews).toLocaleString(),
+      label: "Impressions",
+      value: sumValues(impressions).toLocaleString(),
       icon: Eye,
       color: "text-blue-500",
       bg: "bg-blue-500/10",
     },
     {
-      label: "Interactions",
-      value: sumValues(interactions).toLocaleString(),
+      label: "Engaged Accounts",
+      value: sumValues(engaged).toLocaleString(),
       icon: BarChart2,
       color: "text-fuchsia-500",
       bg: "bg-fuchsia-500/10",
     },
     {
       label: "Total Interactions",
-      value: sumValues(engaged).toLocaleString(),
+      value: sumValues(interactions).toLocaleString(),
       icon: TrendingUp,
       color: "text-emerald-500",
       bg: "bg-emerald-500/10",

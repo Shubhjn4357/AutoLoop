@@ -106,12 +106,26 @@ export async function fetchIGInsights(
   until?: string
 ): Promise<IGInsightMetric[]> {
   // Metrics that require metric_type=total_value (lifetime metrics)
-  const lifetimeMetrics = ["profile_views", "accounts_engaged", "total_interactions", "followers_count", "follows_count"];
+  const lifetimeMetrics = ["followers_count", "follows_count"];
   // Metrics that work with period (time-series metrics)
-  const timeSeriesMetrics = ["reach", "impressions", "profile_visits", "website_clicks"];
+  const timeSeriesMetrics = [
+    "reach", 
+    "impressions", 
+    "profile_visits", 
+    "website_clicks",
+    "accounts_engaged",
+    "total_interactions"
+  ];
 
-  const lifetimeMetricsToFetch = metrics.filter((m) => lifetimeMetrics.includes(m));
-  const timeSeriesMetricsToFetch = metrics.filter((m) => timeSeriesMetrics.includes(m));
+  // Map legacy names to modern names
+  const metricMap: Record<string, string> = {
+    "profile_views": "profile_visits",
+  };
+
+  const finalMetrics = metrics.map(m => metricMap[m] || m);
+
+  const lifetimeMetricsToFetch = finalMetrics.filter((m) => lifetimeMetrics.includes(m));
+  const timeSeriesMetricsToFetch = finalMetrics.filter((m) => timeSeriesMetrics.includes(m));
 
   const results: IGInsightMetric[] = [];
 

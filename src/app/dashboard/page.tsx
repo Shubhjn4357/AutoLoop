@@ -11,7 +11,6 @@ import { getDashboardData } from "@/lib/dashboard/data";
 import { headers } from "next/headers";
 
 const MessageChart = nextDynamic(() => import("@/components/message-chart").then(mod => mod.MessageChart), {
-  ssr: false,
   loading: () => <div className="h-[300px] w-full animate-pulse bg-muted/50 rounded-xl" />
 });
 
