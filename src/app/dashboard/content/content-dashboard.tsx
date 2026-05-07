@@ -1,6 +1,10 @@
 import { fetchIGMedia } from "@/lib/instagram/graph";
 import type { automations as AutomationType } from "@/lib/db/schema";
-import { ContentDashboardClient } from "./content-dashboard-client";
+import dynamic from "next/dynamic";
+
+const ContentDashboardClient = dynamic(() => import("./content-dashboard-client").then(mod => mod.ContentDashboardClient), {
+  ssr: false
+});
 
 type Automation = typeof AutomationType.$inferSelect;
 

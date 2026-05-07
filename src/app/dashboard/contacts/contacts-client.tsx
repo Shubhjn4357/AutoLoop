@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNowSimple } from "@/lib/date-utils";
 import { Search, Users, UserPlus, User, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -270,7 +270,7 @@ export function ContactsClient({ contacts }: Props) {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(contact.lastSeenAt), { addSuffix: true })}
+                      {formatDistanceToNowSimple(new Date(contact.lastSeenAt))}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate">
                       {contact.notes ?? "—"}

@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNowSimple } from "@/lib/date-utils";
 import { Bell } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +46,7 @@ export function NotificationLog({
                   <div className="flex items-start justify-between gap-3">
                     <p className="truncate text-sm font-medium">{log.title}</p>
                     <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatDistanceToNow(log.createdAt, { addSuffix: true })}
+                      {formatDistanceToNowSimple(log.createdAt)}
                     </span>
                   </div>
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">

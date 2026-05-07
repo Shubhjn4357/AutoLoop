@@ -8,12 +8,15 @@ const nextConfig: NextConfig = {
   // Prevent native binaries from being bundled (needed for Cloudflare + HuggingFace)
   serverExternalPackages: [
     "libsql", 
-    "@libsql/isomorphic-ws"
+    "@libsql/isomorphic-ws",
+    "stripe",
+    "drizzle-orm",
+    "framer-motion"
   ],
   experimental: {
-    optimizePackageImports: ["lucide-react", "recharts"],
+    optimizePackageImports: ["lucide-react", "recharts", "framer-motion", "date-fns"],
     // Disable React compiler to fix static generation issues
-    reactCompiler: false,
+    reactCompiler: true,
   },
 };
 

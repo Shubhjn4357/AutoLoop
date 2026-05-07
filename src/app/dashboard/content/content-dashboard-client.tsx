@@ -9,8 +9,6 @@ import {
   Download, BookOpen, Bot
 } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
-
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,7 +143,7 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
                       </div>
                     )}
                     {/* Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-2">
+                    <div className="absolute inset-0 bg-linear-to-t from-background/80 via-background/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-2">
                       <div className="flex items-center gap-2 text-foreground text-xs font-bold">
                         <span className="flex items-center gap-1"><Heart className="size-3" /> {post.like_count ?? 0}</span>
                         <span className="flex items-center gap-1"><MessageCircle className="size-3" /> {post.comments_count ?? 0}</span>
@@ -237,7 +235,7 @@ export function ContentDashboardClient({ automations, initialMedia }: Props) {
                     {selectedPost.timestamp && (
                       <p className="text-muted-foreground flex items-center gap-1.5">
                         <Calendar className="size-4" />
-                        {format(new Date(selectedPost.timestamp), "MMM d, yyyy")}
+                        {new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(selectedPost.timestamp))}
                       </p>
                     )}
                     {selectedPost.caption && (

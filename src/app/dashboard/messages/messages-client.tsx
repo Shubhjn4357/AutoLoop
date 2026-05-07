@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNowSimple } from "@/lib/date-utils";
 import { Send, User, Tag, MessageSquare, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -156,9 +156,7 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
                         </p>
                         {conv.lastMessage && (
                           <span className="text-[10px] text-muted-foreground shrink-0">
-                            {formatDistanceToNow(new Date(conv.lastMessage.timestamp), {
-                              addSuffix: false,
-                            })}
+                             {formatDistanceToNowSimple(new Date(conv.lastMessage.timestamp))}
                           </span>
                         )}
                       </div>
@@ -245,7 +243,7 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
                           isOutbound ? "text-primary-foreground/60" : "text-muted-foreground"
                         )}
                       >
-                        {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
+                        {formatDistanceToNowSimple(new Date(msg.timestamp))}
                       </p>
                     </div>
                   </div>

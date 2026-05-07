@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { Suspense } from "react";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -8,10 +6,13 @@ import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
 import { automations, socialAccounts } from "@/lib/db/schema";
-import { SimpleAutomationBuilder } from "@/components/automation/simple-automation-builder";
 import { QueryToast } from "@/components/dashboard/query-toast";
 import { AutomationsSkeleton } from "@/components/dashboard/skeletons";
 import { NoConnectionBanner } from "@/components/dashboard/no-connection-banner";
+import dynamic from "next/dynamic";
+const SimpleAutomationBuilder = dynamic(() => import("@/components/automation/simple-automation-builder").then(mod => mod.SimpleAutomationBuilder), {
+  ssr: false
+});
 
 export default async function AutomationsPage() {
   const session = await auth();

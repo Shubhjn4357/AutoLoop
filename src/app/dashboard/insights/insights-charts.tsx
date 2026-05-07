@@ -5,7 +5,6 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Legend,
 } from "recharts";
-import { format } from "date-fns";
 import type { IGInsightMetric } from "@/lib/instagram/graph";
 
 interface Props {
@@ -23,7 +22,7 @@ export function InsightsCharts({ reachMetric, interactionsMetric, profileViewsMe
   ])).sort();
 
   const areaData = allDates.map((end_time) => ({
-    date: format(new Date(end_time), "EEE"),
+    date: new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(new Date(end_time)),
     reach: reachMetric?.values.find(v => v.end_time === end_time)?.value ?? 0,
     interactions: interactionsMetric?.values.find(v => v.end_time === end_time)?.value ?? 0,
     profileViews: profileViewsMetric?.values.find(v => v.end_time === end_time)?.value ?? 0,

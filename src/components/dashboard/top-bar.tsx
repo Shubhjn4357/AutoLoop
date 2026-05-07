@@ -3,11 +3,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Bell, User, X, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useDashboard } from "@/hooks/useDashboard";
 import { ThemeToggle } from "./theme-toggle";
+import { formatDistanceToNowSimple } from "@/lib/date-utils";
 import dynamic from "next/dynamic";
 
 const GlobalSearch = dynamic(() => import("./global-search").then(mod => mod.GlobalSearch), { ssr: false });
@@ -86,7 +86,7 @@ export function TopBar() {
                       <p className="text-xs font-semibold">{log.title}</p>
                       <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{log.message}</p>
                       <p className="text-[9px] text-primary/60 mt-1">
-                        {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
+                        {formatDistanceToNowSimple(new Date(log.createdAt))}
                       </p>
                     </button>
                   ))

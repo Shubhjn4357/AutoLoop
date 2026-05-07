@@ -1,4 +1,4 @@
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNowSimple } from "@/lib/date-utils";
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -40,7 +40,7 @@ export function NotificationItem({ log }: { log: NotificationLog }) {
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold truncate">{log.title}</p>
           <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-            {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
+            {formatDistanceToNowSimple(new Date(log.createdAt))}
           </span>
         </div>
         <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
