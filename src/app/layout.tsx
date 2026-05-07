@@ -4,9 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import dynamic from "next/dynamic";
 
-const ClientProviders = dynamic(() => import("@/components/providers/client-providers").then(mod => mod.ClientProviders), {
-  ssr: false
-});
+const ClientProviders = dynamic(() => import("@/components/providers/client-providers").then(mod => mod.ClientProviders));
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
