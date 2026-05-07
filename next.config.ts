@@ -9,9 +9,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "libsql",
     "@libsql/isomorphic-ws",
-    "lucide-react",
     "gsap",
     "@gsap/react",
+    "recharts",
   ],
 };
 
