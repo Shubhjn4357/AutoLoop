@@ -9,10 +9,7 @@ import { automations, socialAccounts } from "@/lib/db/schema";
 import { QueryToast } from "@/components/dashboard/query-toast";
 import { AutomationsSkeleton } from "@/components/dashboard/skeletons";
 import { NoConnectionBanner } from "@/components/dashboard/no-connection-banner";
-import dynamic from "next/dynamic";
-const SimpleAutomationBuilder = dynamic(() => import("@/components/automation/simple-automation-builder").then(mod => mod.SimpleAutomationBuilder), {
-  ssr: false
-});
+import { SimpleAutomationBuilder } from "./automations-bridge";
 
 export default async function AutomationsPage() {
   const session = await auth();
