@@ -1,8 +1,17 @@
 import { fetchIGInsights, fetchIGProfile, type IGInsightMetric } from "@/lib/instagram/graph";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { InsightsCharts } from "./insights-charts";
-import { AppInsightsData } from "./app-insights-data";
+import dynamic from "next/dynamic";
 import { TrendingUp, Users, Eye, BarChart2, AlertCircle } from "lucide-react";
+
+const InsightsCharts = dynamic(() => import("./insights-charts").then(mod => mod.InsightsCharts), {
+  ssr: false,
+  loading: () => <div className="h-[300px] w-full animate-pulse bg-muted/50 rounded-xl" />
+});
+
+const AppInsightsData = dynamic(() => import("./app-insights-data").then(mod => mod.AppInsightsData), {
+  ssr: false,
+  loading: () => <div className="h-[300px] w-full animate-pulse bg-muted/50 rounded-xl mt-6" />
+});
 
 interface Props {
   externalId: string;

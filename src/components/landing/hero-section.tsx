@@ -25,7 +25,7 @@ export function HeroSection() {
         className="absolute inset-0 z-0"
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(99,102,241,0.15),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[grid-white/[0.02]] bg-[size:40px_40px]" />
+        <div className="absolute inset-0 bg-[grid-white/[0.02]] bg-size-[40px_40px]" />
       </motion.div>
 
       <div className="container relative z-10 text-center px-4">
@@ -43,7 +43,7 @@ export function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3 }}
-          className="text-6xl md:text-8xl font-black tracking-tighter mb-6 bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/50"
+          className="text-6xl md:text-8xl font-black tracking-tighter mb-6 bg-clip-text text-transparent bg-linear-to-b from-foreground to-foreground/50"
         >
           Automate Like <br />
           <span className="text-primary">Superpowers.</span>
