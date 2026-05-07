@@ -1,46 +1,56 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AutomationBuilder } from "@/components/automation/automation-builder";
+import { SimpleAutomationBuilder } from "@/components/automation/simple-automation-builder";
 
 afterEach(() => cleanup());
 
-describe("AutomationBuilder", () => {
-  it("renders flow controls and existing automations", () => {
+describe("SimpleAutomationBuilder", () => {
+  it("renders automation list with existing rules", () => {
     render(
-      <AutomationBuilder
-        automations={[
+      <SimpleAutomationBuilder
+        existingRules={[
           {
             id: "auto_1",
-            userId: "user_1",
             name: "Price reply",
-            triggerType: "keyword",
+            triggerType: "dm",
             conditionOperator: "contains",
             condition: "price",
-            responseTemplate: "Pricing starts at 999.",
-            dmTemplate: "Check your DM!",
+            dmTemplate: "Pricing starts at 999.",
             targetUrl: "https://example.com",
             followUpTemplate: "Need anything else?",
             followUpDelayMinutes: 15,
+            followUp2DelayMinutes: 1440,
             requireFollower: true,
-            flowJson: JSON.stringify([
-              { id: "reply", type: "reply", label: "Auto reply" },
-            ]),
+            aiEnabled: false,
+            cooldownMinutes: 5,
+            maxDailySends: 100,
             isActive: true,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            priority: 0,
           },
         ]}
-        createAutomationAction={vi.fn()}
-        toggleAutomationAction={vi.fn()}
-        deleteAutomationAction={vi.fn()}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
       />
     );
 
-    expect(screen.getByText("Automation Flow")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Rule name/i)).toBeInTheDocument();
+    expect(screen.getByText("Automations")).toBeInTheDocument();
+    expect(screen.getByText("1 automation configured")).toBeInTheDocument();
     expect(screen.getByText("Price reply")).toBeInTheDocument();
-    expect(screen.getByText(/Follower condition required/i)).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+  });
+
+  it("renders empty state when no automations exist", () => {
+    render(
+      <SimpleAutomationBuilder
+        existingRules={[]}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("No automations yet")).toBeInTheDocument();
+    expect(screen.getByText(/Create your first automation/i)).toBeInTheDocument();
   });
 });
 

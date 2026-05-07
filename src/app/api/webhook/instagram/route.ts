@@ -1,5 +1,5 @@
-import { after, NextResponse } from "next/server";
-import { processInstagramMessage, processInstagramComment } from "@/lib/automation/engine";
+import { NextResponse } from "next/server";
+import { processWebhookEvent } from "@/lib/queue/engine";
 import { checkRateLimit, getClientIP } from "@/lib/rate-limit";
 import crypto from "crypto";
 
@@ -28,6 +28,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Rate limit by IP
   const ip = getClientIP(request);
   const rateLimit = checkRateLimit(ip);
   if (!rateLimit.allowed) {
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     const textBody = await request.text();
     const signature = request.headers.get("x-hub-signature-256");
 
+    // Verify signature
     if (process.env.META_APP_SECRET && !signature) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
@@ -46,87 +48,33 @@ export async function POST(request: Request) {
       const hmac = crypto.createHmac("sha256", process.env.META_APP_SECRET);
       const digest = "sha256=" + hmac.update(textBody).digest("hex");
       if (!signaturesMatch(digest, signature)) {
-        console.error("Webhook signature mismatch.");
+        console.error("[Webhook] Signature mismatch");
         return new NextResponse("Unauthorized", { status: 401 });
       }
     }
 
     const body = JSON.parse(textBody);
 
-    if (body.object === "instagram") {
-      const backgroundTasks: Promise<void>[] = [];
-
-      for (const entry of body.entry) {
-        // 1. Handle DMs
-        if (entry.messaging) {
-          for (const messaging of entry.messaging) {
-            console.log("Received message:", messaging);
-            if (messaging.message?.is_echo) continue;
-
-            if (messagingHasTextMessage(messaging)) {
-              const storyId = messaging.message.reply_to?.story?.id;
-              backgroundTasks.push(
-                processInstagramMessage({
-                  externalId: entry.id,
-                  senderId: messaging.sender.id,
-                  text: messaging.message.text,
-                  storyId,
-                }).catch((e) => console.error("DM Process Error:", e))
-              );
-            }
-          }
-        }
-
-        // 2. Handle Comments
-        if (entry.changes) {
-          for (const change of entry.changes) {
-            console.log("Received change:", change);
-            if (change.field === "comments") {
-              const val = change.value;
-              // Ignore replies to comments to avoid infinite loops
-              if (val.parent_id) continue;
-
-              backgroundTasks.push(
-                processInstagramComment({
-                  externalId: entry.id,
-                  senderId: val.from.id,
-                  text: val.text,
-                  mediaId: val.media.id,
-                  commentId: val.id,
-                }).catch((e) => console.error("Comment Process Error:", e))
-              );
-            }
-          }
-        }
-      }
-
-      after(() => Promise.all(backgroundTasks).catch(console.error));
-      return new NextResponse("EVENT_RECEIVED", { status: 200 });
+    // Only handle Instagram webhooks
+    if (body.object !== "instagram") {
+      return new NextResponse("Not Found", { status: 404 });
     }
 
-    return new NextResponse("Not Found", { status: 404 });
+    // Queue events for async processing - NEVER process synchronously
+    // This ensures fast response to Meta and reliable processing
+    const result = await processWebhookEvent(body);
+
+    if (!result.success) {
+      console.error("[Webhook] Failed to queue events");
+      return new NextResponse("Error", { status: 500 });
+    }
+
+    console.log(`[Webhook] Queued ${result.queued} events for processing`);
+
+    // Return immediately - processing happens asynchronously
+    return new NextResponse("EVENT_RECEIVED", { status: 200 });
   } catch (error) {
-    console.error("Webhook processing error:", error);
+    console.error("[Webhook] Processing error:", error);
     return new NextResponse("Error parsing webhook", { status: 500 });
   }
-}
-
-interface InstagramMessagingEvent {
-  sender: { id: string };
-  message?: {
-    text?: string;
-    is_echo?: boolean;
-    reply_to?: {
-      story?: {
-        id: string;
-        url: string;
-      };
-    };
-  };
-}
-
-function messagingHasTextMessage(
-  messaging: InstagramMessagingEvent
-): messaging is InstagramMessagingEvent & { message: { text: string } } {
-  return typeof messaging.message?.text === "string" && messaging.message.text.length > 0;
 }

@@ -71,17 +71,38 @@ export const automations = sqliteTable("automations", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  triggerType: text("trigger_type").notNull().default("keyword"),
-  conditionOperator: text("condition_operator").notNull().default("contains"),
-  condition: text("condition"),
-  responseTemplate: text("response_template").notNull(),
-  dmTemplate: text("dm_template"),
-  targetUrl: text("target_url"),
+
+  // Trigger configuration
+  triggerType: text("trigger_type").notNull().default("dm"), // dm, comment, story_reply, mention, follow
+  conditionOperator: text("condition_operator").notNull().default("contains"), // any, contains, equals, starts_with, ends_with, regex
+  condition: text("condition"), // keyword or pattern to match
+  targetPostId: text("target_post_id"), // optional: specific post/story to trigger on
+
+  // Response configuration
+  responseTemplate: text("response_template"), // public comment reply (for comment triggers)
+  dmTemplate: text("dm_template").notNull(), // primary DM response
+  targetUrl: text("target_url"), // optional link to include
+
+  // Follow-up sequence (simplified - up to 3 follow-ups)
   followUpTemplate: text("follow_up_template"),
-  followUpDelayMinutes: integer("follow_up_delay_minutes").default(0),
+  followUpDelayMinutes: integer("follow_up_delay_minutes").default(60),
+  followUp2Template: text("follow_up_2_template"),
+  followUp2DelayMinutes: integer("follow_up_2_delay_minutes").default(1440), // 24 hours
+
+  // Smart features
   requireFollower: integer("require_follower", { mode: "boolean" }).default(false),
-  flowJson: text("flow_json"),
+  aiEnabled: integer("ai_enabled", { mode: "boolean" }).default(false), // use AI for smart replies
+  aiPrompt: text("ai_prompt"), // custom AI prompt
+
+  // Rate limiting
+  cooldownMinutes: integer("cooldown_minutes").default(5), // prevent spam
+  maxDailySends: integer("max_daily_sends").default(100), // daily limit
+
+  // Status
   isActive: integer("is_active", { mode: "boolean" }).default(false),
+  priority: integer("priority").default(0), // higher = processed first
+
+  // Metadata
   createdAt: integer("created_at", { mode: "timestamp_ms" }).$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).$defaultFn(() => new Date()),
 });
@@ -171,4 +192,77 @@ export const contactTags = sqliteTable("contact_tags", {
   contactId: text("contact_id").notNull().references(() => contacts.id, { onDelete: "cascade" }),
   tag: text("tag").notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});
+
+// Event queue for distributed processing
+export const eventQueue = sqliteTable("event_queue", {
+  id: text("id").primaryKey(),
+  eventType: text("event_type").notNull(), // webhook, dm_send, retry
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+
+  // Event data
+  payload: text("payload").notNull(), // JSON event data
+  externalId: text("external_id"), // Instagram account ID
+  recipientId: text("recipient_id"), // User who triggered event
+
+  // Processing metadata
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").default(3),
+  lastError: text("last_error"),
+  processedAt: integer("processed_at", { mode: "timestamp_ms" }),
+  scheduledFor: integer("scheduled_for", { mode: "timestamp_ms" }), // for delayed processing
+
+  // Idempotency
+  idempotencyKey: text("idempotency_key").unique(),
+
+  // Timestamps
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});
+
+// Rate limiting per Instagram account
+export const rateLimitState = sqliteTable("rate_limit_state", {
+  id: text("id").primaryKey(),
+  externalId: text("external_id").notNull().unique(), // Instagram account ID
+
+  // DM rate limiting
+  dmCountMinute: integer("dm_count_minute").default(0),
+  dmCountHour: integer("dm_count_hour").default(0),
+  dmCountDay: integer("dm_count_day").default(0),
+  dmWindowStart: integer("dm_window_start", { mode: "timestamp_ms" }),
+
+  // Cooldown tracking per recipient
+  lastSendToRecipient: text("last_send_to_recipient"), // JSON: { recipientId: timestamp }
+
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});
+
+// Enhanced analytics events
+export const analyticsEvents = sqliteTable("analytics_events", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(), // dm_sent, dm_received, automation_triggered, etc.
+
+  // Event details
+  automationId: text("automation_id").references(() => automations.id, { onDelete: "set null" }),
+  externalId: text("external_id"),
+  recipientId: text("recipient_id"),
+  metadata: text("metadata"), // JSON additional data
+
+  // Timestamps
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});
+
+// AI conversation memory
+export const aiConversations = sqliteTable("ai_conversations", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  externalId: text("external_id").notNull(),
+  recipientId: text("recipient_id").notNull(),
+
+  // Conversation context
+  context: text("context"), // JSON conversation history
+  intent: text("intent"), // detected intent
+  lastMessageAt: integer("last_message_at", { mode: "timestamp_ms" }),
+
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
 });

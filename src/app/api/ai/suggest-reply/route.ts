@@ -25,13 +25,24 @@ export async function POST(req: Request) {
       return new NextResponse("No messages found", { status: 404 });
     }
 
+    // Get the last user message
+    const lastMessage = thread.find(m => m.direction === "inbound");
+    if (!lastMessage) {
+      return new NextResponse("No user message found", { status: 404 });
+    }
+
+    // Build conversation context
     const history = thread.reverse().map(m => ({
-      role: (m.direction === "inbound" ? "user" : "model") as "user" | "model",
+      role: m.direction === "inbound" ? "user" : "assistant",
       content: m.text,
     }));
 
-    const suggestion = await generateSmartReply(history);
-    return NextResponse.json({ suggestion });
+    const result = await generateSmartReply({
+      userMessage: lastMessage.text,
+      context: JSON.stringify({ history }),
+    });
+
+    return NextResponse.json({ suggestion: result?.reply ?? null });
   } catch (error) {
     console.error("[AI API] Suggestion failed:", error);
     return new NextResponse("Internal Server Error", { status: 500 });

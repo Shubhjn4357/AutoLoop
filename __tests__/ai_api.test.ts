@@ -3,7 +3,7 @@ import { POST } from "@/app/api/ai/suggest-reply/route";
 import { auth } from "@/lib/auth/config";
 
 vi.mock("@/lib/ai", () => ({
-  generateSmartReply: vi.fn().mockResolvedValue("AI Suggestion"),
+  generateSmartReply: vi.fn().mockResolvedValue({ reply: "AI Suggestion" }),
 }));
 
 vi.mock("@/lib/auth/config", () => ({

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-
-import { processDueFollowUps } from "@/lib/automation/engine";
+import { processScheduledMessages, processQueueBatch } from "@/lib/queue/engine";
 
 export async function POST(request: Request) {
   const expectedSecret = process.env.AUTOMATION_CRON_SECRET;
@@ -17,7 +16,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await processDueFollowUps();
-  return NextResponse.json(result);
+  try {
+    // Process both scheduled messages and queue events
+    const [scheduledResult, queueResult] = await Promise.all([
+      processScheduledMessages(),
+      processQueueBatch(50),
+    ]);
+
+    return NextResponse.json({
+      scheduled: scheduledResult,
+      queue: queueResult,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[Cron] Processing error:", error);
+    return NextResponse.json(
+      { error: "Processing failed" },
+      { status: 500 }
+    );
+  }
 }
 
