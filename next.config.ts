@@ -14,11 +14,10 @@ const nextConfig: NextConfig = {
     "@base-ui/react",
     "@radix-ui/react-tabs",
     "vaul",
-    "sonner",
-    "framer-motion"
+    "sonner"
   ],
   experimental: {
-    optimizePackageImports: ["lucide-react", "recharts", "framer-motion"],
+    optimizePackageImports: ["lucide-react", "recharts"],
   },
 };
 
