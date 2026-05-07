@@ -10,8 +10,7 @@ const nextConfig: NextConfig = {
     "libsql", 
     "@libsql/isomorphic-ws",
     "stripe",
-    "drizzle-orm",
-    "framer-motion"
+    "drizzle-orm"
   ],
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts", "framer-motion", "date-fns"],
