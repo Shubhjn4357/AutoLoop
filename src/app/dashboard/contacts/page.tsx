@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db/client";
 import { contacts, contactTags } from "@/lib/db/schema";
 import { eq, desc, inArray } from "drizzle-orm";
-import { ContactsClient } from "./contacts-client";
+import { ContactsClient } from "./contacts-bridge";
 
 export default async function ContactsPage() {
   const session = await auth();

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth/config";
 import { db } from "@/lib/db/client";
 import { socialAccounts, users } from "@/lib/db/schema";
-import { SettingsClient } from "./settings-client";
+import { SettingsClient } from "./settings-bridge";
 import { fetchIGProfile } from "@/lib/instagram/graph";
 import { getNotificationPrefs } from "@/lib/utils/settings";
 

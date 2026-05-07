@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth/config";
 import { redirect } from "next/navigation";
 import { getConversations } from "@/lib/messages/data";
 import { getThreadMessages } from "@/lib/messages/data";
-import { MessagesClient } from "./messages-client";
+import { MessagesClient } from "./messages-bridge";
 
 interface PageProps {
   searchParams: Promise<{ senderId?: string }>;

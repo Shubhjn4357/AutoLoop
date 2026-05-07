@@ -9,7 +9,6 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "libsql", 
     "@libsql/isomorphic-ws",
-    "stripe",
     "drizzle-orm"
   ],
   experimental: {
