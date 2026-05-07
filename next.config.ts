@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
   ],
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts"],
+    // Disable React compiler to fix static generation issues
+    reactCompiler: false,
   },
 };
 
