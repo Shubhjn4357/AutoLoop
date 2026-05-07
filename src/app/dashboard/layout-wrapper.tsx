@@ -1,9 +1,11 @@
 "use client";
 
 import { useDashboardContext } from "@/components/dashboard/dashboard-context";
-import { Sidebar } from "@/components/dashboard/sidebar";
 import { TopBar } from "@/components/dashboard/top-bar";
 import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
+const Sidebar = dynamic(() => import("@/components/dashboard/sidebar").then(mod => mod.Sidebar), { ssr: false });
 
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const { isSidebarCollapsed } = useDashboardContext();

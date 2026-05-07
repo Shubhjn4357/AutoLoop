@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Sidebar } from "./sidebar";
 import { useDashboard } from "@/hooks/useDashboard";
 import { ThemeToggle } from "./theme-toggle";
-import { GlobalSearch } from "./global-search";
+import dynamic from "next/dynamic";
+
+const GlobalSearch = dynamic(() => import("./global-search").then(mod => mod.GlobalSearch), { ssr: false });
+const Sidebar = dynamic(() => import("./sidebar").then(mod => mod.Sidebar), { ssr: false });
 
 export function TopBar() {
   const { userName, hasIssues, recentLogs } = useDashboard();
