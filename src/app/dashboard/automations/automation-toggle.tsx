@@ -22,10 +22,8 @@ export function AutomationToggle({ id, initialStatus }: Props) {
 
     startTransition(async () => {
       try {
-        const res = await toggleAutomation(id, checked);
-        if (res.success) {
-          toast.success(`Automation ${checked ? "activated" : "deactivated"}`);
-        }
+        await toggleAutomation(id, checked);
+        toast.success(`Automation ${checked ? "activated" : "deactivated"}`);
       } catch {
         // Rollback on failure
         setIsActive(!checked);

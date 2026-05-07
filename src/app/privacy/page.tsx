@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { AnimatedButton } from "@/components/ui/animated-button";
 
 export default function PrivacyPage() {
@@ -12,7 +11,10 @@ export default function PrivacyPage() {
       <div className="max-w-3xl mx-auto">
         <Link href="/">
           <AnimatedButton variant="ghost" className="mb-8 rounded-full" disableGlow>
-            <ArrowLeft className="mr-2 size-4" /> Back to Home
+            <svg className="mr-2 size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Home
           </AnimatedButton>
         </Link>
         

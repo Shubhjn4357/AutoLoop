@@ -4,7 +4,7 @@ import { db } from "@/lib/db/client";
 import { socialAccounts } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { SearchResults } from "./search-results";
+import { SearchResults } from "./search-bridge";
 import { NoConnectionBanner } from "@/components/dashboard/no-connection-banner";
 
 export const dynamic = "force-dynamic";

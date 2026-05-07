@@ -1,6 +1,5 @@
 import Image from "next/image";
 import { searchIGUser } from "@/lib/instagram/graph";
-import { Users, BookOpen, Heart, MessageCircle, Globe } from "lucide-react";
 
 interface Props {
   query: string;
@@ -12,7 +11,9 @@ export async function SearchResults({ query, externalId, accessToken }: Props) {
   if (!query) {
     return (
       <div className="glass-card rounded-3xl p-16 text-center text-muted-foreground">
-        <Globe className="size-12 mx-auto mb-4 opacity-20" />
+        <svg className="size-12 mx-auto mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+        </svg>
         <p>Enter a username in the search bar above to discover profiles.</p>
       </div>
     );
@@ -40,12 +41,16 @@ export async function SearchResults({ query, externalId, accessToken }: Props) {
             
             <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-2">
               <div className="flex items-center gap-1.5 text-sm">
-                <Users className="size-4 text-primary" />
+                <svg className="size-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
                 <span className="font-bold">{profile.followers_count?.toLocaleString()}</span>
                 <span className="text-muted-foreground">Followers</span>
               </div>
               <div className="flex items-center gap-1.5 text-sm">
-                <BookOpen className="size-4 text-primary" />
+                <svg className="size-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
                 <span className="font-bold">{profile.media_count?.toLocaleString()}</span>
                 <span className="text-muted-foreground">Posts</span>
               </div>
@@ -74,8 +79,18 @@ export async function SearchResults({ query, externalId, accessToken }: Props) {
                 />
               )}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 text-white text-xs font-bold">
-                <span className="flex items-center gap-1"><Heart className="size-3" /> {item.like_count}</span>
-                <span className="flex items-center gap-1"><MessageCircle className="size-3" /> {item.comments_count}</span>
+                <span className="flex items-center gap-1">
+                  <svg className="size-3" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                  </svg>
+                  {item.like_count}
+                </span>
+                <span className="flex items-center gap-1">
+                  <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  {item.comments_count}
+                </span>
               </div>
             </div>
           ))}

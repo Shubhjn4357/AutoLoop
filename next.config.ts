@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+import withBundleAnalyzer from "@next/bundle-analyzer";
+
+const config = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
 
 const nextConfig: NextConfig = {
   // Only enable standalone output if explicitly requested (e.g. CI or OpenNext packaging)
@@ -11,14 +16,21 @@ const nextConfig: NextConfig = {
     "@libsql/isomorphic-ws",
     "drizzle-orm"
   ],
+  images: {
+    unoptimized: true,
+  },
+
   experimental: {
+    serverActions: {
+      bodySizeLimit: 2000000,
+    },
     optimizePackageImports: ["lucide-react", "recharts", "framer-motion", "date-fns"],
     // Disable React compiler to fix static generation issues
-    reactCompiler: true,
+    reactCompiler: false,
   },
 };
 
-export default nextConfig;
+export default config(nextConfig);
 
 if (process.env.NODE_ENV === "development") {
   initOpenNextCloudflareForDev();

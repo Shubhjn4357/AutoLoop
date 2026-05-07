@@ -1,3 +1,5 @@
+"use client";
+
 import { formatDistanceToNowSimple } from "@/lib/date-utils";
 import { 
   CheckCircle2, 
