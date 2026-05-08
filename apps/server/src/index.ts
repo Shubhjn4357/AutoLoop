@@ -41,7 +41,7 @@ app.route('/api/user', userRouter);
 
 
 
-const port = Number(process.env.PORT) || 3001;
+const port = Number(process.env.PORT) || 7860;
 console.log(`Server is running on port ${port}`);
 
 // Initialize BullMQ workers

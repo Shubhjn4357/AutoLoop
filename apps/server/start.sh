@@ -33,4 +33,5 @@ if [ -z "$ENTRY_POINT" ] || [ ! -f "$ENTRY_POINT" ]; then
 fi
 
 echo "Found entry point: $ENTRY_POINT"
-node "$ENTRY_POINT"
+# Use tsx (already in node_modules) to handle ESM resolution correctly
+/app/node_modules/.bin/tsx "$ENTRY_POINT"
