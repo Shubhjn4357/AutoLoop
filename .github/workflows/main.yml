@@ -123,7 +123,7 @@ jobs:
         run: pnpm test:components
 
       - name: Install Playwright Browsers
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter @autoloop/web exec playwright install --with-deps chromium
 
       - name: Automation tests
         run: pnpm test:e2e
