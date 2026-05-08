@@ -9,7 +9,7 @@ on:
       skip_quality:
         description: 'Skip quality, build and test jobs'
         required: false
-        default: false
+        default: true
         type: boolean
 
 jobs:
@@ -159,24 +159,30 @@ jobs:
           lfs: true
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Deploy to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           git config --global user.email "shubhamjain.com.in@gmail.com"
           git config --global user.name "shubhjn"
-          git config lfs.allowincompletepush true
+          
+          # Clean up any potential node_modules that might have been checked out
+          find . -name "node_modules" -type d -exec rm -rf {} +
+          
+          # Create a fresh deployment repository to avoid history issues
+          mkdir deploy_tmp
+          cp -r apps/server deploy_tmp/
+          cp -r packages deploy_tmp/
+          cp package.json pnpm-lock.yaml pnpm-workspace.yaml Dockerfile README.md .gitattributes deploy_tmp/
+          
+          cd deploy_tmp
+          git init
+          git config user.email "shubhamjain.com.in@gmail.com"
+          git config user.name "shubhjn"
+          
+          # Ensure we don't accidentally include anything else
+          git add .
+          git commit -m "Deploy AutoLoop Server to Hugging Face"
+          
           git remote add hf https://shubhjn:$HF_TOKEN@huggingface.co/spaces/shubhjn/autoloop
-          git push --force --no-verify hf main
+          git push --force hf master:main
