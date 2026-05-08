@@ -135,7 +135,7 @@ export const automationEngine = {
     scheduledFor?: Date;
     idempotencyKey?: string;
   }) {
-    const idempotencyKey = params.idempotencyKey || `${params.externalId}:${params.recipientId}:${params.eventType}:${Math.floor(Date.now() / 60000)}`;
+    const idempotencyKey = params.idempotencyKey || `${params.externalId}-${params.recipientId}-${params.eventType}-${Math.floor(Date.now() / 60000)}`;
     
     // Check for duplicate
     const existing = await db.query.eventQueue.findFirst({

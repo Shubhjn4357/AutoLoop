@@ -137,7 +137,7 @@ async function subscribeToWebhooks(params: {
   pageAccessToken: string;
 }) {
   const attempts = [];
-  const instagramSubscriptionUrl = `https://graph.instagram.com/${GRAPH_VERSION}/${params.igId}/subscribed_apps`;
+  const instagramSubscriptionUrl = `${GRAPH_BASE}/${params.igId}/subscribed_apps`;
   const pageSubscriptionUrl = `${GRAPH_BASE}/${params.pageId}/subscribed_apps`;
 
   try {
@@ -394,7 +394,7 @@ instagramRouter.get('/subscription-status', async (c) => {
 
   checks.instagram = await getSubscriptionStatus(
     "instagram-account",
-    `https://graph.instagram.com/${GRAPH_VERSION}/${account.externalId}/subscribed_apps`,
+    `${GRAPH_BASE}/${account.externalId}/subscribed_apps`,
     account.accessToken
   );
 
