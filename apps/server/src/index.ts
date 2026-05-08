@@ -38,8 +38,14 @@ app.route('/api/messages', messagesRouter);
 app.route('/api/insights', insightsRouter);
 app.route('/api/user', userRouter);
 
-
-
+setInterval(async () => {
+  try {
+    const res = await fetch(`${process.env.SERVER_BASE_URL}/health`);
+    console.log(`Self-ping status: ${res.status}`);
+  } catch (err) {
+    console.error('Self-ping failed:', err);
+  }
+}, 1000 * 60 * 5); // 5 minutes
 
 const port = Number(process.env.PORT) || 7860;
 console.log(`Server is running on port ${port}`);
@@ -52,4 +58,3 @@ serve({
   fetch: app.fetch,
   port,
 });
-

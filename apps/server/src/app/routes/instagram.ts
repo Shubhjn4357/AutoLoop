@@ -77,63 +77,48 @@ instagramRouter.get('/callback', async (c) => {
   const redirectUri = `${serverUrl}/api/instagram/callback`;
 
   try {
-    console.log("[IG Callback] Starting token exchange...");
-    console.log("[IG Callback] App ID:", appId ? "SET" : "MISSING");
-    console.log("[IG Callback] App Secret:", appSecret ? "SET" : "MISSING");
-    console.log("[IG Callback] Redirect URI:", redirectUri);
-
-    // TEST CONNECTIVITY
-    console.log("[IG Callback] Testing general outbound connectivity (Google)...");
-    try {
-      const test = await fetch("https://www.google.com", { signal: AbortSignal.timeout(3000) });
-      console.log("[IG Callback] Google Test Status:", test.status);
-    } catch (e: any) {
-      console.error("[IG Callback] Google Test Failed:", e.message);
-    }
-
     // 1. Exchange code for short-lived token
     const tokenUrl = `${GRAPH_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
-    console.log("[IG Callback] Fetching short-lived token...");
-    
     const tokenRes = await fetchWithRetry(tokenUrl);
     const tokenData = await tokenRes!.json();
     
-    if (tokenData.error) {
-      console.error("[IG Callback] Facebook Token Error:", tokenData.error);
-      throw new Error(tokenData.error.message);
-    }
+    if (tokenData.error) throw new Error(tokenData.error.message);
     const shortToken = tokenData.access_token;
 
-    await new Promise(r => setTimeout(r, 500)); // Small delay
+    await new Promise(r => setTimeout(r, 500));
 
     // 2. Exchange for long-lived token
-    console.log("[IG Callback] Exchanging for long-lived token...");
     const longTokenUrl = `${GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`;
-    
     const longTokenRes = await fetchWithRetry(longTokenUrl);
     const longTokenData = await longTokenRes!.json();
     const accessToken = longTokenData.access_token;
 
-    await new Promise(r => setTimeout(r, 500)); // Small delay
+    await new Promise(r => setTimeout(r, 500));
 
     // 3. Get Pages & IG Business Account
-    console.log("[IG Callback] Fetching linked pages...");
-    const pagesRes = await fetchWithRetry(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name`);
+    const pagesRes = await fetchWithRetry(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name,access_token`);
     const pagesData = await pagesRes!.json();
-    
-    console.log("[IG Callback] Pages found:", JSON.stringify(pagesData.data?.map((p: any) => ({ name: p.name, hasIG: !!p.instagram_business_account }))));
-
     const pageWithIG = pagesData.data?.find((p: any) => p.instagram_business_account);
 
     if (!pageWithIG) {
-      console.error("[IG Callback] No Instagram Business Account linked to any found Facebook Pages.");
       return c.redirect(`${webUrl}/dashboard/settings?error=no_instagram_found`);
     }
 
     const igId = pageWithIG.instagram_business_account.id;
+    const pageId = pageWithIG.id;
+    const pageAccessToken = pageWithIG.access_token; // Pages API gives us a Page Access Token
     const igProfile = await fetchIGProfile(igId, accessToken);
 
-    // 4. Upsert into database
+    // 4. Subscribe the Page to our App's Webhooks
+    // This is CRITICAL for automations to trigger
+    try {
+      const subUrl = `${GRAPH_BASE}/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins,comments,mentions&access_token=${pageAccessToken}`;
+      await fetch(subUrl, { method: "POST" });
+    } catch (err) {
+      console.error("[IG Callback] Webhook subscription failed:", err);
+    }
+
+    // 5. Upsert into database
     const existing = await db.query.socialAccounts.findFirst({
       where: and(eq(socialAccounts.userId, userId), eq(socialAccounts.externalId, igId)),
     });
@@ -160,8 +145,6 @@ instagramRouter.get('/callback', async (c) => {
     return c.redirect(`${webUrl}/dashboard/settings?success=instagram_connected`);
   } catch (err: any) {
     console.error("[IG Callback] Fatal Error:", err.message);
-    if (err.cause) console.error("[IG Callback] Error Cause:", err.cause);
-    if (err.stack) console.error("[IG Callback] Stack Trace:", err.stack);
     return c.redirect(`${webUrl}/dashboard/settings?error=server_error`);
   }
 });
