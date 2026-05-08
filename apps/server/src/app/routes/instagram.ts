@@ -61,7 +61,7 @@ async function fetchWithRetry(url: string, options: any = {}, retries = 7, backo
       const res = await fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
       if (res.ok) return res;
       
-      const errorText = await res.text().catch(() => "No error body");
+      const errorText = await res.clone().text().catch(() => "No error body");
       console.warn(`[Fetch Retry] Status ${res.status}: ${errorText.substring(0, 100)}`);
       
       if (i < retries - 1) {
@@ -174,7 +174,7 @@ async function subscribeToWebhooks(params: {
         "page/messages",
         pageSubscriptionUrl,
         params.pageAccessToken,
-        "messages"
+        "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads"
       )
     );
   } catch (error) {
@@ -314,7 +314,16 @@ instagramRouter.get('/callback', async (c) => {
     const pageId = pageWithIG.id;
     const pageAccessToken = pageWithIG.access_token; // Pages API gives us a Page Access Token
     const accountAccessToken = pageAccessToken || accessToken;
-    const igProfile = await fetchIGProfile(igId, accountAccessToken);
+    
+    // 3.5 Fetch Profile with retries
+    let igProfile: any;
+    try {
+      igProfile = await fetchIGProfile(igId, accountAccessToken);
+    } catch (err: any) {
+      console.warn("[IG Callback] Profile fetch failed, retrying once...", err.message);
+      await new Promise(r => setTimeout(r, 2000));
+      igProfile = await fetchIGProfile(igId, accountAccessToken);
+    }
 
     // 4. Subscribe the IG/Page account to our app's webhooks.
     await subscribeToWebhooks({

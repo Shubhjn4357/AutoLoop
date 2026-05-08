@@ -5,7 +5,7 @@ export async function sendInstagramMessage(
   accessToken: string,
   graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
 ) {
-  const url = `https://graph.instagram.com/${graphVersion}/${externalId}/messages`;
+  const url = `https://graph.facebook.com/${graphVersion}/${externalId}/messages`;
   
   const payload = {
     recipient: {
@@ -41,7 +41,7 @@ export async function replyToInstagramComment(
   accessToken: string,
   graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
 ) {
-  const url = `https://graph.instagram.com/${graphVersion}/${commentId}/replies`;
+  const url = `https://graph.facebook.com/${graphVersion}/${commentId}/replies`;
   
   const payload = {
     message: messageText,
@@ -88,7 +88,7 @@ export async function getInstagramUserProfile(
     "is_user_follow_business",
     "is_business_follow_user",
   ].join(",");
-  const url = new URL(`https://graph.instagram.com/${graphVersion}/${recipientId}`);
+  const url = new URL(`https://graph.facebook.com/${graphVersion}/${recipientId}`);
   url.searchParams.set("fields", fields);
   url.searchParams.set("access_token", accessToken);
 
