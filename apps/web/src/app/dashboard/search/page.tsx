@@ -40,6 +40,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
             query={query || ""} 
             externalId={account.externalId} 
             accessToken={account.accessToken!} 
+            userId={session.user.id}
           />
         </Suspense>
       )}

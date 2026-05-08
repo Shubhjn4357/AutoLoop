@@ -5,7 +5,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Legend,
 } from "recharts";
-import type { IGInsightMetric } from "@/lib/instagram/graph";
+import type { IGInsightMetric } from "@autoloop/types";
 
 interface Props {
   reachMetric: IGInsightMetric | undefined;
@@ -16,16 +16,16 @@ interface Props {
 export function InsightsCharts({ reachMetric, interactionsMetric, profileViewsMetric }: Props) {
   // Build unified daily series using unique dates from all metrics
   const allDates = Array.from(new Set([
-    ...(reachMetric?.values.map(v => v.end_time) ?? []),
-    ...(interactionsMetric?.values.map(v => v.end_time) ?? []),
-    ...(profileViewsMetric?.values.map(v => v.end_time) ?? [])
+    ...(reachMetric?.values.map((v: { end_time: string }) => v.end_time) ?? []),
+    ...(interactionsMetric?.values.map((v: { end_time: string }) => v.end_time) ?? []),
+    ...(profileViewsMetric?.values.map((v: { end_time: string }) => v.end_time) ?? [])
   ])).sort();
 
   const areaData = allDates.map((end_time) => ({
     date: new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(new Date(end_time)),
-    reach: reachMetric?.values.find(v => v.end_time === end_time)?.value ?? 0,
-    interactions: interactionsMetric?.values.find(v => v.end_time === end_time)?.value ?? 0,
-    profileViews: profileViewsMetric?.values.find(v => v.end_time === end_time)?.value ?? 0,
+    reach: reachMetric?.values.find((v: { end_time: string }) => v.end_time === end_time)?.value ?? 0,
+    interactions: interactionsMetric?.values.find((v: { end_time: string }) => v.end_time === end_time)?.value ?? 0,
+    profileViews: profileViewsMetric?.values.find((v: { end_time: string }) => v.end_time === end_time)?.value ?? 0,
   }));
 
   const hasData = areaData.length > 0;

@@ -1,13 +1,15 @@
 import Image from "next/image";
-import { searchIGUser } from "@/lib/instagram/graph";
+import { callServer } from "@/lib/server-api";
+import type { IGUserProfile, IGMedia } from "@autoloop/types";
 
 interface Props {
   query: string;
   externalId: string;
   accessToken: string;
+  userId: string;
 }
 
-export async function SearchResults({ query, externalId, accessToken }: Props) {
+export async function SearchResults({ query, externalId, accessToken, userId }: Props) {
   if (!query) {
     return (
       <div className="glass-card rounded-3xl p-16 text-center text-muted-foreground">
@@ -20,7 +22,7 @@ export async function SearchResults({ query, externalId, accessToken }: Props) {
   }
 
   try {
-    const profile = await searchIGUser(externalId, accessToken, query);
+    const { data: profile } = await callServer(`/api/instagram/search?q=${query}`, userId) as { data: IGUserProfile & { media?: { data: IGMedia[] } } };
 
     return (
       <div className="space-y-6">

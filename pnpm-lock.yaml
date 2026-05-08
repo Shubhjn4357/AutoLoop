@@ -236,6 +236,9 @@ importers:
 
   packages/shared:
     dependencies:
+      '@autoloop/db':
+        specifier: workspace:*
+        version: link:../db
       '@autoloop/types':
         specifier: workspace:*
         version: link:../types

@@ -11,14 +11,15 @@ import { getNotificationPrefs } from "@/lib/utils/settings";
 
 export default async function SettingsPage() {
   const session = await auth();
-  if (!session?.user?.id) redirect("/");
+  const userId = session?.user?.id;
+  if (!userId) redirect("/");
 
   const [dbUser, dbAccounts] = await Promise.all([
     db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
+      where: eq(users.id, userId),
     }),
     db.query.socialAccounts.findMany({
-      where: eq(socialAccounts.userId, session.user.id),
+      where: eq(socialAccounts.userId, userId),
     }),
   ]);
 
@@ -29,7 +30,7 @@ export default async function SettingsPage() {
     dbAccounts.map(async (acc) => {
       try {
         if (acc.externalId && acc.accessToken) {
-          const { data: profile } = await callServer('/api/instagram/profile', session.user.id!);
+          const { data: profile } = await callServer('/api/instagram/profile', userId);
           return {
             id: acc.id,
             instagramUsername: profile.username,
@@ -63,7 +64,7 @@ export default async function SettingsPage() {
         accounts={enrichedAccounts} 
         subscriptionStatus={dbUser.subscriptionStatus ?? null}
         stripePriceId={dbUser.stripePriceId ?? null}
-        userId={session.user.id}
+        userId={userId}
       />
     </div>
   );

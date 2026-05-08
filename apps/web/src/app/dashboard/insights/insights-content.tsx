@@ -1,6 +1,7 @@
-import { fetchIGInsights, fetchIGProfile, type IGInsightMetric } from "@/lib/instagram/graph";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InsightsCharts, AppInsightsData } from "./insights-dynamic";
+import { callServer } from "@/lib/server-api";
+import type { IGInsightMetric, IGUserProfile } from "@autoloop/types";
 
 interface Props {
   externalId: string;
@@ -10,7 +11,7 @@ interface Props {
 
 function sumValues(metric: IGInsightMetric | undefined): number {
   if (!metric) return 0;
-  const total = metric.values.reduce((acc, v) => acc + v.value, 0);
+  const total = metric.values.reduce((acc: number, v: { value: number }) => acc + v.value, 0);
   return total;
 }
 
@@ -18,22 +19,17 @@ export async function InsightsContent({ externalId, accessToken, userId }: Props
   const until = Math.floor(Date.now() / 1000);
   const since = until - (7 * 24 * 60 * 60); // 7 days ago
 
-  let profile: Awaited<ReturnType<typeof fetchIGProfile>> | null = null;
+  let profile: IGUserProfile | null = null;
   let metrics: IGInsightMetric[] = [];
   let apiError: string | null = null;
 
   try {
-    [profile, metrics] = await Promise.all([
-      fetchIGProfile(externalId, accessToken),
-      fetchIGInsights(
-        externalId,
-        accessToken,
-        ["reach", "impressions", "profile_visits", "accounts_engaged", "total_interactions"],
-        "day",
-        String(since),
-        String(until)
-      ),
+    const [profileRes, metricsRes] = await Promise.all([
+      callServer('/api/instagram/profile', userId),
+      callServer(`/api/instagram/insights?since=${since}&until=${until}`, userId),
     ]);
+    profile = profileRes.data;
+    metrics = metricsRes.data;
   } catch (err) {
     apiError = err instanceof Error ? err.message : "Instagram API unavailable";
     console.error("[Insights] Failed to fetch IG data:", err);
