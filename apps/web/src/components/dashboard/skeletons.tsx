@@ -81,3 +81,62 @@ export function AutomationsSkeleton() {
   );
 }
 
+export function DashboardSkeleton() {
+  return (
+    <div className="space-y-6 max-w-6xl animate-pulse">
+      <div className="h-8 w-64 bg-muted rounded mb-6" />
+      
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <div className="h-4 w-24 bg-muted rounded" />
+            </CardHeader>
+            <CardContent>
+              <div className="h-8 w-16 bg-muted rounded" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+        <Card className="col-span-1 lg:col-span-4 glass-card">
+          <CardHeader><div className="h-5 w-32 bg-muted rounded" /></CardHeader>
+          <CardContent><div className="h-[300px] bg-muted/10 rounded-xl" /></CardContent>
+        </Card>
+        <div className="col-span-1 lg:col-span-3 space-y-6">
+          <Card className="glass-card">
+            <CardHeader><div className="h-5 w-32 bg-muted rounded" /></CardHeader>
+            <CardContent><div className="space-y-4 pt-2">
+              <div className="h-8 w-full bg-muted/20 rounded" />
+              <div className="h-8 w-full bg-muted/20 rounded" />
+            </div></CardContent>
+          </Card>
+          <Card className="glass-card">
+            <CardHeader><div className="h-5 w-32 bg-muted rounded" /></CardHeader>
+            <CardContent><div className="h-64 bg-muted/10 rounded-xl" /></CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function NotificationsSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      <div className="h-10 w-64 bg-muted rounded" />
+      <Card className="glass-card">
+        <CardContent className="p-0">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="p-6 border-b border-border/50 space-y-2">
+              <div className="h-4 w-48 bg-muted rounded" />
+              <div className="h-3 w-full bg-muted/60 rounded" />
+              <div className="h-2 w-24 bg-muted/40 rounded" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

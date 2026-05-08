@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, MessageCircle, ExternalLink, Plus, Upload,
   Loader2, ImageIcon, ArrowLeft, Calendar, Link2,
-  Download, BookOpen, Bot
+  Download, BookOpen, Bot, ChevronDown
 } from "lucide-react";
 import { toast } from "sonner";
 import { serverFetch } from "@/lib/api-client";
+import { bindAutomationToPost } from "@/lib/actions/automations";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,14 @@ export function ContentDashboardClient({ automations, initialMedia, userId }: Pr
   const [imageUrl, setImageUrl] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  // Initialize selectedAutomation when a post is opened
+  useEffect(() => {
+    if (selectedPost) {
+      const bound = automations.find(a => a.targetPostId === selectedPost.id);
+      setSelectedAutomation(bound?.id || "");
+    }
+  }, [selectedPost, automations]);
+
   function refreshMedia() {
     setLoadingMedia(true);
     serverFetch("/api/instagram/media", userId)
@@ -57,6 +66,18 @@ export function ContentDashboardClient({ automations, initialMedia, userId }: Pr
   function openPost(post: IGMedia) {
     setSelectedPost(post);
     setView("detail");
+  }
+
+  async function handleBind() {
+    if (!selectedPost) return;
+    startTransition(async () => {
+      try {
+        await bindAutomationToPost(selectedAutomation || null, selectedPost.id);
+        toast.success("Automation bound to post!");
+      } catch (err) {
+        toast.error("Failed to bind automation");
+      }
+    });
   }
 
   async function handlePublish() {
@@ -259,38 +280,54 @@ export function ContentDashboardClient({ automations, initialMedia, userId }: Pr
                     </CardTitle>
                     <CardDescription className="text-xs">Attach an automation rule to this specific post.</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="space-y-4">
                     <Drawer>
                       <DrawerTrigger asChild>
-                        <Button variant="outline" className="w-full justify-between text-sm">
-                          {selectedAutomation ? automations.find((a) => a.id === selectedAutomation)?.name ?? "Select" : "Select a rule"}
+                        <Button variant="outline" className="w-full justify-between text-sm rounded-xl">
+                          <span className="truncate flex items-center gap-2">
+                            {selectedAutomation ? <Bot className="size-3.5 text-primary" /> : <Link2 className="size-3.5" />}
+                            {selectedAutomation ? automations.find((a) => a.id === selectedAutomation)?.name ?? "Select" : "Select a rule"}
+                          </span>
+                          <ChevronDown className="size-3.5 opacity-50" />
                         </Button>
                       </DrawerTrigger>
                       <DrawerContent>
                         <div className="mx-auto w-full max-w-sm">
                           <DrawerHeader><DrawerTitle>Choose Rule</DrawerTitle></DrawerHeader>
-                          <div className="p-4 space-y-2">
+                          <div className="p-4 space-y-2 max-h-[40vh] overflow-y-auto">
                             <DrawerClose asChild>
-                              <Button variant={selectedAutomation === "" ? "default" : "outline"} className="w-full justify-start" onClick={() => setSelectedAutomation("")}>
-                                None
+                              <Button variant={selectedAutomation === "" ? "default" : "outline"} className="w-full justify-start rounded-xl" onClick={() => setSelectedAutomation("")}>
+                                None (Always use global rules)
                               </Button>
                             </DrawerClose>
                             {automations.map((a) => (
                               <DrawerClose asChild key={a.id}>
-                                <Button variant={selectedAutomation === a.id ? "default" : "outline"} className="w-full justify-start" onClick={() => setSelectedAutomation(a.id)}>
-                                  <Link2 className="size-4 mr-2 text-emerald-500" /> {a.name}
+                                <Button variant={selectedAutomation === a.id ? "default" : "outline"} className="w-full justify-start rounded-xl" onClick={() => setSelectedAutomation(a.id)}>
+                                  <Bot className="size-4 mr-2 text-primary" /> {a.name}
                                 </Button>
                               </DrawerClose>
                             ))}
-                            {automations.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No automations yet. Create one first.</p>}
+                            {automations.length === 0 && <p className="text-sm text-center text-muted-foreground py-4">No automations yet.</p>}
                           </div>
                           <DrawerFooter>
-                            <DrawerClose asChild><Button variant="outline">Cancel</Button></DrawerClose>
+                            <DrawerClose asChild><Button variant="outline" className="rounded-xl">Close</Button></DrawerClose>
                           </DrawerFooter>
                         </div>
                       </DrawerContent>
                     </Drawer>
-                    <p className="text-xs text-muted-foreground">When bound, comments matching the rule&apos;s keyword will trigger the automation for this post.</p>
+                    
+                    <AnimatedButton 
+                      className="w-full rounded-xl" 
+                      onClick={handleBind} 
+                      disabled={isPending}
+                    >
+                      {isPending ? <Loader2 className="size-4 animate-spin mr-2" /> : <Link2 className="size-4 mr-2" />}
+                      Save Binding
+                    </AnimatedButton>
+
+                    <p className="text-[10px] text-muted-foreground leading-tight px-1 italic">
+                      When bound, this specific post will only trigger the selected rule (or no rules if &quot;None&quot; is selected).
+                    </p>
                   </CardContent>
                 </Card>
               </div>

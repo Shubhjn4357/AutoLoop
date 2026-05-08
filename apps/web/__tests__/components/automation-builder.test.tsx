@@ -9,6 +9,7 @@ describe("SimpleAutomationBuilder", () => {
   it("renders automation list with existing rules", () => {
     render(
       <SimpleAutomationBuilder
+        userId="test_user"
         existingRules={[
           {
             id: "auto_1",
@@ -43,6 +44,7 @@ describe("SimpleAutomationBuilder", () => {
   it("renders empty state when no automations exist", () => {
     render(
       <SimpleAutomationBuilder
+        userId="test_user"
         existingRules={[]}
         onSave={vi.fn()}
         onDelete={vi.fn()}

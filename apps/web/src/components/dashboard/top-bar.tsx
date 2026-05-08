@@ -15,22 +15,46 @@ import {
   CreditCard, 
   LogOut, 
   ChevronDown,
-  X
+  X,
+  Link2
 } from "lucide-react";
 import Image from "next/image";
 import { signOut } from "next-auth/react";
-import { clearNotificationLogs } from "@/lib/actions/automations";
+import { clearNotificationLogs, getNotifications } from "@/lib/actions/automations";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 
 const GlobalSearch = dynamic(() => import("./global-search").then(mod => mod.GlobalSearch), { ssr: false });
 const Sidebar = dynamic(() => import("./sidebar").then(mod => mod.Sidebar), { ssr: false });
+
+type RecentLog = {
+  id: string;
+  title: string;
+  message: string;
+  status: string;
+  createdAt: Date;
+};
 
 export function TopBar() {
   const { userName, userImage, hasIssues, recentLogs } = useDashboard();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isClearing, startClearing] = React.useTransition();
+  const [localLogs, setLocalLogs] = useState<RecentLog[]>([]);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLocalLogs(recentLogs);
+    
+    // If no logs from context, try fetching them once
+    if (recentLogs.length === 0) {
+      getNotifications(8).then(logs => {
+        if (logs.length > 0) setLocalLogs(logs as RecentLog[]);
+      });
+    }
+  }, [recentLogs]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -92,16 +116,13 @@ export function TopBar() {
               <div className="p-4 border-b border-border/30 flex items-center justify-between">
                 <h3 className="font-bold text-sm">Notifications</h3>
                 <div className="flex items-center gap-2">
-                  {recentLogs.length > 0 && (
+                  {localLogs.length > 0 && (
                     <button 
-                      onClick={async () => {
-                        if (confirm("Clear all?")) {
-                          await clearNotificationLogs();
-                        }
-                      }} 
-                      className="text-[10px] uppercase font-bold text-muted-foreground hover:text-rose-500 transition-colors"
+                      disabled={isClearing}
+                      onClick={() => setShowClearConfirm(true)}
+                      className={cn("text-[10px] uppercase font-bold text-muted-foreground hover:text-rose-500 transition-colors", isClearing && "opacity-50")}
                     >
-                      Clear
+                      {isClearing ? "Clearing..." : "Clear"}
                     </button>
                   )}
                   <button onClick={() => setShowNotifications(false)} className="text-muted-foreground hover:text-foreground">
@@ -110,8 +131,8 @@ export function TopBar() {
                 </div>
               </div>
               <div className="max-h-[300px] overflow-y-auto">
-                {recentLogs.length > 0 ? (
-                  recentLogs.map((log) => (
+                {localLogs.length > 0 ? (
+                  localLogs.map((log) => (
                     <button
                       key={log.id}
                       onClick={() => { router.push("/dashboard/notifications"); setShowNotifications(false); }}
@@ -132,7 +153,7 @@ export function TopBar() {
               </div>
               <Button 
                 variant="ghost" 
-                className="w-full h-10 text-[10px] uppercase tracking-wider font-bold text-muted-foreground hover:text-primary rounded-none border-t border-border/30"
+                className="w-full h-10 rounded-none text-xs border-t border-border/30 font-medium"
                 onClick={() => { router.push("/dashboard/notifications"); setShowNotifications(false); }}
               >
                 View all notifications
@@ -140,6 +161,27 @@ export function TopBar() {
             </div>
           )}
         </div>
+
+        <AlertDialog
+          open={showClearConfirm}
+          onOpenChange={setShowClearConfirm}
+          title="Clear all notifications?"
+          description="This action will permanently remove all recent notification logs from your dashboard."
+          actionText="Clear All"
+          variant="destructive"
+          onAction={() => {
+            const oldLogs = [...localLogs];
+            setLocalLogs([]); // Optimistic
+            startClearing(async () => {
+              try {
+                await clearNotificationLogs();
+              } catch (err) {
+                setLocalLogs(oldLogs); // Rollback
+              }
+            });
+          }}
+        />
+
         
         <div className="h-8 w-px bg-border mx-2" />
 
@@ -168,6 +210,7 @@ export function TopBar() {
             <div className="absolute right-0 mt-2 w-56 glass-card rounded-2xl shadow-2xl border border-border/50 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 p-1">
               {[
                 { label: "View Profile", icon: User, onClick: () => router.push("/dashboard/settings") },
+                { label: "Manage Connections", icon: Link2, onClick: () => router.push("/dashboard/settings?tab=connections") },
                 { label: "Account Settings", icon: Settings, onClick: () => router.push("/dashboard/settings") },
                 { label: "Billing & Plans", icon: CreditCard, onClick: () => router.push("/dashboard/settings?tab=billing") },
               ].map((item) => (

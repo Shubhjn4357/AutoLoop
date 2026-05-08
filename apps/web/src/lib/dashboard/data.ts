@@ -87,6 +87,7 @@ export const getDashboardData = cache(async (userId: string) => {
       automationCount: automationCount[0]?.value ?? 0,
       chartData,
       connectionCount: accounts.length,
+      profilePic: accounts[0]?.instagramProfilePicture ?? null,
       messageCount: messageCount[0]?.value ?? 0,
       pendingFollowUpCount: pendingFollowUps[0]?.value ?? 0,
       recentLogs: logs,

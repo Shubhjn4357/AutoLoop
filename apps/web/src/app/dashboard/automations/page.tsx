@@ -43,6 +43,7 @@ export default async function AutomationsPage() {
       ) : (
         <Suspense fallback={<AutomationsSkeleton />}>
             <SimpleAutomationBuilder
+              userId={session.user.id}
               existingRules={userAutomations.map(a => ({
                 id: a.id,
                 name: a.name,

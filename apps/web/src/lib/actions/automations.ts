@@ -3,7 +3,7 @@
 import { db } from "@/lib/db/client";
 import { automations, notificationLogs } from "@/lib/db/schema";
 import { auth } from "@/lib/auth/config";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export interface AutomationRule {
@@ -152,4 +152,40 @@ export async function clearNotificationLogs() {
     .where(eq(notificationLogs.userId, session.user.id));
 
   revalidatePath("/dashboard/notifications");
+}
+
+export async function bindAutomationToPost(automationId: string | null, postId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  // 1. Clear any existing automation bound to this post
+  await db.update(automations)
+    .set({ targetPostId: null, updatedAt: new Date() })
+    .where(and(
+      eq(automations.userId, session.user.id),
+      eq(automations.targetPostId, postId)
+    ));
+
+  // 2. Bind the new automation if provided
+  if (automationId) {
+    await db.update(automations)
+      .set({ targetPostId: postId, updatedAt: new Date() })
+      .where(and(
+        eq(automations.id, automationId),
+        eq(automations.userId, session.user.id)
+      ));
+  }
+
+  revalidatePath("/dashboard/content");
+  revalidatePath("/dashboard/automations");
+}
+export async function getNotifications(limit = 10) {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+  
+  return db.query.notificationLogs.findMany({
+    where: eq(notificationLogs.userId, session.user.id),
+    orderBy: [desc(notificationLogs.createdAt)],
+    limit
+  });
 }

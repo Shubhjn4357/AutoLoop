@@ -7,6 +7,7 @@ import { notificationLogs } from "@/lib/db/schema";
 import { deleteNotificationLog, clearNotificationLogs } from "@/lib/actions/automations";
 import { Trash2, Trash, Bell, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { AlertDialog } from "@/components/ui/alert-dialog";
 
 type NotificationLogRow = typeof notificationLogs.$inferSelect;
 
@@ -26,9 +27,9 @@ export function NotificationLog({
 }) {
   const [isClearing, setIsClearing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const handleClearAll = async () => {
-    if (!confirm("Are you sure you want to clear all notifications?")) return;
     setIsClearing(true);
     try {
       await clearNotificationLogs();
@@ -64,7 +65,7 @@ export function NotificationLog({
             variant="ghost" 
             size="sm" 
             className="h-8 text-xs text-muted-foreground hover:text-rose-500 hover:bg-rose-500/5 rounded-xl gap-2"
-            onClick={handleClearAll}
+            onClick={() => setShowClearConfirm(true)}
             disabled={isClearing}
           >
             {isClearing ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
@@ -115,6 +116,15 @@ export function NotificationLog({
           </div>
         )}
       </CardContent>
+      <AlertDialog
+        open={showClearConfirm}
+        onOpenChange={setShowClearConfirm}
+        title="Clear notifications?"
+        description="Are you sure you want to permanently clear all notifications? This action cannot be undone."
+        actionText="Clear All"
+        variant="destructive"
+        onAction={handleClearAll}
+      />
     </Card>
   );
 }

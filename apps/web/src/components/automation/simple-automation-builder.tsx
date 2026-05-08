@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useEffect } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageSquare,
@@ -22,7 +23,10 @@ import {
   Shield,
   Zap,
   Trash2,
+  ImageIcon
 } from "lucide-react";
+import { serverFetch } from "@/lib/api-client";
+import type { IGMedia } from "@autoloop/types";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -144,6 +148,7 @@ interface AutomationRule {
 }
 
 interface SimpleAutomationBuilderProps {
+  userId: string;
   existingRules?: AutomationRule[];
   onSave: (rule: AutomationRule) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
@@ -176,6 +181,7 @@ const defaultRule: AutomationRule = {
 };
 
 export function SimpleAutomationBuilder({
+  userId,
   existingRules = [],
   onSave,
   onDelete,
@@ -185,6 +191,25 @@ export function SimpleAutomationBuilder({
   const [rule, setRule] = useState<AutomationRule>(defaultRule);
   const [isPending, startTransition] = useTransition();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const [media, setMedia] = useState<IGMedia[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+
+  // Fetch media when trigger step is active and targeting is possible
+  useEffect(() => {
+    if (mode !== "list" && ["comment", "mention", "story_reply"].includes(rule.triggerType) && media.length === 0) {
+      setLoadingMedia(true);
+      serverFetch("/api/instagram/media", userId)
+        .then(r => r.json())
+        .then(data => {
+          if (Array.isArray(data.data)) {
+            setMedia(data.data);
+          }
+        })
+        .catch(err => console.error("Failed to fetch media for builder:", err))
+        .finally(() => setLoadingMedia(false));
+    }
+  }, [mode, rule.triggerType, userId, media.length]);
 
   // Wizard steps
   const steps: { id: WizardStep; label: string; icon: React.ElementType }[] = [
@@ -478,7 +503,14 @@ export function SimpleAutomationBuilder({
                     return (
                       <button
                         key={t.id}
-                        onClick={() => setRule({ ...rule, triggerType: t.id })}
+                        onClick={() => {
+                          const needsMedia = ["comment", "mention", "story_reply", "live_comment"].includes(t.id);
+                          setRule({ 
+                            ...rule, 
+                            triggerType: t.id,
+                            targetPostId: needsMedia ? rule.targetPostId : null
+                          });
+                        }}
                         className={cn(
                           "flex items-start gap-4 p-4 rounded-xl border text-left transition-all hover:-translate-y-0.5",
                           isSelected
@@ -522,6 +554,73 @@ export function SimpleAutomationBuilder({
                     onChange={(e) => setRule({ ...rule, name: e.target.value })}
                   />
                 </div>
+
+                {/* Specific Post Targeting */}
+                {["comment", "mention", "story_reply", "live_comment"].includes(rule.triggerType) && (
+                  <div className="pt-4 border-t border-border/50 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-base font-bold flex items-center gap-2">
+                        <ImageIcon className="size-4 text-primary" />
+                        Content Targeting
+                      </Label>
+                      <div className="flex bg-muted rounded-lg p-1 text-[10px] font-bold">
+                        <button 
+                          onClick={() => setRule({ ...rule, targetPostId: null })}
+                          className={cn("px-2 py-1 rounded-md transition-all", !rule.targetPostId ? "bg-background shadow-sm" : "opacity-50")}
+                        >
+                          ALL POSTS
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (!rule.targetPostId && media.length > 0) {
+                              setRule({ ...rule, targetPostId: media[0].id });
+                            }
+                          }}
+                          className={cn("px-2 py-1 rounded-md transition-all", rule.targetPostId ? "bg-background shadow-sm text-primary" : "opacity-50")}
+                        >
+                          SPECIFIC
+                        </button>
+                      </div>
+                    </div>
+
+                    {rule.targetPostId ? (
+                      <div className="space-y-3">
+                        <p className="text-xs text-muted-foreground">Select the post or story this rule should apply to:</p>
+                        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar snap-x">
+                          {loadingMedia ? (
+                            Array.from({ length: 5 }).map((_, i) => (
+                              <div key={i} className="shrink-0 w-24 aspect-square rounded-xl bg-muted animate-pulse" />
+                            ))
+                          ) : media.length === 0 ? (
+                            <p className="text-xs italic text-muted-foreground py-4 text-center w-full">No media found on your account.</p>
+                          ) : (
+                            media.map((m) => (
+                              <button
+                                key={m.id}
+                                onClick={() => setRule({ ...rule, targetPostId: m.id })}
+                                className={cn(
+                                  "shrink-0 w-24 aspect-square rounded-xl overflow-hidden border-2 transition-all snap-start",
+                                  rule.targetPostId === m.id ? "border-primary scale-105 shadow-lg" : "border-transparent opacity-60 grayscale hover:grayscale-0"
+                                )}
+                              >
+                                <Image src={m.thumbnail_url || m.media_url || ""} alt="post" width={96} height={96} className="object-cover size-full" unoptimized />
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-3">
+                        <div className="p-1.5 rounded-lg bg-primary/10 text-primary mt-0.5">
+                          <Bot className="size-3.5" />
+                        </div>
+                        <p className="text-[10px] leading-relaxed text-muted-foreground">
+                          <span className="font-bold text-foreground">Global Mode:</span> This automation will trigger for <span className="font-bold text-foreground">ANY</span> post or story on your account that matches your keywords.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -1025,7 +1124,7 @@ export function SimpleAutomationBuilder({
                         )}
                       </div>
 
-                      {/* Follow-up Bubble Preview */}
+                      {/* Follow-up 1 Bubble Preview */}
                       {rule.followUpTemplate && (
                         <div className="bg-primary/80 text-primary-foreground p-4 rounded-2xl rounded-bl-none shadow-sm space-y-3 animate-in fade-in slide-in-from-left-4 duration-500 delay-300">
                           <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold opacity-70 mb-1">
@@ -1042,7 +1141,44 @@ export function SimpleAutomationBuilder({
                           )}
                         </div>
                       )}
+
+                      {/* Follow-up 2 Bubble Preview */}
+                      {rule.followUp2Template && (
+                        <div className="bg-primary/60 text-primary-foreground p-4 rounded-2xl rounded-bl-none shadow-sm space-y-3 animate-in fade-in slide-in-from-left-4 duration-500 delay-500">
+                          <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold opacity-70 mb-1">
+                            <Clock className="size-3" />
+                            Send after {rule.followUp2DelayMinutes}m
+                          </div>
+                          <p className="text-sm whitespace-pre-wrap">{rule.followUp2Template}</p>
+                          {rule.followUp2Url && (
+                            <div className="pt-2">
+                              <div className="bg-white/10 py-2 px-4 rounded-lg border border-white/20 text-center text-sm font-medium">
+                                {rule.followUp2UrlText || "Final Link"}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Follower Gate Preview */}
+                    {rule.requireFollower && (
+                      <div className="mt-4 p-4 rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/5 space-y-3 animate-in zoom-in-95 duration-500">
+                        <div className="flex items-center gap-2 text-emerald-600 font-bold text-xs uppercase tracking-widest">
+                          <Shield className="size-3.5" />
+                          Follower-Gate Active
+                        </div>
+                        <p className="text-sm text-foreground/80 italic">&quot;{rule.followerGateTemplate || "Hey! Please follow me first..."}&quot;</p>
+                        <div className="flex gap-2">
+                          <div className="flex-1 bg-emerald-500 text-white text-[10px] font-bold py-2 rounded-lg text-center shadow-sm">
+                            {rule.followerGateButtonText || "Follow Me"}
+                          </div>
+                          <div className="flex-1 bg-white border border-emerald-200 text-emerald-600 text-[10px] font-bold py-2 rounded-lg text-center shadow-sm">
+                            I&apos;m Following! ✅
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Features Badges */}
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
@@ -1052,6 +1188,11 @@ export function SimpleAutomationBuilder({
                       <Badge variant="secondary" className="bg-muted hover:bg-muted/80 border-none">
                         {rule.conditionOperator === "any" ? "Any message" : `Matches: ${rule.condition}`}
                       </Badge>
+                      {rule.targetPostId && (
+                        <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-none gap-1">
+                          <Target className="size-3" /> Target Content
+                        </Badge>
+                      )}
                       {rule.aiEnabled && (
                         <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 border-none gap-1">
                           <Sparkles className="size-3" /> AI Active
@@ -1116,6 +1257,28 @@ export function SimpleAutomationBuilder({
           </Button>
         )}
       </div>
+      <AlertDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        title="Delete Automation?"
+        description="Are you sure you want to delete this automation rule? This action cannot be undone."
+        actionText="Delete"
+        variant="destructive"
+        onAction={async () => {
+          if (deleteId && onDelete) {
+            startTransition(async () => {
+              try {
+                await onDelete(deleteId);
+                toast.success("Automation deleted");
+              } catch {
+                toast.error("Failed to delete automation");
+              } finally {
+                setDeleteId(null);
+              }
+            });
+          }
+        }}
+      />
     </div>
   );
 }
