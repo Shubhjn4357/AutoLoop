@@ -67,8 +67,11 @@ export const automationEngine = {
       // Handle Comments, Mentions, and Follows
       if (entry.changes) {
         for (const change of entry.changes) {
-          if (change.field === "comments") {
+          // Support both 'comments' and 'feed' (Page activity)
+          if (change.field === "comments" || change.field === "feed") {
             const val = change.value;
+            // Only process if it's a comment and not a reply to another comment
+            if (val.item !== "comment" && change.field === "feed") continue;
             if (val.parent_id) continue;
 
             await this.queueEvent({
@@ -76,9 +79,9 @@ export const automationEngine = {
               payload: {
                 externalId,
                 senderId: val.from.id,
-                text: val.text,
-                mediaId: val.media?.id,
-                commentId: val.id,
+                text: val.text || val.message,
+                mediaId: val.media?.id || val.post_id,
+                commentId: val.id || val.comment_id,
               },
               externalId,
               recipientId: val.from.id,

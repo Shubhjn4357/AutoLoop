@@ -65,6 +65,13 @@ instagramRouter.get('/connect', async (c) => {
     "pages_show_list",
     "pages_read_engagement",
     "pages_manage_metadata",
+    "pages_messaging",
+    "pages_manage_engagement",
+    "pages_manage_posts",
+    "pages_read_user_content",
+    "ads_management",
+    "ads_read",
+    "leads_retrieval",
     "public_profile",
     "business_management"
   ].join(",");
