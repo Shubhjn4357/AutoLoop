@@ -7,8 +7,12 @@
     "lint": "turbo lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "test:unit": "pnpm --filter @autoloop/web test:unit",
+    "test:components": "pnpm --filter @autoloop/web test:components",
+    "test:e2e": "pnpm --filter @autoloop/web test:e2e",
     "check": "pnpm -r check",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "doctor:ci": "pnpm --filter @autoloop/web doctor:ci",
     "env:push": "node scripts/push-hf-env.mjs",
     "docker:dev": "docker compose -f docker-compose.dev.yml up"
   },
