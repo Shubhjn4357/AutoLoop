@@ -25,6 +25,7 @@ export default async function DashboardLayout({
       initialData={{
     userId: session.user.id,
     userName: session.user.name ?? null,
+    userImage: session.user.image ?? null,
         connectionCount: dashboardData.connectionCount,
         latestNotificationStatus: dashboardData.recentLogs[0]?.status || "info",
         recentLogs: dashboardData.recentLogs,

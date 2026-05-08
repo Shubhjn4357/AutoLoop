@@ -97,7 +97,9 @@ export async function fetchIGInsights(
   ];
 
   const metricMap: Record<string, string> = {
-    "profile_views": "profile_visits",
+    // Note: 'profile_views' was previously mapped to 'profile_visits', but 
+    // modern IG Business API expects 'profile_views' directly. Mapping it 
+    // caused (#100) errors. Keep this map for future legacy field translations.
   };
 
   const finalMetrics = metrics.map(m => metricMap[m] || m);

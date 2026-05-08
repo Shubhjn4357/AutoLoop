@@ -76,7 +76,7 @@ export const automations = sqliteTable("automations", {
   name: text("name").notNull(),
 
   // Trigger configuration
-  triggerType: text("trigger_type").notNull().default("dm"), // dm, comment, story_reply, mention, follow
+  triggerType: text("trigger_type").notNull().default("dm"), // dm, comment, story_reply, mention, follow, live_comment
   conditionOperator: text("condition_operator").notNull().default("contains"), // any, contains, equals, starts_with, ends_with, regex
   condition: text("condition"), // keyword or pattern to match
   targetPostId: text("target_post_id"), // optional: specific post/story to trigger on

@@ -8,20 +8,35 @@ import { useDashboard } from "@/hooks/useDashboard";
 import { ThemeToggle } from "./theme-toggle";
 import { formatDistanceToNowSimple } from "@/lib/date-utils";
 import dynamic from "next/dynamic";
+import { cn } from "@/lib/utils";
+import { 
+  User, 
+  Settings, 
+  CreditCard, 
+  LogOut, 
+  ChevronDown
+} from "lucide-react";
+import Image from "next/image";
+import { signOut } from "next-auth/react";
 
 const GlobalSearch = dynamic(() => import("./global-search").then(mod => mod.GlobalSearch), { ssr: false });
 const Sidebar = dynamic(() => import("./sidebar").then(mod => mod.Sidebar), { ssr: false });
 
 export function TopBar() {
-  const { userName, hasIssues, recentLogs } = useDashboard();
+  const { userName, userImage, hasIssues, recentLogs } = useDashboard();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -114,16 +129,53 @@ export function TopBar() {
         
         <div className="h-8 w-px bg-border mx-2" />
 
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden md:block">
-            <p className="text-sm font-semibold text-foreground leading-none">{userName || "User"}</p>
-            <p className="text-[10px] text-muted-foreground mt-1 font-bold uppercase tracking-wider">AutoLoop</p>
-          </div>
-          <div className="size-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-sm">
-            <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </div>
+        <div className="relative" ref={userMenuRef}>
+          <button 
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            className="flex items-center gap-3 p-1 rounded-full hover:bg-muted/50 transition-all active:scale-95"
+          >
+            <div className="size-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-sm overflow-hidden shrink-0">
+              {userImage ? (
+                <Image src={userImage} alt={userName || ""} width={36} height={36} className="size-full object-cover" />
+              ) : (
+                <User className="size-5" />
+              )}
+            </div>
+            <div className="text-left hidden md:block pr-1">
+              <p className="text-sm font-semibold text-foreground leading-none flex items-center gap-1">
+                {userName || "User"}
+                <ChevronDown className={cn("size-3 text-muted-foreground transition-transform duration-200", showUserMenu && "rotate-180")} />
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1 font-bold uppercase tracking-wider">AutoLoop Pro</p>
+            </div>
+          </button>
+
+          {showUserMenu && (
+            <div className="absolute right-0 mt-2 w-56 glass-card rounded-2xl shadow-2xl border border-border/50 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 p-1">
+              {[
+                { label: "View Profile", icon: User, onClick: () => router.push("/dashboard/settings") },
+                { label: "Account Settings", icon: Settings, onClick: () => router.push("/dashboard/settings") },
+                { label: "Billing & Plans", icon: CreditCard, onClick: () => router.push("/dashboard/settings?tab=billing") },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => { item.onClick(); setShowUserMenu(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium hover:bg-primary/10 hover:text-primary transition-colors text-muted-foreground"
+                >
+                  <item.icon className="size-4" />
+                  {item.label}
+                </button>
+              ))}
+              <div className="h-px bg-border/50 my-1 mx-1" />
+              <button
+                onClick={() => signOut()}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium hover:bg-rose-500/10 hover:text-rose-600 transition-colors text-muted-foreground"
+              >
+                <LogOut className="size-4" />
+                Sign Out
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

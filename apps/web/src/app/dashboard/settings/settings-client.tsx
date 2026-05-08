@@ -26,8 +26,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AnimatedButton } from "@/components/ui/animated-button";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Card as ShadcnCard } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AlertDialog } from "@/components/ui/alert-dialog";
@@ -130,7 +128,7 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
         document.body.removeChild(textArea);
         toast.success("Copied to clipboard");
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to copy");
     }
   };
@@ -294,15 +292,29 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
                             Connected & Healthy
                           </div>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl hover:bg-rose-500/10 hover:text-rose-500 hover:border-rose-500/20"
-                          onClick={() => handleDisconnect(acc.id)}
-                          disabled={isSaving}
-                        >
-                          {isSaving ? <Loader2 className="size-4 animate-spin" /> : "Disconnect"}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <form action="/api/instagram/connect" method="GET">
+                            <Button
+                              type="submit"
+                              variant="ghost"
+                              size="sm"
+                              className="rounded-xl hover:bg-primary/10 hover:text-primary"
+                              disabled={isSaving}
+                            >
+                              <RefreshCw className={cn("size-4", isSaving && "animate-spin")} />
+                              <span className="ml-2 hidden sm:inline">Refresh</span>
+                            </Button>
+                          </form>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-xl hover:bg-rose-500/10 hover:text-rose-500 hover:border-rose-500/20"
+                            onClick={() => handleDisconnect(acc.id)}
+                            disabled={isSaving}
+                          >
+                            {isSaving ? <Loader2 className="size-4 animate-spin" /> : "Disconnect"}
+                          </Button>
+                        </div>
                       </div>
                     ))
                   ) : (

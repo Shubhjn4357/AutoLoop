@@ -5,7 +5,7 @@ import * as React from "react";
 interface DashboardContextValue {
   userId: string;
   userName: string | null;
-
+  userImage: string | null;
   connectionCount: number;
   latestNotificationStatus: string | null;
   recentLogs: {

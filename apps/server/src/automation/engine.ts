@@ -45,17 +45,20 @@ export const automationEngine = {
       // Handle DMs
       if (entry.messaging) {
         for (const msg of entry.messaging) {
-          if (msg.message?.is_echo) continue;
-          if (!msg.message?.text) continue;
+          const postback = msg.postback;
+          
+          if (!msg.message?.text && !postback?.payload) continue;
 
           await this.queueEvent({
-            eventType: msg.message.reply_to?.story ? "story_reply" : "dm",
+            eventType: msg.message?.reply_to?.story ? "story_reply" : 
+                       msg.message?.is_live ? "live_comment" : "dm",
             payload: {
               externalId,
               senderId: msg.sender.id,
-              text: msg.message.text,
-              quickReplyPayload: msg.message.quick_reply?.payload,
-              storyId: msg.message.reply_to?.story?.id,
+              text: msg.message?.text || "",
+              quickReplyPayload: msg.message?.quick_reply?.payload,
+              postbackPayload: postback?.payload,
+              storyId: msg.message?.reply_to?.story?.id,
               timestamp: msg.timestamp,
             },
             externalId,
@@ -65,50 +68,46 @@ export const automationEngine = {
         }
       }
 
-      // Handle Comments, Mentions, and Follows
+      // Handle Comments, Mentions, and Feed changes
       if (entry.changes) {
         for (const change of entry.changes) {
-          // Support both 'comments' and 'feed' (Page activity)
+          const val = change.value;
+          if (!val) continue;
+
           if (change.field === "comments" || change.field === "feed") {
-            const val = change.value;
-            // Only process if it's a comment and not a reply to another comment
-            if (val.item !== "comment" && change.field === "feed") continue;
+            // Only process top-level comments
             if (val.parent_id) continue;
 
             await this.queueEvent({
               eventType: "comment",
               payload: {
                 externalId,
-                senderId: val.from.id,
-                text: val.text || val.message,
+                senderId: val.from?.id,
+                text: val.text || val.message || "",
                 mediaId: val.media?.id || val.post_id,
                 commentId: val.id || val.comment_id,
+                timestamp: val.created_time,
               },
               externalId,
-              recipientId: val.from.id,
+              recipientId: val.from?.id,
             });
             queued++;
-          }
-
-          if (change.field === "mentions") {
-            const val = change.value;
+          } else if (change.field === "mentions") {
             await this.queueEvent({
               eventType: "mention",
               payload: {
                 externalId,
-                senderId: val.from.id,
-                text: val.text,
+                senderId: val.from?.id,
+                text: val.text || "[STORY_MENTION]",
                 mediaId: val.media?.id,
                 commentId: val.id,
+                timestamp: val.created_time,
               },
               externalId,
-              recipientId: val.from.id,
+              recipientId: val.from?.id,
             });
             queued++;
-          }
-
-          if (change.field === "follows" && change.value.action === "follow") {
-            const val = change.value;
+          } else if (change.field === "follows" && val.action === "follow") {
             await this.queueEvent({
               eventType: "follow",
               payload: {
@@ -211,19 +210,21 @@ export const automationEngine = {
   },
 
   async handleDM(payload: any, eventType: string) {
-    const { externalId, senderId, text, quickReplyPayload } = payload;
+    const { externalId, senderId, text, quickReplyPayload, postbackPayload } = payload;
     const account = await db.query.socialAccounts.findFirst({ where: eq(socialAccounts.externalId, externalId) });
     if (!account?.accessToken) return;
 
-    // Handle Follower-Check Quick Reply
-    if (quickReplyPayload?.startsWith('CHECK_FOLLOW_')) {
-      const automationId = quickReplyPayload.replace('CHECK_FOLLOW_', '');
+    // Handle Follower-Check Quick Reply or Postback
+    const followCheckId = quickReplyPayload?.startsWith('CHECK_FOLLOW_') ? quickReplyPayload.replace('CHECK_FOLLOW_', '') : 
+                         postbackPayload?.startsWith('CHECK_FOLLOW_') ? postbackPayload.replace('CHECK_FOLLOW_', '') : null;
+
+    if (followCheckId) {
       const profile = await getInstagramUserProfile(senderId, account.accessToken);
       if (profile.is_user_follow_business) {
-        const rule = await db.query.automations.findFirst({ where: eq(automations.id, automationId) });
+        const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
         if (rule) {
           await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `Awesome! Thanks for following. Here is what I promised:`, account.accessToken);
-          await this.executeAutomation(rule, account, senderId, text, crypto.randomUUID());
+          await this.executeAutomation(rule, account, senderId, text, crypto.randomUUID(), undefined, true);
           return;
         }
       } else {
@@ -279,31 +280,7 @@ export const automationEngine = {
       if (!matchesAutomationCondition(rule.conditionOperator || 'contains', rule.condition || '', text)) continue;
 
       console.log(`[Automation] Triggered rule: "${rule.name}" (ID: ${rule.id})`);
-      console.log(`[Automation] Data - URL: "${rule.targetUrl}", LinkText: "${rule.linkText}", AI: ${rule.aiEnabled}`);
-
-      // Follower requirement logic
-      if (rule.requireFollower) {
-        const profile = await getInstagramUserProfile(senderId, account.accessToken);
-        if (!profile.is_user_follow_business) {
-          // Send "Follow Me" message with custom templates
-          const gateMessage = rule.followerGateTemplate || `Hey there! Please follow me first to unlock this automation. Once you follow, click the button below!`;
-          const buttonText = rule.followerGateButtonText || `Follow Me`;
-          
-          await sendInstagramMessage((account.pageId || account.externalId)!, senderId, 
-            gateMessage, 
-            account.accessToken,
-            {
-              buttons: [
-                { type: 'web_url', url: `https://instagram.com/${account.instagramUsername || 'profile'}`, title: buttonText }
-              ],
-              quickReplies: [
-                { title: "I'm Following!", payload: `CHECK_FOLLOW_${rule.id}` }
-              ]
-            }
-          );
-          break; // Stop here until they follow
-        }
-      }
+      console.log(`[Automation] Data - URL: ${rule.targetUrl || "None"}, Button: ${rule.linkText || "Default"}, AI: ${rule.aiEnabled}`);
 
       // Rate limit check
       const rateCheck = await this.checkRateLimits(externalId, senderId, rule.cooldownMinutes || 5);
@@ -380,7 +357,32 @@ export const automationEngine = {
     }
   },
 
-  async executeAutomation(rule: any, account: any, recipientId: string, messageText: string, messageId?: string, commentId?: string) {
+  async executeAutomation(rule: any, account: any, recipientId: string, messageText: string, messageId?: string, commentId?: string, skipFollowCheck = false) {
+    // 1. Follower requirement logic (Apply to ALL triggers: DM, Comment, Mention, etc.)
+    if (rule.requireFollower && !skipFollowCheck) {
+      const profile = await getInstagramUserProfile(recipientId, account.accessToken).catch(() => null);
+      if (profile && !profile.is_user_follow_business) {
+        console.log(`[Automation] User ${recipientId} not following. Sending follower-gate for rule ${rule.id}`);
+        
+        // Send professional "Follow Me" template with custom buttons
+        const gateMessage = rule.followerGateTemplate || `Hey there! Please follow me first to unlock this automation. Once you follow, click the button below!`;
+        const followButtonText = rule.followerGateButtonText || `Follow Me`;
+        const confirmButtonText = `I'm Following! ✅`;
+        
+        await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, 
+          gateMessage, 
+          account.accessToken,
+          {
+            buttons: [
+              { type: 'web_url', url: `https://instagram.com/${account.instagramUsername || ''}`, title: followButtonText },
+              { type: 'postback', title: confirmButtonText, payload: `CHECK_FOLLOW_${rule.id}` }
+            ]
+          }
+        );
+        return; // Stop here until they follow
+      }
+    }
+
     let dmContent = rule.dmTemplate;
 
     // AI Support

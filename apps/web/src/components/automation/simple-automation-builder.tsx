@@ -88,6 +88,16 @@ const TRIGGER_TYPES = [
     borderColor: "border-emerald-500/20",
     textColor: "text-emerald-500",
   },
+  {
+    id: "live_comment",
+    label: "Live Comment",
+    icon: Zap,
+    desc: "When someone comments on your Live",
+    color: "rose",
+    bgColor: "bg-rose-500/10",
+    borderColor: "border-rose-500/20",
+    textColor: "text-rose-500",
+  },
 ];
 
 // Match types
@@ -144,9 +154,13 @@ const defaultRule: AutomationRule = {
   triggerType: "dm",
   conditionOperator: "contains",
   dmTemplate: "",
+  targetUrl: "",
+  linkText: "",
+  followUpTemplate: "",
   followUpDelayMinutes: 0,
   followUpUrl: "",
   followUpUrlText: "",
+  followUp2Template: "",
   followUp2DelayMinutes: 1440,
   followUp2Url: "",
   followUp2UrlText: "",
@@ -154,6 +168,7 @@ const defaultRule: AutomationRule = {
   followerGateTemplate: "Hey {{first_name}}! Please follow me first to unlock this automation. Once you follow, click the button below!",
   followerGateButtonText: "Follow Me",
   aiEnabled: false,
+  aiPrompt: "",
   cooldownMinutes: 5,
   maxDailySends: 100,
   isActive: true,
@@ -334,7 +349,10 @@ export function SimpleAutomationBuilder({
                       <span className="font-medium text-foreground">Response:</span>{" "}
                       {r.dmTemplate}
                     </div>
-                    <div className="flex items-center gap-2 pt-2">
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {r.triggerType === "live_comment" && (
+                        <Badge variant="secondary" className="bg-rose-500/10 text-rose-600 border-none">Live</Badge>
+                      )}
                       {r.aiEnabled && (
                         <Badge variant="outline" className="gap-1">
                           <Sparkles className="size-3" />
@@ -984,59 +1002,68 @@ export function SimpleAutomationBuilder({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-muted/50">
-                    <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                      Name
-                    </span>
-                    <p className="font-medium">{rule.name}</p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-muted/50">
-                    <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                      Trigger
-                    </span>
-                    <p className="font-medium">
-                      {TRIGGER_TYPES.find((t) => t.id === rule.triggerType)?.label}
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-muted/50">
-                    <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                      Condition
-                    </span>
-                    <p className="font-medium">
-                      {rule.conditionOperator === "any"
-                        ? "Any message"
-                        : `${rule.conditionOperator}: "${rule.condition}"`}
-                    </p>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-muted/50">
-                    <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                      Response
-                    </span>
-                    <p className="font-medium whitespace-pre-wrap">{rule.dmTemplate}</p>
-                    {rule.targetUrl && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        + Link: {rule.targetUrl}
-                      </p>
-                    )}
-                  </div>
-
-                  {(rule.followUpTemplate || rule.aiEnabled || rule.requireFollower) && (
-                    <div className="p-4 rounded-xl bg-muted/50">
-                      <span className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Features
+                  <div className="p-6 rounded-2xl bg-muted/30 border border-border/50 space-y-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MessageSquare className="size-4 text-primary" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Visual Preview
                       </span>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {rule.aiEnabled && <Badge>AI Smart Reply</Badge>}
-                        {rule.requireFollower && <Badge>Followers Only</Badge>}
-                        {rule.followUpTemplate && <Badge>Follow-up Message</Badge>}
-                      </div>
                     </div>
-                  )}
-                </div>
+
+                    {/* DM Bubble Preview */}
+                    <div className="flex flex-col gap-4 max-w-[85%]">
+                      <div className="bg-primary text-primary-foreground p-4 rounded-2xl rounded-bl-none shadow-sm space-y-3">
+                        <p className="text-sm whitespace-pre-wrap">{rule.dmTemplate || (rule.aiEnabled ? "AI will generate a personalized response..." : "No message text set.")}</p>
+                        
+                        {rule.targetUrl && (
+                          <div className="pt-2">
+                            <div className="bg-white/10 hover:bg-white/20 transition-colors py-2 px-4 rounded-lg border border-white/20 text-center text-sm font-medium flex items-center justify-center gap-2">
+                              {rule.linkText || "Visit Website"}
+                              <ChevronRight className="size-3" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Follow-up Bubble Preview */}
+                      {rule.followUpTemplate && (
+                        <div className="bg-primary/80 text-primary-foreground p-4 rounded-2xl rounded-bl-none shadow-sm space-y-3 animate-in fade-in slide-in-from-left-4 duration-500 delay-300">
+                          <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold opacity-70 mb-1">
+                            <Clock className="size-3" />
+                            Send after {rule.followUpDelayMinutes}m
+                          </div>
+                          <p className="text-sm whitespace-pre-wrap">{rule.followUpTemplate}</p>
+                          {rule.followUpUrl && (
+                            <div className="pt-2">
+                              <div className="bg-white/10 py-2 px-4 rounded-lg border border-white/20 text-center text-sm font-medium">
+                                {rule.followUpUrlText || "Learn More"}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Features Badges */}
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
+                      <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 border-none">
+                        {TRIGGER_TYPES.find(t => t.id === rule.triggerType)?.label}
+                      </Badge>
+                      <Badge variant="secondary" className="bg-muted hover:bg-muted/80 border-none">
+                        {rule.conditionOperator === "any" ? "Any message" : `Matches: ${rule.condition}`}
+                      </Badge>
+                      {rule.aiEnabled && (
+                        <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 border-none gap-1">
+                          <Sparkles className="size-3" /> AI Active
+                        </Badge>
+                      )}
+                      {rule.requireFollower && (
+                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-none gap-1">
+                          <Shield className="size-3" /> Followers Only
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
 
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div className="flex items-center gap-2">
