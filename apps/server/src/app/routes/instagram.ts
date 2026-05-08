@@ -131,23 +131,25 @@ instagramRouter.get('/callback', async (c) => {
     const pageAccessToken = pageWithIG.access_token; // Pages API gives us a Page Access Token
     const igProfile = await fetchIGProfile(igId, accessToken);
 
-    // 4. Subscribe the Page to our App's Webhooks
-    try {
-      const subUrl = `${GRAPH_BASE}/${pageId}/subscribed_apps`;
-      console.log("[IG Callback] Subscribing Page to Webhooks:", pageId);
-      const subRes = await fetch(subUrl, { 
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subscribed_fields: "messages,messaging_postbacks,messaging_optins,feed,mention,follow,story_share",
-          access_token: pageAccessToken
-        })
-      });
-      const subData = await subRes.json();
-      console.log("[IG Callback] Webhook subscription result:", subData);
-    } catch (err) {
-      console.error("[IG Callback] Webhook subscription ERROR:", err);
-    }
+      // 4. Subscribe the Page to our App's Webhooks
+      try {
+        console.log("[IG Callback] Subscribing Page to Webhooks:", pageId);
+        
+        // We use URLSearchParams as it's more reliable for this specific legacy endpoint
+        const subParams = new URLSearchParams();
+        subParams.append("subscribed_fields", "messages,messaging_postbacks,messaging_optins,feed,mention,follow,story_share");
+        
+        const subUrl = `${GRAPH_BASE}/${pageId}/subscribed_apps?access_token=${pageAccessToken}`;
+        const subRes = await fetch(subUrl, { 
+          method: "POST",
+          body: subParams
+        });
+        
+        const subData = await subRes.json();
+        console.log("[IG Callback] Webhook subscription result:", subData);
+      } catch (err) {
+        console.error("[IG Callback] Webhook subscription ERROR:", err);
+      }
 
     // 5. Upsert into database
     const existing = await db.query.socialAccounts.findFirst({
