@@ -19,20 +19,22 @@ export const instagramWebhookHandler = {
 
   // Handle incoming events
   async handle(c: Context) {
+    console.log('[Instagram Webhook] Incoming POST request...');
     try {
-      const body = await c.req.json();
-      console.log('[Instagram Webhook] Event received');
+      const rawBody = await c.req.text();
+      console.log('[Instagram Webhook] Raw body:', rawBody.substring(0, 200));
+      
+      const body = JSON.parse(rawBody);
 
       // Acknowledge immediately to avoid Meta retries
-      // We push the processing to the queue
       await incomingQueue.add('webhook-event', body, {
         removeOnComplete: true,
-        attempts: 1, // Webhook acknowledged, engine handles internal retries
+        attempts: 1,
       });
 
       return c.text('EVENT_RECEIVED', 200);
-    } catch (error) {
-      console.error('[Instagram Webhook] Error:', error);
+    } catch (error: any) {
+      console.error('[Instagram Webhook] Processing Error:', error.message);
       return c.text('Error', 500);
     }
   }
