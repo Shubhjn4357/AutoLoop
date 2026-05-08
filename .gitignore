@@ -39,6 +39,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# turbo
+.turbo
+
 # cloudflare/open-next
 .open-next/
 .wrangler/

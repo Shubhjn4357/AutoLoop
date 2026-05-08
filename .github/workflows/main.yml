@@ -130,7 +130,10 @@ jobs:
         run: pnpm test:components
 
       - name: Install Playwright Browsers
-        run: pnpm --filter @autoloop/server exec playwright install --with-deps chromium
+        run: |
+          pnpm --filter @autoloop/server exec playwright install chromium
+          pnpm --filter @autoloop/server exec playwright install-deps chromium
+        timeout-minutes: 10
 
       - name: Automation tests
         run: pnpm test:e2e
@@ -165,5 +168,6 @@ jobs:
         run: |
           git config --global user.email "shubhamjain.com.in@gmail.com"
           git config --global user.name "shubhjn"
+          git config lfs.allowincompletepush true
           git remote add hf https://shubhjn:$HF_TOKEN@huggingface.co/spaces/shubhjn/autoloop
           git push --force hf main
