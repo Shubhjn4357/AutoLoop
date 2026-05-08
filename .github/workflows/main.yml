@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -55,6 +57,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -100,9 +104,12 @@ jobs:
       TURSO_AUTH_TOKEN: "dummy"
       AUTH_SECRET: "dummy"
       SERVER_API_KEY: "dummy"
+      PORT: 7860
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -123,7 +130,7 @@ jobs:
         run: pnpm test:components
 
       - name: Install Playwright Browsers
-        run: pnpm --filter @autoloop/web exec playwright install --with-deps chromium
+        run: pnpm --filter @autoloop/server exec playwright install --with-deps chromium
 
       - name: Automation tests
         run: pnpm test:e2e
@@ -136,6 +143,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
