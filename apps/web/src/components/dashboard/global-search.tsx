@@ -74,7 +74,7 @@ export function GlobalSearch() {
       }
     };
     if (open) loadContacts();
-  }, [open]);
+  }, [open, userId]);
 
   // Debounced Instagram fuzzy search suggestions
   React.useEffect(() => {
@@ -161,7 +161,7 @@ export function GlobalSearch() {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [query, localContacts]);
+  }, [query, localContacts, userId]);
 
   const handleSearch = async (searchQuery?: string) => {
     const cleanUsername = (searchQuery || query).replace("@", "").trim().toLowerCase();
@@ -185,7 +185,7 @@ export function GlobalSearch() {
         throw new Error(data.error || "Search failed");
       }
 
-      setResult(data);
+      setResult(data.data);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Search failed";
       setError(msg);

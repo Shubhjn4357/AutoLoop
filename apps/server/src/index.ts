@@ -1,8 +1,8 @@
+import 'dotenv/config';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
-import { config } from 'dotenv';
 import { healthRouter } from './health/index';
 import { webhookRouter } from './webhook/index';
 import { aiRouter } from './app/routes/ai';
@@ -13,15 +13,13 @@ import { instagramRouter } from './app/routes/instagram';
 import { messagesRouter } from './app/routes/messages';
 import { insightsRouter } from './app/routes/insights';
 import { userRouter } from './app/routes/user';
-import { initWorkers } from './queue/index';
-import { initScheduler } from './queue/scheduler';
-
-config();
+import { apiAuth } from './app/middleware/api-auth';
 
 const app = new Hono();
 
 app.use('*', logger());
 app.use('*', cors());
+app.use('/api/*', apiAuth);
 
 app.get('/', (c) => {
   return c.text('Autoloop Automation Server is running!');
@@ -38,21 +36,20 @@ app.route('/api/messages', messagesRouter);
 app.route('/api/insights', insightsRouter);
 app.route('/api/user', userRouter);
 
-setInterval(async () => {
-  try {
-    const res = await fetch(`${process.env.SERVER_BASE_URL}/health`);
-    console.log(`Self-ping status: ${res.status}`);
-  } catch (err) {
-    console.error('Self-ping failed:', err);
-  }
-}, 1000 * 60 * 5); // 5 minutes
-
 const port = Number(process.env.PORT) || 7860;
 console.log(`Server is running on port ${port}`);
 
-// Initialize BullMQ workers
-initWorkers();
-initScheduler();
+if (process.env.DISABLE_WORKERS === 'true') {
+  console.log('Queue workers disabled by DISABLE_WORKERS=true');
+} else {
+  import('./queue/index')
+    .then(({ initWorkers }) => initWorkers())
+    .catch((error) => console.error('Failed to start queue workers:', error));
+
+  import('./queue/scheduler')
+    .then(({ initScheduler }) => initScheduler())
+    .catch((error) => console.error('Failed to start queue scheduler:', error));
+}
 
 serve({
   fetch: app.fetch,

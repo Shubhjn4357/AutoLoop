@@ -14,6 +14,9 @@ export default defineConfig({
     timeout: 60_000,
     env: {
       PORT: "7860",
+      DISABLE_WORKERS: "true",
+      SERVER_API_KEY: "test-server-key",
+      AUTOMATION_CRON_SECRET: "test-cron-secret",
     },
   },
   projects: [

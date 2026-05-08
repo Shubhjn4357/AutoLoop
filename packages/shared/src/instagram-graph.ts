@@ -11,7 +11,7 @@ import {
   HashtagMedia 
 } from '@autoloop/types';
 
-const GRAPH_VERSION = "v25.0"; // Use a stable version
+const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v25.0";
 const BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 async function graphFetch<T>(

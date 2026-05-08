@@ -7,11 +7,11 @@ import * as schema from './schema';
  * Lazily initializes the client to ensure environment variables are available.
  */
 function createDbClient() {
-  const url = process.env.TURSO_DATABASE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN;
+  const url = process.env.TURSO_DATABASE_URL ?? process.env.DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN ?? process.env.DATABASE_AUTH_TOKEN;
 
   if (!url && process.env.NODE_ENV === "production") {
-    console.error("[DB Error] TURSO_DATABASE_URL is missing in production environment!");
+    console.error("[DB Error] TURSO_DATABASE_URL/DATABASE_URL is missing in production environment!");
   }
 
   // Log masked URL for debugging

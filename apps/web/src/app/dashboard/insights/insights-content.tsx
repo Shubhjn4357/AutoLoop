@@ -5,7 +5,6 @@ import type { IGInsightMetric, IGUserProfile } from "@autoloop/types";
 
 interface Props {
   externalId: string;
-  accessToken: string;
   userId: string;
 }
 
@@ -15,7 +14,7 @@ function sumValues(metric: IGInsightMetric | undefined): number {
   return total;
 }
 
-export async function InsightsContent({ externalId, accessToken, userId }: Props) {
+export async function InsightsContent({ externalId, userId }: Props) {
   const until = Math.floor(Date.now() / 1000);
   const since = until - (7 * 24 * 60 * 60); // 7 days ago
 

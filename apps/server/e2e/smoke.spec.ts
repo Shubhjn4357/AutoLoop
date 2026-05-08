@@ -15,3 +15,8 @@ test("health endpoint returns ok", async ({ page }) => {
   const json = await response?.json();
   expect(json.status).toBe("ok");
 });
+
+test("protected api rejects unauthenticated requests", async ({ request }) => {
+  const response = await request.get("/api/instagram/profile?userId=test");
+  expect(response.status()).toBe(401);
+});

@@ -49,7 +49,6 @@ interface Props {
   subscriptionStatus: string | null;
   stripePriceId: string | null;
   userId: string;
-  serverUrl: string;
 }
 
 const CATEGORIES = [
@@ -61,7 +60,7 @@ const CATEGORIES = [
   { id: "security", label: "Security", icon: ShieldCheck },
 ];
 
-export function SettingsClient({ userName, webhookToken, notificationPrefs, accounts, subscriptionStatus, userId, serverUrl }: Props) {
+export function SettingsClient({ userName, webhookToken, notificationPrefs, accounts, subscriptionStatus, userId }: Props) {
   const [activeTab, setActiveTab] = useState("general");
   const { theme, setTheme } = useTheme();
   const [isSaving, setIsSaving] = useState(false);
@@ -291,8 +290,7 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
                     <div className="p-8 text-center glass-card rounded-2xl border-dashed border-border/50">
                       <CircleAlert className="size-10 mx-auto text-muted-foreground opacity-20 mb-3" />
                       <p className="text-sm text-muted-foreground">No accounts linked yet.</p>
-                      <form action={`${serverUrl}/api/instagram/connect`} method="GET">
-                        <input type="hidden" name="userId" value={userId} />
+                      <form action="/api/instagram/connect" method="GET">
                         <Button type="submit" className="mt-4 rounded-xl">Connect Meta Account</Button>
                       </form>
                     </div>

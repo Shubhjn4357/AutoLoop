@@ -3,7 +3,7 @@ export async function sendInstagramMessage(
   recipientId: string,
   messageText: string,
   accessToken: string,
-  graphVersion: string = "v25.0"
+  graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
 ) {
   const url = `https://graph.instagram.com/${graphVersion}/${externalId}/messages`;
   
@@ -39,7 +39,7 @@ export async function replyToInstagramComment(
   commentId: string,
   messageText: string,
   accessToken: string,
-  graphVersion: string = "v25.0"
+  graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
 ) {
   const url = `https://graph.instagram.com/${graphVersion}/${commentId}/replies`;
   
@@ -78,7 +78,7 @@ export interface InstagramUserProfile {
 export async function getInstagramUserProfile(
   recipientId: string,
   accessToken: string,
-  graphVersion: string = "v25.0"
+  graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
 ): Promise<InstagramUserProfile> {
   const fields = [
     "id",

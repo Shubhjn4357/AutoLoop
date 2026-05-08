@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { db, automations, automationMetrics, eq, and, desc } from '@autoloop/db';
+import { db, automations, automationMetrics, scheduledMessages, eq, and, desc, lte } from '@autoloop/db';
 
 export const automationRouter = new Hono();
 
@@ -60,6 +60,29 @@ automationRouter.delete('/', async (c) => {
     return c.json({ success: true });
   } catch (error) {
     return c.json({ error: 'Failed to delete' }, 500);
+  }
+});
+
+automationRouter.post('/followups', async (c) => {
+  try {
+    const now = new Date();
+    const due = await db.query.scheduledMessages.findMany({
+      where: and(
+        eq(scheduledMessages.status, 'pending'),
+        lte(scheduledMessages.dueAt, now)
+      ),
+      limit: 50,
+    });
+    const { automationEngine } = await import('../../automation/engine');
+
+    for (const message of due) {
+      await automationEngine.processScheduledMessage(message.id);
+    }
+
+    return c.json({ success: true, processed: due.length });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to process follow-ups';
+    return c.json({ error: message }, 500);
   }
 });
 

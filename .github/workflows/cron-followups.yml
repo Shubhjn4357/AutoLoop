@@ -15,13 +15,23 @@ jobs:
 
     steps:
       - name: Process Queue Events & Scheduled Messages
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          SERVER_BASE_URL: ${{ secrets.SERVER_BASE_URL }}
+          AUTOMATION_CRON_SECRET: ${{ secrets.AUTOMATION_CRON_SECRET }}
         run: |
+          TARGET_URL="${APP_URL:-$SERVER_BASE_URL}"
+          if [ -z "$TARGET_URL" ]; then
+            echo "::warning::APP_URL or SERVER_BASE_URL secret is required to process follow-ups"
+            exit 0
+          fi
+
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --retry 2 --retry-delay 3 \
             -X POST \
-            -H "Authorization: Bearer ${{ secrets.AUTOMATION_CRON_SECRET }}" \
+            -H "Authorization: Bearer $AUTOMATION_CRON_SECRET" \
             -H "Content-Type: application/json" \
-            ${{ secrets.APP_URL }}/api/automation/followups)
+            "$TARGET_URL/api/automation/followups")
           echo "Response: $STATUS"
           if [ "$STATUS" != "200" ]; then
             echo "::warning::Queue processing returned HTTP $STATUS"

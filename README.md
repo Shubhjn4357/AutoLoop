@@ -4,6 +4,7 @@ emoji: 📈
 colorFrom: red
 colorTo: pink
 sdk: docker
+app_port: 7860
 pinned: false
 license: mit
 ---
@@ -60,11 +61,11 @@ AutoLoop uses a **Monorepo** structure managed by `pnpm`.
 
 ### Deployment Speed Control
 In [.github/workflows/main.yml](.github/workflows/main.yml), you can control the deployment speed:
-- To skip quality checks and tests for an urgent deployment, set `SKIP_QUALITY: true` in the file and push.
+- Quality checks and tests run by default. To skip them for an urgent deployment, set `SKIP_QUALITY: true` in the file and push.
 
 ### Server Communication
-- **Web App**: Uses a hybrid approach. It connects **directly to Turso** for dashboard state and uses the **Server API** for real-time automation tasks.
-- **Automation Server**: A Hono instance running on port `7860`. It handles webhooks and background jobs via BullMQ.
+- **Web App**: Connects directly to Turso for dashboard state. Browser calls go through Cloudflare same-origin routes under `/api/server/*`, which inject the server-to-server `SERVER_API_KEY`.
+- **Automation Server**: A Hono instance running on port `7860`. Protected `/api/*` routes require `x-server-api-key` or an allowed cron secret. Public Meta webhook/OAuth callbacks remain open for Meta.
 
 ---
 
@@ -83,7 +84,12 @@ Ensure these are set in your server environment:
 - `META_APP_ID`: Your Facebook App ID.
 - `META_APP_SECRET`: Your Facebook App Secret.
 - `META_VERIFY_TOKEN`: A secret string you choose to verify webhooks.
+- `META_GRAPH_VERSION`: Current Graph API version, for example `v25.0`.
 - `SERVER_API_KEY`: A secure key to authenticate requests from your web app.
+- `SERVER_BASE_URL`: Your Hugging Face Space URL, for example `https://shubhjn-autoloop.hf.space`.
+- `NEXT_PUBLIC_APP_URL`: Your Cloudflare app URL, for OAuth redirects back to the dashboard.
+
+The app requests `pages_manage_metadata` during Facebook Login because Page webhook subscription uses the Page subscription endpoint. It stores the returned Page access token for Instagram media, publishing, and messaging calls.
 
 ---
 

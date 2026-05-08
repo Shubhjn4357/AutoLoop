@@ -4,12 +4,10 @@ import type { IGUserProfile, IGMedia } from "@autoloop/types";
 
 interface Props {
   query: string;
-  externalId: string;
-  accessToken: string;
   userId: string;
 }
 
-export async function SearchResults({ query, externalId, accessToken, userId }: Props) {
+export async function SearchResults({ query, userId }: Props) {
   if (!query) {
     return (
       <div className="glass-card rounded-3xl p-16 text-center text-muted-foreground">

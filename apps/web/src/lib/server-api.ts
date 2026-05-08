@@ -3,10 +3,14 @@
  * Used in Next.js Server Components.
  */
 
-const SERVER_BASE_URL = process.env.SERVER_BASE_URL || 'http://localhost:3000';
+const SERVER_BASE_URL = process.env.SERVER_BASE_URL || 'http://localhost:7860';
 const SERVER_API_KEY = process.env.SERVER_API_KEY;
 
 export async function callServer(path: string, userId: string, options: RequestInit = {}) {
+  if (!SERVER_API_KEY) {
+    throw new Error('SERVER_API_KEY is not configured');
+  }
+
   const url = new URL(path, SERVER_BASE_URL);
   url.searchParams.set('userId', userId);
 
@@ -17,8 +21,7 @@ export async function callServer(path: string, userId: string, options: RequestI
       'Content-Type': 'application/json',
       ...options.headers,
     },
-    // Server-to-server calls should usually be cached or revalidated according to Next.js rules
-    next: { revalidate: 60 }, 
+    cache: 'no-store',
   });
 
   if (!res.ok) {

@@ -38,8 +38,6 @@ export default async function SearchPage({ searchParams }: PageProps) {
         <Suspense fallback={<div className="h-64 animate-pulse bg-muted/40 rounded-3xl" />}>
           <SearchResults 
             query={query || ""} 
-            externalId={account.externalId} 
-            accessToken={account.accessToken!} 
             userId={session.user.id}
           />
         </Suspense>

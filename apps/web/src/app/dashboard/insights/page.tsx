@@ -33,8 +33,7 @@ export default async function InsightsPage() {
         <Suspense fallback={<InsightsSkeleton />}>
           <InsightsContent
             externalId={account.externalId}
-            accessToken={account.accessToken!}
-              userId={session.user.id}
+            userId={session.user.id}
           />
         </Suspense>
       )}

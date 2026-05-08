@@ -1,4 +1,4 @@
-export async function sendInstagramMessage(externalId, recipientId, messageText, accessToken, graphVersion = "v21.0") {
+export async function sendInstagramMessage(externalId, recipientId, messageText, accessToken, graphVersion = process.env.META_GRAPH_VERSION || "v25.0") {
     const url = `https://graph.instagram.com/${graphVersion}/${externalId}/messages`;
     const payload = {
         recipient: {
@@ -23,7 +23,7 @@ export async function sendInstagramMessage(externalId, recipientId, messageText,
     }
     return data;
 }
-export async function replyToInstagramComment(commentId, messageText, accessToken, graphVersion = "v21.0") {
+export async function replyToInstagramComment(commentId, messageText, accessToken, graphVersion = process.env.META_GRAPH_VERSION || "v25.0") {
     const url = `https://graph.instagram.com/${graphVersion}/${commentId}/replies`;
     const payload = {
         message: messageText,
@@ -43,7 +43,7 @@ export async function replyToInstagramComment(commentId, messageText, accessToke
     }
     return data;
 }
-export async function getInstagramUserProfile(recipientId, accessToken, graphVersion = "v21.0") {
+export async function getInstagramUserProfile(recipientId, accessToken, graphVersion = process.env.META_GRAPH_VERSION || "v25.0") {
     const fields = [
         "id",
         "name",

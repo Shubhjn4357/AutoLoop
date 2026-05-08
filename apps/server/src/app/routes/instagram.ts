@@ -11,8 +11,48 @@ import {
   fetchIGProfile
 } from '@autoloop/shared';
 
-const GRAPH_VERSION = "v21.0"; // Hardcoded for stability
+const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v25.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const STATE_TTL_MS = 60 * 60 * 1000;
+
+function getStateSecret() {
+  return process.env.SERVER_API_KEY || process.env.META_APP_SECRET || process.env.FACEBOOK_CLIENT_SECRET;
+}
+
+function verifySignedState(state: string | undefined) {
+  const stateSecret = getStateSecret();
+  if (!state || !stateSecret) return null;
+
+  const [payload, signature] = state.split(".");
+  if (!payload || !signature) return null;
+
+  const expectedSignature = crypto
+    .createHmac("sha256", stateSecret)
+    .update(payload)
+    .digest("base64url");
+  const expectedBuffer = Buffer.from(expectedSignature);
+  const providedBuffer = Buffer.from(signature);
+
+  if (
+    expectedBuffer.length !== providedBuffer.length ||
+    !crypto.timingSafeEqual(expectedBuffer, providedBuffer)
+  ) {
+    return null;
+  }
+
+  let parsed: { userId?: string; ts?: number };
+  try {
+    parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf-8"));
+  } catch {
+    return null;
+  }
+
+  if (!parsed.userId || !parsed.ts || Date.now() - parsed.ts > STATE_TTL_MS) {
+    return null;
+  }
+
+  return parsed.userId;
+}
 
 async function fetchWithRetry(url: string, options: any = {}, retries = 7, backoff = 3000) {
   for (let i = 0; i < retries; i++) {
@@ -37,6 +77,141 @@ async function fetchWithRetry(url: string, options: any = {}, retries = 7, backo
   }
 }
 
+async function parseMetaResponse(res: Response) {
+  const text = await res.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+}
+
+function isSubscriptionSuccess(body: any) {
+  return Boolean(body?.success) && !body?.error;
+}
+
+async function postSubscription(
+  label: string,
+  url: string,
+  accessToken: string,
+  fields: string
+) {
+  const params = new URLSearchParams();
+  params.set("subscribed_fields", fields);
+  params.set("access_token", accessToken);
+
+  const res = await fetch(url, {
+    method: "POST",
+    body: params,
+  });
+  const body = await parseMetaResponse(res);
+  const ok = res.ok && isSubscriptionSuccess(body);
+
+  console.log(
+    `[IG Callback] Webhook subscription ${label}: status=${res.status} ok=${ok} fields=${fields} body=${JSON.stringify(body)}`
+  );
+
+  return { label, ok, status: res.status, fields, body };
+}
+
+async function getSubscriptionStatus(label: string, url: string, accessToken: string) {
+  const statusUrl = new URL(url);
+  statusUrl.searchParams.set("access_token", accessToken);
+
+  const res = await fetch(statusUrl);
+  const body = await parseMetaResponse(res);
+
+  console.log(
+    `[IG Callback] Webhook subscription status ${label}: status=${res.status} body=${JSON.stringify(body)}`
+  );
+
+  return { label, status: res.status, body };
+}
+
+async function subscribeToWebhooks(params: {
+  igId: string;
+  pageId: string;
+  userAccessToken: string;
+  pageAccessToken: string;
+}) {
+  const attempts = [];
+  const instagramSubscriptionUrl = `https://graph.instagram.com/${GRAPH_VERSION}/${params.igId}/subscribed_apps`;
+  const pageSubscriptionUrl = `${GRAPH_BASE}/${params.pageId}/subscribed_apps`;
+
+  try {
+    attempts.push(
+      await postSubscription(
+        "instagram-account/comments-messages-page-token",
+        instagramSubscriptionUrl,
+        params.pageAccessToken,
+        "comments,messages"
+      )
+    );
+  } catch (error) {
+    console.error("[IG Callback] Instagram account webhook subscription failed:", error);
+  }
+
+  if (params.userAccessToken !== params.pageAccessToken) {
+    try {
+      attempts.push(
+        await postSubscription(
+          "instagram-account/comments-messages-user-token",
+          instagramSubscriptionUrl,
+          params.userAccessToken,
+          "comments,messages"
+        )
+      );
+    } catch (error) {
+      console.error("[IG Callback] Instagram account webhook subscription with user token failed:", error);
+    }
+  }
+
+  try {
+    attempts.push(
+      await postSubscription(
+        "page/messages",
+        pageSubscriptionUrl,
+        params.pageAccessToken,
+        "messages"
+      )
+    );
+  } catch (error) {
+    console.error("[IG Callback] Page messages webhook subscription failed:", error);
+  }
+
+  try {
+    attempts.push(
+      await postSubscription(
+        "page/feed",
+        pageSubscriptionUrl,
+        params.pageAccessToken,
+        "feed"
+      )
+    );
+  } catch (error) {
+    console.error("[IG Callback] Page feed webhook subscription failed:", error);
+  }
+
+  await Promise.allSettled([
+    getSubscriptionStatus(
+      "instagram-account",
+      instagramSubscriptionUrl,
+      params.pageAccessToken
+    ),
+    getSubscriptionStatus("page", pageSubscriptionUrl, params.pageAccessToken),
+  ]);
+
+  if (!attempts.some((attempt) => attempt.ok)) {
+    console.warn(
+      "[IG Callback] No webhook subscription attempt succeeded. Check Meta app webhook product setup, callback verification, and pages_manage_metadata / instagram_manage_messages permissions."
+    );
+  }
+
+  return attempts;
+}
+
 export const instagramRouter = new Hono();
 
 // Helper to get connected account
@@ -49,26 +224,34 @@ const getAccount = async (userId: string) => {
 // --- OAuth Flow ---
 
 instagramRouter.get('/connect', async (c) => {
-  const userId = c.req.query('userId');
-  if (!userId) return c.text('Missing userId', 400);
+  const state = c.req.query('state');
+  const userId = verifySignedState(state) ?? (
+    process.env.NODE_ENV !== "production" ? c.req.query('userId') : undefined
+  );
+  if (!userId) return c.text('Invalid connection state', 400);
 
   const appId = process.env.META_APP_ID || process.env.FACEBOOK_CLIENT_ID;
+  if (!appId) return c.text('Meta app ID is not configured', 500);
+
   const serverUrl = process.env.SERVER_BASE_URL || "https://shubhjn-autoloop.hf.space";
   const redirectUri = `${serverUrl}/api/instagram/callback`;
   
   const scopes = [
     "instagram_basic",
+    "instagram_content_publish",
     "instagram_manage_insights",
     "instagram_manage_comments",
     "instagram_manage_messages",
     "pages_show_list",
     "pages_messaging",
     "pages_manage_engagement",
+    "pages_manage_metadata",
     "pages_read_engagement",
     "public_profile"
   ].join(",");
 
-  const authUrl = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${userId}`;
+  const oauthState = state ?? userId;
+  const authUrl = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${encodeURIComponent(oauthState)}`;
 
   console.log("[IG Connect] Redirecting to:", authUrl);
   return c.redirect(authUrl);
@@ -76,7 +259,10 @@ instagramRouter.get('/connect', async (c) => {
 
 instagramRouter.get('/callback', async (c) => {
   const code = c.req.query('code');
-  const userId = c.req.query('state');
+  const state = c.req.query('state');
+  const userId = verifySignedState(state) ?? (
+    process.env.NODE_ENV !== "production" ? state : undefined
+  );
   const error = c.req.query('error');
 
   const webUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -87,6 +273,9 @@ instagramRouter.get('/callback', async (c) => {
 
   const appId = process.env.META_APP_ID || process.env.FACEBOOK_CLIENT_ID;
   const appSecret = process.env.META_APP_SECRET || process.env.FACEBOOK_CLIENT_SECRET;
+  if (!appId || !appSecret) {
+    return c.redirect(`${webUrl}/dashboard/settings?error=meta_app_not_configured`);
+  }
   const serverUrl = process.env.SERVER_BASE_URL || "https://shubhjn-autoloop.hf.space";
   const redirectUri = `${serverUrl}/api/instagram/callback`;
 
@@ -105,13 +294,16 @@ instagramRouter.get('/callback', async (c) => {
     const longTokenUrl = `${GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`;
     const longTokenRes = await fetchWithRetry(longTokenUrl);
     const longTokenData = await longTokenRes!.json();
+    if (longTokenData.error) throw new Error(longTokenData.error.message);
     const accessToken = longTokenData.access_token;
+    if (!accessToken) throw new Error("Meta did not return a long-lived access token");
 
     await new Promise(r => setTimeout(r, 500));
 
     // 3. Get Pages & IG Business Account
     const pagesRes = await fetchWithRetry(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name,access_token`);
     const pagesData = await pagesRes!.json();
+    if (pagesData.error) throw new Error(pagesData.error.message);
     const pageWithIG = pagesData.data?.find((p: any) => p.instagram_business_account);
 
     if (!pageWithIG) {
@@ -121,27 +313,16 @@ instagramRouter.get('/callback', async (c) => {
     const igId = pageWithIG.instagram_business_account.id;
     const pageId = pageWithIG.id;
     const pageAccessToken = pageWithIG.access_token; // Pages API gives us a Page Access Token
-    const igProfile = await fetchIGProfile(igId, accessToken);
+    const accountAccessToken = pageAccessToken || accessToken;
+    const igProfile = await fetchIGProfile(igId, accountAccessToken);
 
-      // 4. Subscribe the Page to our App's Webhooks
-      try {
-        console.log("[IG Callback] Subscribing Page to Webhooks:", pageId);
-        
-        // We use URLSearchParams as it's more reliable for this specific legacy endpoint
-        const subParams = new URLSearchParams();
-        subParams.append("subscribed_fields", "messages,messaging_postbacks,messaging_optins,feed,mention,follow,story_share");
-        
-        const subUrl = `${GRAPH_BASE}/${pageId}/subscribed_apps?access_token=${pageAccessToken}`;
-        const subRes = await fetch(subUrl, { 
-          method: "POST",
-          body: subParams
-        });
-        
-        const subData = await subRes.json();
-        console.log("[IG Callback] Webhook subscription result:", subData);
-      } catch (err) {
-        console.error("[IG Callback] Webhook subscription ERROR:", err);
-      }
+    // 4. Subscribe the IG/Page account to our app's webhooks.
+    await subscribeToWebhooks({
+      igId,
+      pageId,
+      userAccessToken: accessToken,
+      pageAccessToken,
+    });
 
     // 5. Upsert into database
     const existing = await db.query.socialAccounts.findFirst({
@@ -150,7 +331,8 @@ instagramRouter.get('/callback', async (c) => {
 
     if (existing) {
       await db.update(socialAccounts).set({
-        accessToken,
+        accessToken: accountAccessToken,
+        pageId,
         instagramUsername: igProfile.username,
         instagramProfilePicture: igProfile.profile_picture_url,
         updatedAt: new Date(),
@@ -161,7 +343,8 @@ instagramRouter.get('/callback', async (c) => {
         userId,
         platform: "instagram",
         externalId: igId,
-        accessToken,
+        pageId,
+        accessToken: accountAccessToken,
         instagramUsername: igProfile.username,
         instagramProfilePicture: igProfile.profile_picture_url,
       });
@@ -188,6 +371,39 @@ instagramRouter.get('/profile', async (c) => {
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
+});
+
+instagramRouter.get('/subscription-status', async (c) => {
+  const userId = c.req.query('userId');
+  if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+
+  const account = await getAccount(userId);
+  if (!account?.externalId || !account?.accessToken) {
+    return c.json({ error: 'Not connected' }, 404);
+  }
+
+  const checks: Record<string, unknown> = {};
+
+  if (account.pageId) {
+    checks.page = await getSubscriptionStatus(
+      "page",
+      `${GRAPH_BASE}/${account.pageId}/subscribed_apps`,
+      account.accessToken
+    );
+  }
+
+  checks.instagram = await getSubscriptionStatus(
+    "instagram-account",
+    `https://graph.instagram.com/${GRAPH_VERSION}/${account.externalId}/subscribed_apps`,
+    account.accessToken
+  );
+
+  return c.json({
+    graphVersion: GRAPH_VERSION,
+    externalId: account.externalId,
+    pageId: account.pageId,
+    checks,
+  });
 });
 
 instagramRouter.get('/media', async (c) => {
@@ -255,8 +471,12 @@ instagramRouter.get('/search-fuzzy', async (c) => {
   if (!account?.externalId || !account?.accessToken) return c.json({ error: 'Not connected' }, 404);
   
   try {
-    const users = await fuzzySearchIGUsers(account.externalId, account.accessToken, q);
-    return c.json({ data: users });
+    const [exactMatch, fuzzyMatches] = await Promise.all([
+      searchIGUser(account.externalId, account.accessToken, q).catch(() => null),
+      fuzzySearchIGUsers(account.externalId, account.accessToken, q),
+    ]);
+
+    return c.json({ exactMatch, fuzzyMatches, query: q });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }

@@ -8,5 +8,6 @@ console.log(`[Redis] Connecting to ${host}:${port}`);
 export const redisConnection = new Redis({
   host,
   port,
+  lazyConnect: process.env.DISABLE_WORKERS === 'true',
   maxRetriesPerRequest: null,
 });

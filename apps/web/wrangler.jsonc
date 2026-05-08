@@ -24,9 +24,8 @@
     "GITHUB_CLIENT_ID": "Ov23liABt5zUYviptgdF",
     "LINKEDIN_CLIENT_ID": "77d8rap022787s",
     "TURSO_DATABASE_URL": "libsql://autoloop-shubhjn4357.aws-ap-south-1.turso.io",
-    "META_GRAPH_VERSION": "v22.0",
+    "META_GRAPH_VERSION": "v25.0",
     "NODE_ENV": "production",
-    "GOOGLE_GENERATIVE_AI_API_KEY": "PLACEHOLDER",
     "STRIPE_PRO_PRICE_ID": "PLACEHOLDER"
   },
   // NOTE: Cron triggers require a `scheduled` event handler.

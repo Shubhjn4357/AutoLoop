@@ -17,6 +17,8 @@ const envGroups = [
   { label: "Meta webhook verify token", keys: ["META_VERIFY_TOKEN"] },
   { label: "Meta webhook app secret", keys: ["META_APP_SECRET"] },
   { label: "Follow-up worker secret", keys: ["AUTOMATION_CRON_SECRET"] },
+  { label: "Automation server URL", keys: ["SERVER_BASE_URL"] },
+  { label: "Automation server API key", keys: ["SERVER_API_KEY"] },
 ];
 
 const requiredFiles = [
