@@ -15,9 +15,10 @@ coverage
 playwright-report
 test-results
 
-# next.js
+# build cache
 .next
 out
+dist
 
 # production
 build
