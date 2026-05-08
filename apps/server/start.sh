@@ -15,18 +15,19 @@ echo "Redis is ready!"
 echo "Starting Node server..."
 
 # Dynamically find the entry point to handle different tsc output structures
-# Prefer the one in apps/server/src or the root dist
-ENTRY_POINT=$(find /app/apps/server/dist -name "index.js" | grep "apps/server/src" | head -n 1)
-if [ -z "$ENTRY_POINT" ]; then
-  ENTRY_POINT=$(find /app/apps/server/dist -name "index.js" | grep -v "packages" | head -n 1)
-fi
-if [ -z "$ENTRY_POINT" ]; then
-  ENTRY_POINT=$(find /app/apps/server/dist -name "index.js" | head -n 1)
+# Prioritize the most likely main entry points
+if [ -f "/app/apps/server/dist/index.js" ]; then
+  ENTRY_POINT="/app/apps/server/dist/index.js"
+elif [ -f "/app/apps/server/dist/apps/server/src/index.js" ]; then
+  ENTRY_POINT="/app/apps/server/dist/apps/server/src/index.js"
+else
+  # Fallback: find all index.js and pick the one with the shortest path (least deep)
+  # This usually avoids picking up sub-modules like health/index.js
+  ENTRY_POINT=$(find /app/apps/server/dist -name "index.js" | grep -v "packages" | awk '{ print length($0), $0 }' | sort -n | cut -d' ' -f2- | head -n 1)
 fi
 
 if [ -z "$ENTRY_POINT" ] || [ ! -f "$ENTRY_POINT" ]; then
   echo "CRITICAL: Could not find index.js in dist!"
-  echo "Dist contents:"
   ls -R /app/apps/server/dist
   exit 1
 fi
