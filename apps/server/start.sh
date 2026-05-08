@@ -13,4 +13,4 @@ echo "Redis is ready!"
 
 # Start the Node server
 echo "Starting Node server..."
-node apps/server/dist/index.js
+node /app/apps/server/dist/index.js

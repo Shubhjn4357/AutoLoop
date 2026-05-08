@@ -31,13 +31,12 @@ WORKDIR /app
 # Install Redis
 RUN apt-get update && apt-get install -y redis-server && rm -rf /var/lib/apt/lists/*
 
+# Copy from builder
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/server/package.json ./apps/server/
-COPY --from=builder /app/apps/server/dist ./apps/server/dist
-COPY --from=builder /app/apps/server/start.sh ./apps/server/start.sh
 COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/server ./apps/server
 
-# Make start script executable
+# Ensure start script is executable
 RUN chmod +x apps/server/start.sh
 
 EXPOSE 7860
@@ -47,4 +46,5 @@ ENV PORT=7860
 ENV REDIS_HOST=localhost
 ENV REDIS_PORT=6379
 
-CMD ["./apps/server/start.sh"]
+# Use absolute path for start script or set WORKDIR correctly
+CMD ["/bin/sh", "/app/apps/server/start.sh"]
