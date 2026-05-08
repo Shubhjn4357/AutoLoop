@@ -1,4 +1,4 @@
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1";
 
 interface GeminiResponse {
   candidates: Array<{

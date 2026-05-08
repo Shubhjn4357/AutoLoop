@@ -382,7 +382,7 @@ export const automationEngine = {
 
     // Send DM
     if (interpolatedDM.trim()) {
-      await sendInstagramMessage(account.externalId, recipientId, interpolatedDM, account.accessToken);
+      await sendInstagramMessage(account.pageId || account.externalId, recipientId, interpolatedDM, account.accessToken);
       await db.insert(dbMessages).values({
         id: crypto.randomUUID(),
         userId: rule.userId,
