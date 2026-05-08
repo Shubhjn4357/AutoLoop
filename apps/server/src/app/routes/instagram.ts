@@ -68,6 +68,15 @@ instagramRouter.get('/callback', async (c) => {
     console.log("[IG Callback] App Secret:", appSecret ? "SET" : "MISSING");
     console.log("[IG Callback] Redirect URI:", redirectUri);
 
+    // TEST CONNECTIVITY
+    console.log("[IG Callback] Testing general outbound connectivity (Google)...");
+    try {
+      const test = await fetch("https://www.google.com", { signal: AbortSignal.timeout(3000) });
+      console.log("[IG Callback] Google Test Status:", test.status);
+    } catch (e: any) {
+      console.error("[IG Callback] Google Test Failed:", e.message);
+    }
+
     // 1. Exchange code for short-lived token
     const tokenUrl = `${GRAPH_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
     console.log("[IG Callback] Fetching short-lived token...");
@@ -132,7 +141,9 @@ instagramRouter.get('/callback', async (c) => {
 
     return c.redirect(`${webUrl}/dashboard/settings?success=instagram_connected`);
   } catch (err: any) {
-    console.error("[IG Callback] Error:", err.message);
+    console.error("[IG Callback] Fatal Error:", err.message);
+    if (err.cause) console.error("[IG Callback] Error Cause:", err.cause);
+    if (err.stack) console.error("[IG Callback] Stack Trace:", err.stack);
     return c.redirect(`${webUrl}/dashboard/settings?error=server_error`);
   }
 });
