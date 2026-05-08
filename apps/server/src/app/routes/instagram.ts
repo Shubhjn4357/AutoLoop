@@ -14,7 +14,7 @@ import {
 const GRAPH_VERSION = "v21.0"; // Hardcoded for stability
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
-async function fetchWithRetry(url: string, options: any = {}, retries = 5, backoff = 2000) {
+async function fetchWithRetry(url: string, options: any = {}, retries = 7, backoff = 3000) {
   for (let i = 0; i < retries; i++) {
     try {
       console.log(`[Fetch Attempt ${i + 1}] Calling: ${url.split('?')[0]}...`);
@@ -61,19 +61,11 @@ instagramRouter.get('/connect', async (c) => {
     "instagram_manage_insights",
     "instagram_manage_comments",
     "instagram_manage_messages",
-    "instagram_content_publish",
     "pages_show_list",
-    "pages_read_engagement",
-    "pages_manage_metadata",
     "pages_messaging",
     "pages_manage_engagement",
-    "pages_manage_posts",
-    "pages_read_user_content",
-    "ads_management",
-    "ads_read",
-    "leads_retrieval",
-    "public_profile",
-    "business_management"
+    "pages_read_engagement",
+    "public_profile"
   ].join(",");
 
   const authUrl = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${userId}`;
