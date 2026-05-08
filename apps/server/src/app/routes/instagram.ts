@@ -11,20 +11,28 @@ import {
   fetchIGProfile
 } from '@autoloop/shared';
 
-const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v25.0";
+const GRAPH_VERSION = "v21.0"; // Hardcoded for stability
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
-async function fetchWithRetry(url: string, options: any = {}, retries = 3, backoff = 1000) {
+async function fetchWithRetry(url: string, options: any = {}, retries = 5, backoff = 2000) {
   for (let i = 0; i < retries; i++) {
     try {
-      console.log(`[Fetch] Calling: ${url.split('?')[0]}...`);
+      console.log(`[Fetch Attempt ${i + 1}] Calling: ${url.split('?')[0]}...`);
       const res = await fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
-      if (!res.ok && i < retries - 1) throw new Error(`Status ${res.status}`);
+      if (res.ok) return res;
+      
+      const errorText = await res.text().catch(() => "No error body");
+      console.warn(`[Fetch Retry] Status ${res.status}: ${errorText.substring(0, 100)}`);
+      
+      if (i < retries - 1) {
+        await new Promise(r => setTimeout(r, backoff * (i + 1)));
+        continue;
+      }
       return res;
     } catch (err: any) {
       if (i === retries - 1) throw err;
-      console.warn(`[Fetch Retry] Attempt ${i + 1} failed: ${err.message}. Retrying in ${backoff}ms...`);
-      await new Promise(r => setTimeout(r, backoff));
+      console.warn(`[Fetch Retry] Network Error: ${err.message}. Retrying...`);
+      await new Promise(r => setTimeout(r, backoff * (i + 1)));
     }
   }
 }
