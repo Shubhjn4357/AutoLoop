@@ -37,7 +37,7 @@ export async function analyzeSentiment(text: string) {
     
     Message: "${text}"`;
 
-    const data = await geminiFetch("models/gemini-1.5-flash", "generateContent", {
+    const data = await geminiFetch("models/gemini-2.0-flash", "generateContent", {
       contents: [{ parts: [{ text: prompt }] }],
     });
 
@@ -77,12 +77,12 @@ Generate a reply based on the user's message. Be concise (max 2 sentences), frie
     let data;
     if (chatHistory.length > 0) {
       const contents = [...chatHistory, { role: "user", parts: [{ text: userPrompt }] }];
-      data = await geminiFetch("models/gemini-1.5-flash", "generateContent", {
+      data = await geminiFetch("models/gemini-2.0-flash", "generateContent", {
         contents,
         generationConfig: { maxOutputTokens: 150 },
       });
     } else {
-      data = await geminiFetch("models/gemini-1.5-flash", "generateContent", {
+      data = await geminiFetch("models/gemini-2.0-flash", "generateContent", {
         contents: [{ parts: [{ text: fullPrompt }] }],
       });
     }
@@ -105,7 +105,7 @@ export async function detectIntent(text: string): Promise<string> {
 
 Message: "${text}"`;
 
-    const data = await geminiFetch("models/gemini-1.5-flash", "generateContent", {
+    const data = await geminiFetch("models/gemini-2.0-flash", "generateContent", {
       contents: [{ parts: [{ text: prompt }] }],
     });
 
@@ -124,7 +124,7 @@ export async function categorizeLead(text: string) {
     
     Message: "${text}"`;
 
-    const data = await geminiFetch("models/gemini-1.5-flash", "generateContent", {
+    const data = await geminiFetch("models/gemini-2.0-flash", "generateContent", {
       contents: [{ parts: [{ text: prompt }] }],
     });
 
