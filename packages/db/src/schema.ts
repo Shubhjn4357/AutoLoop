@@ -61,10 +61,13 @@ export const socialAccounts = sqliteTable("social_accounts", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   platform: text("platform").notNull().default("instagram"),
-  externalId: text("external_id"), // was externalId
+  externalId: text("external_id"),
   pageId: text("page_id"),
   accessToken: text("access_token"),
+  instagramUsername: text("instagram_username"),
+  instagramProfilePicture: text("instagram_profile_picture"),
   connectedAt: integer("connected_at", { mode: "timestamp_ms" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).$defaultFn(() => new Date()),
 });
 
 export const automations = sqliteTable("automations", {

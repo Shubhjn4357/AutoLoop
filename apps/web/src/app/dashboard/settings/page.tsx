@@ -65,6 +65,7 @@ export default async function SettingsPage() {
         subscriptionStatus={dbUser.subscriptionStatus ?? null}
         stripePriceId={dbUser.stripePriceId ?? null}
         userId={userId}
+        serverUrl={process.env.SERVER_BASE_URL || "https://shubhjn-autoloop.hf.space"}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import { db, socialAccounts, eq } from '@autoloop/db';
+import { db, socialAccounts, eq, and } from '@autoloop/db';
+import crypto from 'crypto';
 import { 
   fetchIGMedia, 
   fetchIGStories, 
@@ -10,6 +11,8 @@ import {
   fetchIGProfile
 } from '@autoloop/shared';
 
+const GRAPH_BASE = "https://graph.facebook.com/v21.0";
+
 export const instagramRouter = new Hono();
 
 // Helper to get connected account
@@ -18,6 +21,104 @@ const getAccount = async (userId: string) => {
     where: eq(socialAccounts.userId, userId),
   });
 };
+
+// --- OAuth Flow ---
+
+instagramRouter.get('/connect', async (c) => {
+  const userId = c.req.query('userId');
+  if (!userId) return c.text('Missing userId', 400);
+
+  const appId = process.env.META_APP_ID || process.env.FACEBOOK_CLIENT_ID;
+  const serverUrl = process.env.SERVER_BASE_URL || "https://shubhjn-autoloop.hf.space";
+  const redirectUri = `${serverUrl}/api/instagram/callback`;
+  
+  const scopes = [
+    "instagram_basic",
+    "instagram_manage_insights",
+    "instagram_manage_comments",
+    "instagram_manage_messages",
+    "pages_show_list",
+    "pages_read_engagement"
+  ].join(",");
+
+  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${userId}`;
+
+  return c.redirect(authUrl);
+});
+
+instagramRouter.get('/callback', async (c) => {
+  const code = c.req.query('code');
+  const userId = c.req.query('state');
+  const error = c.req.query('error');
+
+  const webUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  if (error || !code || !userId) {
+    return c.redirect(`${webUrl}/dashboard/settings?error=instagram_auth_failed`);
+  }
+
+  const appId = process.env.META_APP_ID || process.env.FACEBOOK_CLIENT_ID;
+  const appSecret = process.env.META_APP_SECRET || process.env.FACEBOOK_CLIENT_SECRET;
+  const serverUrl = process.env.SERVER_BASE_URL || "https://shubhjn-autoloop.hf.space";
+  const redirectUri = `${serverUrl}/api/instagram/callback`;
+
+  try {
+    // 1. Exchange code for short-lived token
+    const tokenRes = await fetch(
+      `${GRAPH_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`
+    );
+    const tokenData = await tokenRes.json();
+    if (tokenData.error) throw new Error(tokenData.error.message);
+
+    // 2. Exchange for long-lived token
+    const longTokenRes = await fetch(
+      `${GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${tokenData.access_token}`
+    );
+    const longTokenData = await longTokenRes.json();
+    const accessToken = longTokenData.access_token;
+
+    // 3. Get Pages & IG Business Account
+    const pagesRes = await fetch(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name`);
+    const pagesData = await pagesRes.json();
+    const pageWithIG = pagesData.data?.find((p: any) => p.instagram_business_account);
+
+    if (!pageWithIG) return c.redirect(`${webUrl}/dashboard/settings?error=no_instagram_found`);
+
+    const igId = pageWithIG.instagram_business_account.id;
+    const igProfile = await fetchIGProfile(igId, accessToken);
+
+    // 4. Upsert into database
+    const existing = await db.query.socialAccounts.findFirst({
+      where: and(eq(socialAccounts.userId, userId), eq(socialAccounts.externalId, igId)),
+    });
+
+    if (existing) {
+      await db.update(socialAccounts).set({
+        accessToken,
+        instagramUsername: igProfile.username,
+        instagramProfilePicture: igProfile.profile_picture_url,
+        updatedAt: new Date(),
+      }).where(eq(socialAccounts.id, existing.id));
+    } else {
+      await db.insert(socialAccounts).values({
+        id: crypto.randomUUID(),
+        userId,
+        platform: "instagram",
+        externalId: igId,
+        accessToken,
+        instagramUsername: igProfile.username,
+        instagramProfilePicture: igProfile.profile_picture_url,
+      });
+    }
+
+    return c.redirect(`${webUrl}/dashboard/settings?success=instagram_connected`);
+  } catch (err: any) {
+    console.error("[IG Callback] Error:", err.message);
+    return c.redirect(`${webUrl}/dashboard/settings?error=server_error`);
+  }
+});
+
+// --- Existing Routes ---
 
 instagramRouter.get('/profile', async (c) => {
   const userId = c.req.query('userId');
