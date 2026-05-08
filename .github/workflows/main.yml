@@ -8,7 +8,7 @@ on:
     inputs:
       skip_quality:
         description: 'Skip quality, build and test jobs'
-        required: false
+        required: true
         default: true
         type: boolean
 
