@@ -278,6 +278,9 @@ export const automationEngine = {
       if (rule.targetPostId && rule.targetPostId !== payload.storyId) continue;
       if (!matchesAutomationCondition(rule.conditionOperator || 'contains', rule.condition || '', text)) continue;
 
+      console.log(`[Automation] Triggered rule: "${rule.name}" (ID: ${rule.id})`);
+      console.log(`[Automation] Data - URL: "${rule.targetUrl}", LinkText: "${rule.linkText}", AI: ${rule.aiEnabled}`);
+
       // Follower requirement logic
       if (rule.requireFollower) {
         const profile = await getInstagramUserProfile(senderId, account.accessToken);
@@ -422,8 +425,12 @@ export const automationEngine = {
     // Send Main DM with Button support
     if (interpolatedDM.trim()) {
       const buttons: any[] = [];
-      if (rule.targetUrl && rule.linkText) {
-        buttons.push({ type: 'web_url' as const, url: rule.targetUrl, title: rule.linkText });
+      const targetUrl = rule.targetUrl;
+      const linkText = rule.linkText || (targetUrl ? "Visit Website" : null);
+
+      if (targetUrl && linkText) {
+        console.log(`[Automation] Attaching button to DM: "${linkText}" -> ${targetUrl}`);
+        buttons.push({ type: 'web_url' as const, url: targetUrl, title: linkText });
       }
 
       await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolatedDM, account.accessToken, { buttons });
@@ -445,8 +452,11 @@ export const automationEngine = {
     if (rule.followUpTemplate && (rule.followUpDelayMinutes || 0) === 0) {
       const interpolatedFollowUp = await this.interpolateVariables(rule.followUpTemplate, rule.userId, account.externalId, recipientId);
       const fuButtons: any[] = [];
-      if (rule.followUpUrl && rule.followUpUrlText) {
-        fuButtons.push({ type: 'web_url' as const, url: rule.followUpUrl, title: rule.followUpUrlText });
+      const fuUrl = rule.followUpUrl;
+      const fuText = rule.followUpUrlText || (fuUrl ? "Learn More" : null);
+
+      if (fuUrl && fuText) {
+        fuButtons.push({ type: 'web_url' as const, url: fuUrl, title: fuText });
       }
       await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolatedFollowUp, account.accessToken, { buttons: fuButtons });
     } else if (rule.followUpTemplate) {
@@ -571,10 +581,12 @@ export const automationEngine = {
         const rule = await db.query.automations.findFirst({ where: eq(automations.id, msg.automationId) });
         if (rule) {
           // If this text matches follow-up 1 or 2, use their respective buttons
-          if (msg.messageText === rule.followUpTemplate && rule.followUpUrl && rule.followUpUrlText) {
-            buttons.push({ type: 'web_url' as const, url: rule.followUpUrl, title: rule.followUpUrlText });
-          } else if (msg.messageText === rule.followUp2Template && rule.followUp2Url && rule.followUp2UrlText) {
-            buttons.push({ type: 'web_url' as const, url: rule.followUp2Url, title: rule.followUp2UrlText });
+          if (msg.messageText === rule.followUpTemplate && rule.followUpUrl) {
+            const fuText = rule.followUpUrlText || "Learn More";
+            buttons.push({ type: 'web_url' as const, url: rule.followUpUrl, title: fuText });
+          } else if (msg.messageText === rule.followUp2Template && rule.followUp2Url) {
+            const fu2Text = rule.followUp2UrlText || "Get Details";
+            buttons.push({ type: 'web_url' as const, url: rule.followUp2Url, title: fu2Text });
           }
         }
       }
