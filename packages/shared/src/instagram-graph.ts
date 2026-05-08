@@ -11,7 +11,7 @@ import {
   HashtagMedia 
 } from '@autoloop/types';
 
-const GRAPH_VERSION = "v22.0"; // Use a stable version
+const GRAPH_VERSION = "v25.0"; // Use a stable version
 const BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 async function graphFetch<T>(
@@ -28,7 +28,7 @@ async function graphFetch<T>(
 
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) });
+      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(30000) });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: { message: string } };
         // Retry on 5xx errors or network issues, but not on 4xx (auth/params errors)

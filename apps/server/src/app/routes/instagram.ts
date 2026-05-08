@@ -11,13 +11,14 @@ import {
   fetchIGProfile
 } from '@autoloop/shared';
 
-const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v22.0";
+const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v25.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 async function fetchWithRetry(url: string, options: any = {}, retries = 3, backoff = 1000) {
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
+      console.log(`[Fetch] Calling: ${url.split('?')[0]}...`);
+      const res = await fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
       if (!res.ok && i < retries - 1) throw new Error(`Status ${res.status}`);
       return res;
     } catch (err: any) {
