@@ -8,6 +8,7 @@ on:
 
 jobs:
   quality:
+    name: Code Quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -36,14 +37,112 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Security Audit
+        run: pnpm audit --audit-level=high
+
+  build:
+    name: Build & Size
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Build-time env vars (dummy values for CI if needed)
+          TURSO_DATABASE_URL: "libsql://dummy.turso.io"
+          TURSO_AUTH_TOKEN: "dummy"
+          AUTH_SECRET: "dummy"
+
+      - name: Check Worker Size
+        run: |
+          # OpenNext puts the worker in .open-next/worker.js or functions directory
+          # We check the 3MB Cloudflare limit
+          if [ -d ".open-next" ]; then
+            find .open-next -name "*.js" -exec ls -lh {} +
+            WORKER_SIZE=$(du -b .open-next/worker.js | cut -f1 || echo 0)
+            echo "Worker size: $WORKER_SIZE bytes"
+            if [ $WORKER_SIZE -gt 3145728 ]; then
+              echo "CRITICAL: Worker size exceeds 3MB limit!"
+              exit 1
+            fi
+          fi
+
+  test:
+    name: Tests
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Unit tests
         run: pnpm test:unit
 
       - name: Component tests
         run: pnpm test:components
 
-      - name: Install Playwright browser
-        run: pnpm exec playwright install --with-deps chromium
-
       - name: Automation tests
         run: pnpm test:e2e
+
+  deploy:
+    name: Deploy & Sync
+    needs: [build, test]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config --global user.email "shubhamjain.com.in@gmail.com"
+          git config --global user.name "shubhjn"
+          git remote add hf https://shubhjn:$HF_TOKEN@huggingface.co/spaces/shubhjn/autoloop
+          git push --force hf main
