@@ -13,6 +13,20 @@ import {
 
 const GRAPH_BASE = "https://graph.facebook.com/v21.0";
 
+async function fetchWithRetry(url: string, options: any = {}, retries = 3, backoff = 1000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
+      if (!res.ok && i < retries - 1) throw new Error(`Status ${res.status}`);
+      return res;
+    } catch (err: any) {
+      if (i === retries - 1) throw err;
+      console.warn(`[Fetch Retry] Attempt ${i + 1} failed: ${err.message}. Retrying in ${backoff}ms...`);
+      await new Promise(r => setTimeout(r, backoff));
+    }
+  }
+}
+
 export const instagramRouter = new Hono();
 
 // Helper to get connected account
@@ -81,8 +95,8 @@ instagramRouter.get('/callback', async (c) => {
     const tokenUrl = `${GRAPH_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
     console.log("[IG Callback] Fetching short-lived token...");
     
-    const tokenRes = await fetch(tokenUrl);
-    const tokenData = await tokenRes.json();
+    const tokenRes = await fetchWithRetry(tokenUrl);
+    const tokenData = await tokenRes!.json();
     
     if (tokenData.error) {
       console.error("[IG Callback] Facebook Token Error:", tokenData.error);
@@ -90,18 +104,22 @@ instagramRouter.get('/callback', async (c) => {
     }
     const shortToken = tokenData.access_token;
 
+    await new Promise(r => setTimeout(r, 500)); // Small delay
+
     // 2. Exchange for long-lived token
     console.log("[IG Callback] Exchanging for long-lived token...");
     const longTokenUrl = `${GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`;
     
-    const longTokenRes = await fetch(longTokenUrl);
-    const longTokenData = await longTokenRes.json();
+    const longTokenRes = await fetchWithRetry(longTokenUrl);
+    const longTokenData = await longTokenRes!.json();
     const accessToken = longTokenData.access_token;
+
+    await new Promise(r => setTimeout(r, 500)); // Small delay
 
     // 3. Get Pages & IG Business Account
     console.log("[IG Callback] Fetching linked pages...");
-    const pagesRes = await fetch(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name`);
-    const pagesData = await pagesRes.json();
+    const pagesRes = await fetchWithRetry(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name`);
+    const pagesData = await pagesRes!.json();
     
     console.log("[IG Callback] Pages found:", JSON.stringify(pagesData.data?.map((p: any) => ({ name: p.name, hasIG: !!p.instagram_business_account }))));
 

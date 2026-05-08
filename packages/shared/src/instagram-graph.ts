@@ -15,22 +15,34 @@ const GRAPH_VERSION = "v21.0"; // Use a stable version
 const BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 async function graphFetch<T>(
-
   path: string,
   accessToken: string,
-  params: Record<string, string> = {}
+  params: Record<string, string> = {},
+  retries = 3
 ): Promise<T> {
   const url = new URL(`${BASE}${path}`);
   url.searchParams.set("access_token", accessToken);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
-  const res = await fetch(url.toString());
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: { message: string } };
-    throw new Error(body?.error?.message ?? `Graph API error ${res.status}`);
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: { message: string } };
+        // Retry on 5xx errors or network issues, but not on 4xx (auth/params errors)
+        if (i < retries - 1 && (res.status >= 500 || res.status === 408)) throw new Error(body?.error?.message ?? `Status ${res.status}`);
+        throw new Error(body?.error?.message ?? `Graph API error ${res.status}`);
+      }
+      return res.json() as Promise<T>;
+    } catch (err: any) {
+      if (i === retries - 1) throw err;
+      console.warn(`[GraphFetch Retry] Attempt ${i + 1} failed: ${err.message}. Retrying in 1000ms...`);
+      await new Promise(r => setTimeout(r, 1000));
+    }
   }
-  return res.json() as Promise<T>;
+  throw new Error("Maximum retries reached");
 }
 
 /** Fetch all media posts for an IG Business account */
