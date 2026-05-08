@@ -19,6 +19,7 @@
     "AUTH_URL": "https://autoloop.blockbucket.workers.dev",
     "ADMIN_EMAIL": "shubhamjain.com.in@gmail.com",
     "FACEBOOK_CLIENT_ID": "25749953891364911",
+    "SERVER_BASE_URL": "https://shubhjn-autoloop.hf.space",
     "GOOGLE_CLIENT_ID": "296823707624-ahlkqo55k0pn59ic41c25agd9hdisjnt.apps.googleusercontent.com",
     "GITHUB_CLIENT_ID": "Ov23liABt5zUYviptgdF",
     "LINKEDIN_CLIENT_ID": "77d8rap022787s",

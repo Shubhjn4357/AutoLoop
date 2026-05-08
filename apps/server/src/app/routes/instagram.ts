@@ -63,26 +63,45 @@ instagramRouter.get('/callback', async (c) => {
   const redirectUri = `${serverUrl}/api/instagram/callback`;
 
   try {
+    console.log("[IG Callback] Starting token exchange...");
+    console.log("[IG Callback] App ID:", appId ? "SET" : "MISSING");
+    console.log("[IG Callback] App Secret:", appSecret ? "SET" : "MISSING");
+    console.log("[IG Callback] Redirect URI:", redirectUri);
+
     // 1. Exchange code for short-lived token
-    const tokenRes = await fetch(
-      `${GRAPH_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`
-    );
+    const tokenUrl = `${GRAPH_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
+    console.log("[IG Callback] Fetching short-lived token...");
+    
+    const tokenRes = await fetch(tokenUrl);
     const tokenData = await tokenRes.json();
-    if (tokenData.error) throw new Error(tokenData.error.message);
+    
+    if (tokenData.error) {
+      console.error("[IG Callback] Facebook Token Error:", tokenData.error);
+      throw new Error(tokenData.error.message);
+    }
+    const shortToken = tokenData.access_token;
 
     // 2. Exchange for long-lived token
-    const longTokenRes = await fetch(
-      `${GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${tokenData.access_token}`
-    );
+    console.log("[IG Callback] Exchanging for long-lived token...");
+    const longTokenUrl = `${GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`;
+    
+    const longTokenRes = await fetch(longTokenUrl);
     const longTokenData = await longTokenRes.json();
     const accessToken = longTokenData.access_token;
 
     // 3. Get Pages & IG Business Account
+    console.log("[IG Callback] Fetching linked pages...");
     const pagesRes = await fetch(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name`);
     const pagesData = await pagesRes.json();
+    
+    console.log("[IG Callback] Pages found:", JSON.stringify(pagesData.data?.map((p: any) => ({ name: p.name, hasIG: !!p.instagram_business_account }))));
+
     const pageWithIG = pagesData.data?.find((p: any) => p.instagram_business_account);
 
-    if (!pageWithIG) return c.redirect(`${webUrl}/dashboard/settings?error=no_instagram_found`);
+    if (!pageWithIG) {
+      console.error("[IG Callback] No Instagram Business Account linked to any found Facebook Pages.");
+      return c.redirect(`${webUrl}/dashboard/settings?error=no_instagram_found`);
+    }
 
     const igId = pageWithIG.instagram_business_account.id;
     const igProfile = await fetchIGProfile(igId, accessToken);

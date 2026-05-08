@@ -73,6 +73,20 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
   const [isDisconnectDialogOpen, setIsDisconnectDialogOpen] = useState(false);
   const [disconnectId, setDisconnectId] = useState<string | null>(null);
 
+  // Check for success/error in URL
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "instagram_connected") {
+      toast.success("Instagram account connected successfully!");
+      // Clean up URL
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    if (params.get("error")) {
+      toast.error(`Connection failed: ${params.get("error")?.replace(/_/g, " ")}`);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
