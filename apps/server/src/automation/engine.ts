@@ -227,9 +227,12 @@ export const automationEngine = {
       timestamp: new Date(payload.timestamp || Date.now()),
     });
 
-    // 2. Analyze sentiment
+    // 2. Analyze sentiment (DISABLED for now to save AI quota)
+    /*
     const { sentiment } = await analyzeSentiment(text);
     await db.update(dbMessages).set({ sentiment }).where(eq(dbMessages.id, messageId));
+    */
+    const sentiment = "neutral";
 
     // 3. Upsert contact
     await this.upsertContact(account.userId, externalId, senderId, account.accessToken);

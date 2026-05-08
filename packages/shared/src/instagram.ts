@@ -1,11 +1,11 @@
 export async function sendInstagramMessage(
-  externalId: string,
+  actorId: string,
   recipientId: string,
   messageText: string,
   accessToken: string,
   graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
 ) {
-  const url = `https://graph.facebook.com/${graphVersion}/${externalId}/messages`;
+  const url = `https://graph.facebook.com/${graphVersion}/${actorId}/messages`;
   
   const payload = {
     recipient: {
@@ -17,23 +17,38 @@ export async function sendInstagramMessage(
     messaging_type: "RESPONSE",
   };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  let lastError: any = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      console.log(`[Instagram API] Sending message attempt ${i + 1} from ${actorId} to ${recipientId}...`);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30000), // 30s timeout
+      });
 
-  const data = await res.json();
-  if (!res.ok) {
-    const apiMessage =
-      typeof data?.error?.message === "string" ? data.error.message : res.statusText;
-    throw new Error(`Instagram API Error: ${apiMessage}`);
+      const data = await res.json();
+      if (res.ok) {
+        console.log(`[Instagram API] Message sent successfully to ${recipientId}`);
+        return data;
+      }
+      
+      const apiMessage = typeof data?.error?.message === "string" ? data.error.message : res.statusText;
+      lastError = new Error(`Instagram API Error: ${apiMessage} (Status ${res.status})`);
+      console.warn(`[Instagram API] Attempt ${i + 1} failed: ${lastError.message}`);
+    } catch (err: any) {
+      lastError = err;
+      console.error(`[Instagram API] Attempt ${i + 1} connection failed: ${err.message}`);
+    }
+    
+    if (i < 2) await new Promise(r => setTimeout(r, 2000));
   }
 
-  return data;
+  throw lastError || new Error("Failed to send Instagram message after 3 attempts");
 }
 
 export async function replyToInstagramComment(
