@@ -110,12 +110,21 @@ instagramRouter.get('/callback', async (c) => {
     const igProfile = await fetchIGProfile(igId, accessToken);
 
     // 4. Subscribe the Page to our App's Webhooks
-    // This is CRITICAL for automations to trigger
     try {
-      const subUrl = `${GRAPH_BASE}/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks,messaging_optins,comments,mentions&access_token=${pageAccessToken}`;
-      await fetch(subUrl, { method: "POST" });
+      const subUrl = `${GRAPH_BASE}/${pageId}/subscribed_apps`;
+      console.log("[IG Callback] Subscribing Page to Webhooks:", pageId);
+      const subRes = await fetch(subUrl, { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscribed_fields: "messages,messaging_postbacks,messaging_optins,comments,mentions",
+          access_token: pageAccessToken
+        })
+      });
+      const subData = await subRes.json();
+      console.log("[IG Callback] Webhook subscription result:", subData);
     } catch (err) {
-      console.error("[IG Callback] Webhook subscription failed:", err);
+      console.error("[IG Callback] Webhook subscription ERROR:", err);
     }
 
     // 5. Upsert into database
