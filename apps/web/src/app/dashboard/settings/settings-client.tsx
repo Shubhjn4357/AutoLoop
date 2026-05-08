@@ -24,8 +24,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { AnimatedButton } from "@/components/ui/animated-button";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Card as ShadcnCard } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { AlertDialog } from "@/components/ui/alert-dialog";
@@ -111,9 +113,26 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
+  const copyToClipboard = async (text: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        toast.success("Copied to clipboard");
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        toast.success("Copied to clipboard");
+      }
+    } catch (err) {
+      toast.error("Failed to copy");
+    }
   };
 
   const handleDisconnect = async (accountId: string) => {
@@ -236,7 +255,7 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
                     { key: "weeklyDigest" as const, label: "Weekly Insights Digest", desc: "A summary of your account performance every Monday." },
                   ].map((item) => (
                     <div key={item.key} className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-background/40">
-                      <div className="space-y-0.5">
+                      <div className="space-0.5">
                         <p className="text-sm font-semibold">{item.label}</p>
                         <p className="text-xs text-muted-foreground">{item.desc}</p>
                       </div>
@@ -351,6 +370,7 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
                           value={currentToken || "Click regenerate to create a token"}
                           readOnly
                           className="font-mono text-xs bg-muted/20 border-border/50"
+                          onFocus={(e) => e.target.select()}
                         />
                         <Button variant="outline" size="icon" className="shrink-0" onClick={() => currentToken && copyToClipboard(currentToken)}>
                           <Copy className="size-4" />
@@ -366,6 +386,7 @@ export function SettingsClient({ userName, webhookToken, notificationPrefs, acco
                           value={currentToken ? `${window.location.origin}/api/webhook/instagram?token=${currentToken}` : "Generate token to see webhook URL"}
                           readOnly
                           className="font-mono text-xs bg-muted/20 border-border/50"
+                          onFocus={(e) => e.target.select()}
                         />
                         <Button variant="outline" size="icon" className="shrink-0" onClick={() => currentToken && copyToClipboard(`${window.location.origin}/api/webhook/instagram?token=${currentToken}`)}>
                           <Copy className="size-4" />

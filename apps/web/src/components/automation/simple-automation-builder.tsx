@@ -762,7 +762,7 @@ export function SimpleAutomationBuilder({
                         onChange={(e) =>
                           setRule({
                             ...rule,
-                            followUpDelayMinutes: parseInt(e.target.value) || 0,
+                            followUpDelayMinutes: e.target.value === "" ? 0 : parseInt(e.target.value),
                           })
                         }
                       />
@@ -811,7 +811,7 @@ export function SimpleAutomationBuilder({
                         onChange={(e) =>
                           setRule({
                             ...rule,
-                            followUp2DelayMinutes: parseInt(e.target.value) || 1440,
+                            followUp2DelayMinutes: e.target.value === "" ? 1440 : parseInt(e.target.value),
                           })
                         }
                       />
@@ -923,7 +923,7 @@ export function SimpleAutomationBuilder({
                       onChange={(e) =>
                         setRule({
                           ...rule,
-                          cooldownMinutes: parseInt(e.target.value) || 5,
+                          cooldownMinutes: e.target.value === "" ? 5 : parseInt(e.target.value),
                         })
                       }
                     />
@@ -941,7 +941,7 @@ export function SimpleAutomationBuilder({
                       onChange={(e) =>
                         setRule({
                           ...rule,
-                          maxDailySends: parseInt(e.target.value) || 100,
+                          maxDailySends: e.target.value === "" ? 100 : parseInt(e.target.value),
                         })
                       }
                     />

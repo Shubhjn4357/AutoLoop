@@ -74,6 +74,7 @@
 
   * {
     @apply border-border;
+    user-select: text !important; /* Force text selection capability everywhere */
   }
 
   body {
@@ -82,6 +83,11 @@
       radial-gradient(at 0% 0%, oklch(var(--primary) / 0.05) 0px, transparent 50%),
       radial-gradient(at 100% 0%, oklch(var(--primary) / 0.03) 0px, transparent 50%);
     background-attachment: fixed;
+  }
+
+  input, textarea, [contenteditable="true"] {
+    user-select: text !important;
+    cursor: text;
   }
 }
 

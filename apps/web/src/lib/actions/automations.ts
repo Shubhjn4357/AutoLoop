@@ -16,11 +16,18 @@ export interface AutomationRule {
   responseTemplate?: string;
   dmTemplate: string;
   targetUrl?: string;
+  linkText?: string;
   followUpTemplate?: string;
   followUpDelayMinutes: number;
+  followUpUrl?: string;
+  followUpUrlText?: string;
   followUp2Template?: string;
   followUp2DelayMinutes: number;
+  followUp2Url?: string;
+  followUp2UrlText?: string;
   requireFollower: boolean;
+  followerGateTemplate?: string;
+  followerGateButtonText?: string;
   aiEnabled: boolean;
   aiPrompt?: string;
   cooldownMinutes: number;
@@ -35,31 +42,40 @@ export async function saveAutomation(rule: AutomationRule) {
 
   const now = new Date();
 
+  const payload = {
+    name: rule.name,
+    triggerType: rule.triggerType,
+    conditionOperator: rule.conditionOperator,
+    condition: rule.condition || null,
+    targetPostId: rule.targetPostId || null,
+    responseTemplate: rule.responseTemplate || null,
+    dmTemplate: rule.dmTemplate,
+    targetUrl: rule.targetUrl || null,
+    linkText: rule.linkText || null,
+    followUpTemplate: rule.followUpTemplate || null,
+    followUpDelayMinutes: rule.followUpDelayMinutes,
+    followUpUrl: rule.followUpUrl || null,
+    followUpUrlText: rule.followUpUrlText || null,
+    followUp2Template: rule.followUp2Template || null,
+    followUp2DelayMinutes: rule.followUp2DelayMinutes,
+    followUp2Url: rule.followUp2Url || null,
+    followUp2UrlText: rule.followUp2UrlText || null,
+    requireFollower: rule.requireFollower,
+    followerGateTemplate: rule.followerGateTemplate || null,
+    followerGateButtonText: rule.followerGateButtonText || null,
+    aiEnabled: rule.aiEnabled,
+    aiPrompt: rule.aiPrompt || null,
+    cooldownMinutes: rule.cooldownMinutes,
+    maxDailySends: rule.maxDailySends,
+    isActive: rule.isActive,
+    priority: rule.priority,
+    updatedAt: now,
+  };
+
   if (rule.id) {
     // Update existing
     await db.update(automations)
-      .set({
-        name: rule.name,
-        triggerType: rule.triggerType,
-        conditionOperator: rule.conditionOperator,
-        condition: rule.condition || null,
-        targetPostId: rule.targetPostId || null,
-        responseTemplate: rule.responseTemplate || null,
-        dmTemplate: rule.dmTemplate,
-        targetUrl: rule.targetUrl || null,
-        followUpTemplate: rule.followUpTemplate || null,
-        followUpDelayMinutes: rule.followUpDelayMinutes,
-        followUp2Template: rule.followUp2Template || null,
-        followUp2DelayMinutes: rule.followUp2DelayMinutes,
-        requireFollower: rule.requireFollower,
-        aiEnabled: rule.aiEnabled,
-        aiPrompt: rule.aiPrompt || null,
-        cooldownMinutes: rule.cooldownMinutes,
-        maxDailySends: rule.maxDailySends,
-        isActive: rule.isActive,
-        priority: rule.priority,
-        updatedAt: now,
-      })
+      .set(payload)
       .where(and(
         eq(automations.id, rule.id),
         eq(automations.userId, session.user.id)
@@ -67,29 +83,10 @@ export async function saveAutomation(rule: AutomationRule) {
   } else {
     // Create new
     await db.insert(automations).values({
+      ...payload,
       id: crypto.randomUUID(),
       userId: session.user.id,
-      name: rule.name,
-      triggerType: rule.triggerType,
-      conditionOperator: rule.conditionOperator,
-      condition: rule.condition || null,
-      targetPostId: rule.targetPostId || null,
-      responseTemplate: rule.responseTemplate || null,
-      dmTemplate: rule.dmTemplate,
-      targetUrl: rule.targetUrl || null,
-      followUpTemplate: rule.followUpTemplate || null,
-      followUpDelayMinutes: rule.followUpDelayMinutes,
-      followUp2Template: rule.followUp2Template || null,
-      followUp2DelayMinutes: rule.followUp2DelayMinutes,
-      requireFollower: rule.requireFollower,
-      aiEnabled: rule.aiEnabled,
-      aiPrompt: rule.aiPrompt || null,
-      cooldownMinutes: rule.cooldownMinutes,
-      maxDailySends: rule.maxDailySends,
-      isActive: rule.isActive,
-      priority: rule.priority,
       createdAt: now,
-      updatedAt: now,
     });
   }
 
