@@ -3,7 +3,7 @@ export async function sendInstagramMessage(
   recipientId: string,
   messageText: string,
   accessToken: string,
-  graphVersion: string = "v21.0"
+  graphVersion: string = "v22.0"
 ) {
   const url = `https://graph.instagram.com/${graphVersion}/${externalId}/messages`;
   
@@ -39,7 +39,7 @@ export async function replyToInstagramComment(
   commentId: string,
   messageText: string,
   accessToken: string,
-  graphVersion: string = "v21.0"
+  graphVersion: string = "v22.0"
 ) {
   const url = `https://graph.instagram.com/${graphVersion}/${commentId}/replies`;
   

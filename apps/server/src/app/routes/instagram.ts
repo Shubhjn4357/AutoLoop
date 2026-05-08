@@ -11,7 +11,8 @@ import {
   fetchIGProfile
 } from '@autoloop/shared';
 
-const GRAPH_BASE = "https://graph.facebook.com/v21.0";
+const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v22.0";
+const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 async function fetchWithRetry(url: string, options: any = {}, retries = 3, backoff = 1000) {
   for (let i = 0; i < retries; i++) {
