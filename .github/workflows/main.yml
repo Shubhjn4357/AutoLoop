@@ -5,16 +5,22 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      skip_quality:
-        description: 'Skip quality, build and test jobs'
-        required: true
-        default: true
-        type: boolean
+
+env:
+  SKIP_QUALITY: true # Change to true to skip quality/test steps on push
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ env.SKIP_QUALITY }}
+    steps:
+      - name: Check settings
+        run: echo "Skip quality is set to ${{ env.SKIP_QUALITY }}"
+
   quality:
-    if: github.event.inputs.skip_quality != 'true'
+    needs: setup
+    if: needs.setup.outputs.skip != 'true'
     name: Code Quality
     runs-on: ubuntu-latest
     env:
@@ -58,9 +64,9 @@ jobs:
         run: pnpm audit --audit-level=high
 
   build:
-    if: github.event.inputs.skip_quality != 'true'
+    needs: [setup, quality]
+    if: always() && needs.setup.outputs.skip != 'true' && (needs.quality.result == 'success' || needs.quality.result == 'skipped')
     name: Build & Size
-    needs: quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -104,9 +110,9 @@ jobs:
           fi
 
   test:
-    if: github.event.inputs.skip_quality != 'true'
+    needs: [setup, quality]
+    if: always() && needs.setup.outputs.skip != 'true' && (needs.quality.result == 'success' || needs.quality.result == 'skipped')
     name: Tests
-    needs: quality
     runs-on: ubuntu-latest
     env:
       TURSO_DATABASE_URL: "libsql://dummy.turso.io"
@@ -149,8 +155,12 @@ jobs:
 
   deploy:
     name: Deploy & Sync
-    needs: [quality, build, test]
-    if: always() && github.ref == 'refs/heads/main' && (github.event.inputs.skip_quality == 'true' || (needs.quality.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success'))
+    needs: [setup, quality, build, test]
+    if: |
+      always() && 
+      github.ref == 'refs/heads/main' && 
+      (needs.setup.outputs.skip == 'true' || 
+       (needs.quality.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
