@@ -23,7 +23,7 @@ const requiredFiles = [
   "wrangler.jsonc",
   "open-next.config.ts",
   "public/_headers",
-  ".github/workflows/main.yml",
+  "../../.github/workflows/main.yml",
 ];
 
 const requiredScripts = [
