@@ -61,12 +61,17 @@ instagramRouter.get('/connect', async (c) => {
     "instagram_manage_insights",
     "instagram_manage_comments",
     "instagram_manage_messages",
+    "instagram_content_publish",
     "pages_show_list",
-    "pages_read_engagement"
+    "pages_read_engagement",
+    "pages_manage_metadata",
+    "public_profile",
+    "business_management"
   ].join(",");
 
-  const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${userId}`;
+  const authUrl = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&response_type=code&state=${userId}`;
 
+  console.log("[IG Connect] Redirecting to:", authUrl);
   return c.redirect(authUrl);
 });
 
@@ -127,7 +132,7 @@ instagramRouter.get('/callback', async (c) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subscribed_fields: "messages,messaging_postbacks,messaging_optins,feed,mention",
+          subscribed_fields: "messages,messaging_postbacks,messaging_optins,feed,mention,follow,story_share",
           access_token: pageAccessToken
         })
       });
