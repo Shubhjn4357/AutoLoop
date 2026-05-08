@@ -170,8 +170,8 @@ jobs:
           find . -name "node_modules" -type d -exec rm -rf {} +
           
           # Create a fresh deployment repository to avoid history issues
-          mkdir deploy_tmp
-          cp -r apps/server deploy_tmp/
+          mkdir -p deploy_tmp/apps
+          cp -r apps/server deploy_tmp/apps/
           cp -r packages deploy_tmp/
           cp package.json pnpm-lock.yaml pnpm-workspace.yaml Dockerfile README.md .gitattributes deploy_tmp/
           
