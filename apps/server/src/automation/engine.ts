@@ -54,6 +54,7 @@ export const automationEngine = {
               externalId,
               senderId: msg.sender.id,
               text: msg.message.text,
+              quickReplyPayload: msg.message.quick_reply?.payload,
               storyId: msg.message.reply_to?.story?.id,
               timestamp: msg.timestamp,
             },
@@ -210,9 +211,26 @@ export const automationEngine = {
   },
 
   async handleDM(payload: any, eventType: string) {
-    const { externalId, senderId, text } = payload;
+    const { externalId, senderId, text, quickReplyPayload } = payload;
     const account = await db.query.socialAccounts.findFirst({ where: eq(socialAccounts.externalId, externalId) });
     if (!account?.accessToken) return;
+
+    // Handle Follower-Check Quick Reply
+    if (quickReplyPayload?.startsWith('CHECK_FOLLOW_')) {
+      const automationId = quickReplyPayload.replace('CHECK_FOLLOW_', '');
+      const profile = await getInstagramUserProfile(senderId, account.accessToken);
+      if (profile.is_user_follow_business) {
+        const rule = await db.query.automations.findFirst({ where: eq(automations.id, automationId) });
+        if (rule) {
+          await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `Awesome! Thanks for following. Here is what I promised:`, account.accessToken);
+          await this.executeAutomation(rule, account, senderId, text, crypto.randomUUID());
+          return;
+        }
+      } else {
+        await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `Oops! It looks like you aren't following me yet. Please follow and then click again!`, account.accessToken);
+        return;
+      }
+    }
 
     // 1. Store incoming message
     const messageId = crypto.randomUUID();
@@ -260,10 +278,28 @@ export const automationEngine = {
       if (rule.targetPostId && rule.targetPostId !== payload.storyId) continue;
       if (!matchesAutomationCondition(rule.conditionOperator || 'contains', rule.condition || '', text)) continue;
 
-      // Follower requirement
+      // Follower requirement logic
       if (rule.requireFollower) {
         const profile = await getInstagramUserProfile(senderId, account.accessToken);
-        if (!profile.is_user_follow_business) continue;
+        if (!profile.is_user_follow_business) {
+          // Send "Follow Me" message with custom templates
+          const gateMessage = rule.followerGateTemplate || `Hey there! Please follow me first to unlock this automation. Once you follow, click the button below!`;
+          const buttonText = rule.followerGateButtonText || `Follow Me`;
+          
+          await sendInstagramMessage((account.pageId || account.externalId)!, senderId, 
+            gateMessage, 
+            account.accessToken,
+            {
+              buttons: [
+                { type: 'web_url', url: `https://instagram.com/${account.instagramUsername || 'profile'}`, title: buttonText }
+              ],
+              quickReplies: [
+                { title: "I'm Following!", payload: `CHECK_FOLLOW_${rule.id}` }
+              ]
+            }
+          );
+          break; // Stop here until they follow
+        }
       }
 
       // Rate limit check
@@ -383,9 +419,15 @@ export const automationEngine = {
       await replyToInstagramComment(commentId, interpolatedReply, account.accessToken);
     }
 
-    // Send DM
+    // Send Main DM with Button support
     if (interpolatedDM.trim()) {
-      await sendInstagramMessage(account.pageId || account.externalId, recipientId, interpolatedDM, account.accessToken);
+      const buttons: any[] = [];
+      if (rule.targetUrl && rule.linkText) {
+        buttons.push({ type: 'web_url' as const, url: rule.targetUrl, title: rule.linkText });
+      }
+
+      await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolatedDM, account.accessToken, { buttons });
+      
       await db.insert(dbMessages).values({
         id: crypto.randomUUID(),
         userId: rule.userId,
@@ -399,10 +441,18 @@ export const automationEngine = {
       });
     }
 
-    // Schedule Follow-ups
-    if (rule.followUpTemplate) {
+    // Handle Sequential / Immediate Follow-up
+    if (rule.followUpTemplate && (rule.followUpDelayMinutes || 0) === 0) {
+      const interpolatedFollowUp = await this.interpolateVariables(rule.followUpTemplate, rule.userId, account.externalId, recipientId);
+      const fuButtons: any[] = [];
+      if (rule.followUpUrl && rule.followUpUrlText) {
+        fuButtons.push({ type: 'web_url' as const, url: rule.followUpUrl, title: rule.followUpUrlText });
+      }
+      await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolatedFollowUp, account.accessToken, { buttons: fuButtons });
+    } else if (rule.followUpTemplate) {
       await this.scheduleFollowUp(rule.userId, rule.id, account.externalId, recipientId, rule.followUpTemplate, rule.followUpDelayMinutes || 60);
     }
+
     if (rule.followUp2Template) {
       await this.scheduleFollowUp(rule.userId, rule.id, account.externalId, recipientId, rule.followUp2Template, rule.followUp2DelayMinutes || 1440);
     }
@@ -514,7 +564,22 @@ export const automationEngine = {
 
     try {
       const interpolated = await this.interpolateVariables(msg.messageText, msg.userId, msg.externalId, msg.recipientId);
-      await sendInstagramMessage(msg.externalId, msg.recipientId, interpolated, account.accessToken);
+      
+      // Support buttons in follow-ups
+      const buttons: any[] = [];
+      if (msg.automationId) {
+        const rule = await db.query.automations.findFirst({ where: eq(automations.id, msg.automationId) });
+        if (rule) {
+          // If this text matches follow-up 1 or 2, use their respective buttons
+          if (msg.messageText === rule.followUpTemplate && rule.followUpUrl && rule.followUpUrlText) {
+            buttons.push({ type: 'web_url' as const, url: rule.followUpUrl, title: rule.followUpUrlText });
+          } else if (msg.messageText === rule.followUp2Template && rule.followUp2Url && rule.followUp2UrlText) {
+            buttons.push({ type: 'web_url' as const, url: rule.followUp2Url, title: rule.followUp2UrlText });
+          }
+        }
+      }
+
+      await sendInstagramMessage((account.pageId || account.externalId)!, msg.recipientId, interpolated, account.accessToken, { buttons });
 
       await db.insert(dbMessages).values({
         id: crypto.randomUUID(),

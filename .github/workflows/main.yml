@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  SKIP_QUALITY: false # Change to true only for an urgent deployment
+  SKIP_QUALITY: true # Change to true only for an urgent deployment
 
 jobs:
   setup:

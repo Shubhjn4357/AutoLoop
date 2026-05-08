@@ -113,11 +113,18 @@ interface AutomationRule {
   responseTemplate?: string;
   dmTemplate: string;
   targetUrl?: string;
+  linkText?: string;
   followUpTemplate?: string;
   followUpDelayMinutes: number;
+  followUpUrl?: string;
+  followUpUrlText?: string;
   followUp2Template?: string;
   followUp2DelayMinutes: number;
+  followUp2Url?: string;
+  followUp2UrlText?: string;
   requireFollower: boolean;
+  followerGateTemplate?: string;
+  followerGateButtonText?: string;
   aiEnabled: boolean;
   aiPrompt?: string;
   cooldownMinutes: number;
@@ -137,9 +144,15 @@ const defaultRule: AutomationRule = {
   triggerType: "dm",
   conditionOperator: "contains",
   dmTemplate: "",
-  followUpDelayMinutes: 60,
+  followUpDelayMinutes: 0,
+  followUpUrl: "",
+  followUpUrlText: "",
   followUp2DelayMinutes: 1440,
+  followUp2Url: "",
+  followUp2UrlText: "",
   requireFollower: false,
+  followerGateTemplate: "Hey {{first_name}}! Please follow me first to unlock this automation. Once you follow, click the button below!",
+  followerGateButtonText: "Follow Me",
   aiEnabled: false,
   cooldownMinutes: 5,
   maxDailySends: 100,
@@ -593,51 +606,113 @@ export function SimpleAutomationBuilder({
                   </div>
                 )}
 
-                {/* DM Response */}
-                <div className="space-y-2">
-                  <Label htmlFor="dmTemplate">Private DM Message (Optional)</Label>
-                  <Textarea
-                    id="dmTemplate"
-                    placeholder="Write your message here..."
-                    value={rule.dmTemplate}
-                    onChange={(e) => setRule({ ...rule, dmTemplate: e.target.value })}
-                    rows={4}
-                  />
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="text-muted-foreground">Variables:</span>
-                    {["{{first_name}}", "{{name}}", "{{username}}", "{{last_message}}"].map(
-                      (v) => (
-                        <button
-                          key={v}
-                          onClick={() =>
-                            setRule({
-                              ...rule,
-                              dmTemplate: rule.dmTemplate + v,
-                            })
-                          }
-                          className="px-2 py-1 rounded bg-muted hover:bg-muted-foreground/20 transition-colors"
-                        >
-                          {v}
-                        </button>
-                      )
+                {/* Response Type Selector */}
+                <div className="flex p-1 bg-muted rounded-lg w-fit mb-6">
+                  <button
+                    onClick={() => setRule({ ...rule, aiEnabled: false })}
+                    className={cn(
+                      "px-4 py-1.5 rounded-md text-sm font-medium transition-all",
+                      !rule.aiEnabled ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
                     )}
-                  </div>
+                  >
+                    Standard Message
+                  </button>
+                  <button
+                    onClick={() => setRule({ ...rule, aiEnabled: true })}
+                    className={cn(
+                      "px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2",
+                      rule.aiEnabled ? "bg-background shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Sparkles className="size-3" />
+                    AI Smart Reply
+                  </button>
                 </div>
 
-                {/* Link */}
-                <div className="space-y-2">
-                  <Label htmlFor="targetUrl" className="flex items-center gap-2">
-                    <Link2 className="size-4" />
-                    Include Link (Optional)
-                  </Label>
-                  <Input
-                    id="targetUrl"
-                    type="url"
-                    placeholder="https://yourlink.com/offer"
-                    value={rule.targetUrl || ""}
-                    onChange={(e) => setRule({ ...rule, targetUrl: e.target.value })}
-                  />
-                </div>
+                {!rule.aiEnabled ? (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                    {/* DM Response */}
+                    <div className="space-y-2">
+                      <Label htmlFor="dmTemplate">Message Text</Label>
+                      <Textarea
+                        id="dmTemplate"
+                        placeholder="Write your message here..."
+                        value={rule.dmTemplate}
+                        onChange={(e) => setRule({ ...rule, dmTemplate: e.target.value })}
+                        rows={4}
+                      />
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <span className="text-muted-foreground">Variables:</span>
+                        {["{{first_name}}", "{{name}}", "{{username}}"].map(
+                          (v) => (
+                            <button
+                              key={v}
+                              onClick={() =>
+                                setRule({
+                                  ...rule,
+                                  dmTemplate: rule.dmTemplate + v,
+                                })
+                              }
+                              className="px-2 py-1 rounded bg-muted hover:bg-muted-foreground/20 transition-colors"
+                            >
+                              {v}
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Link & Button Settings */}
+                    <div className="p-4 rounded-xl border bg-muted/30 space-y-4">
+                      <div className="flex items-center gap-2 font-medium text-sm">
+                        <Link2 className="size-4 text-primary" />
+                        Button / Website Link (Optional)
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="targetUrl">Website URL</Label>
+                          <Input
+                            id="targetUrl"
+                            type="url"
+                            placeholder="https://yourlink.com"
+                            value={rule.targetUrl || ""}
+                            onChange={(e) => setRule({ ...rule, targetUrl: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="linkText">Button Text</Label>
+                          <Input
+                            id="linkText"
+                            placeholder="Visit Website"
+                            value={rule.linkText || ""}
+                            onChange={(e) => setRule({ ...rule, linkText: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4 p-4 rounded-xl border border-primary/20 bg-primary/5 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="size-5 text-primary" />
+                      <span className="font-medium text-primary">AI Agent Mode Active</span>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>AI Instructions</Label>
+                      <Textarea
+                        placeholder="e.g., You are a friendly sales assistant. Be helpful and professional."
+                        value={rule.aiPrompt || ""}
+                        onChange={(e) =>
+                          setRule({ ...rule, aiPrompt: e.target.value })
+                        }
+                        rows={4}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        The AI will generate a personalized response based on these instructions and the user&apos;s message.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Follow-ups */}
                 <div className="space-y-4 pt-4 border-t">
@@ -646,44 +721,86 @@ export function SimpleAutomationBuilder({
                     <span className="font-medium">Follow-up Messages (Optional)</span>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>First Follow-up</Label>
-                    <Textarea
-                      placeholder="e.g., Just checking if you need anything else!"
-                      value={rule.followUpTemplate || ""}
-                      onChange={(e) =>
-                        setRule({ ...rule, followUpTemplate: e.target.value })
-                      }
-                      rows={2}
-                    />
+                  <div className="space-y-4 p-4 rounded-xl border bg-muted/30">
+                    <div className="space-y-2">
+                      <Label>First Follow-up Message</Label>
+                      <Textarea
+                        placeholder="e.g., Just checking if you need anything else!"
+                        value={rule.followUpTemplate || ""}
+                        onChange={(e) =>
+                          setRule({ ...rule, followUpTemplate: e.target.value })
+                        }
+                        rows={2}
+                      />
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Follow-up Link (Optional)</Label>
+                        <Input
+                          type="url"
+                          placeholder="https://link.com"
+                          value={rule.followUpUrl || ""}
+                          onChange={(e) => setRule({ ...rule, followUpUrl: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Follow-up Button Text</Label>
+                        <Input
+                          placeholder="Check it out"
+                          value={rule.followUpUrlText || ""}
+                          onChange={(e) => setRule({ ...rule, followUpUrlText: e.target.value })}
+                        />
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Send after</span>
                       <Input
                         type="number"
-                        min="1"
+                        min="0"
                         className="w-20"
                         value={rule.followUpDelayMinutes}
                         onChange={(e) =>
                           setRule({
                             ...rule,
-                            followUpDelayMinutes: parseInt(e.target.value) || 60,
+                            followUpDelayMinutes: parseInt(e.target.value) || 0,
                           })
                         }
                       />
-                      <span className="text-sm text-muted-foreground">minutes</span>
+                      <span className="text-sm text-muted-foreground">minutes (0 = immediate)</span>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Second Follow-up (Optional)</Label>
-                    <Textarea
-                      placeholder="e.g., Last chance to grab this offer!"
-                      value={rule.followUp2Template || ""}
-                      onChange={(e) =>
-                        setRule({ ...rule, followUp2Template: e.target.value })
-                      }
-                      rows={2}
-                    />
+                  <div className="space-y-4 p-4 rounded-xl border bg-muted/30">
+                    <div className="space-y-2">
+                      <Label>Second Follow-up (Optional)</Label>
+                      <Textarea
+                        placeholder="e.g., Last chance to grab this offer!"
+                        value={rule.followUp2Template || ""}
+                        onChange={(e) =>
+                          setRule({ ...rule, followUp2Template: e.target.value })
+                        }
+                        rows={2}
+                      />
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Link (Optional)</Label>
+                        <Input
+                          type="url"
+                          placeholder="https://link.com"
+                          value={rule.followUp2Url || ""}
+                          onChange={(e) => setRule({ ...rule, followUp2Url: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Button Text</Label>
+                        <Input
+                          placeholder="Final chance"
+                          value={rule.followUp2UrlText || ""}
+                          onChange={(e) => setRule({ ...rule, followUp2UrlText: e.target.value })}
+                        />
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Send after</span>
                       <Input
@@ -749,22 +866,49 @@ export function SimpleAutomationBuilder({
                 </div>
 
                 {/* Follower Check */}
-                <div className="flex items-center justify-between p-4 rounded-xl border">
-                  <div className="flex items-center gap-3">
-                    <UserPlus className="size-5 text-emerald-500" />
-                    <div>
-                      <p className="font-medium">Followers Only</p>
-                      <p className="text-xs text-muted-foreground">
-                        Only respond to users who follow you
-                      </p>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 rounded-xl border">
+                    <div className="flex items-center gap-3">
+                      <UserPlus className="size-5 text-emerald-500" />
+                      <div>
+                        <p className="font-medium">Followers Only</p>
+                        <p className="text-xs text-muted-foreground">
+                          Only respond to users who follow you
+                        </p>
+                      </div>
                     </div>
+                    <Switch
+                      checked={rule.requireFollower}
+                      onCheckedChange={(checked) =>
+                        setRule({ ...rule, requireFollower: checked })
+                      }
+                    />
                   </div>
-                  <Switch
-                    checked={rule.requireFollower}
-                    onCheckedChange={(checked) =>
-                      setRule({ ...rule, requireFollower: checked })
-                    }
-                  />
+
+                  {rule.requireFollower && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="p-4 rounded-xl border bg-muted/30 space-y-4 overflow-hidden"
+                    >
+                      <div className="space-y-2">
+                        <Label>Custom Follower-Gate Message</Label>
+                        <Textarea
+                          placeholder="e.g., Please follow me to unlock this!"
+                          value={rule.followerGateTemplate || ""}
+                          onChange={(e) => setRule({ ...rule, followerGateTemplate: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Follow Button Text</Label>
+                        <Input
+                          placeholder="Follow Me"
+                          value={rule.followerGateButtonText || ""}
+                          onChange={(e) => setRule({ ...rule, followerGateButtonText: e.target.value })}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
 
                 {/* Rate Limiting */}

@@ -3,24 +3,51 @@ export async function sendInstagramMessage(
   recipientId: string,
   messageText: string,
   accessToken: string,
-  graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
+  options: {
+    buttons?: Array<{ type: 'web_url', url: string, title: string } | { type: 'postback', title: string, payload: string }>;
+    quickReplies?: Array<{ title: string, payload: string }>;
+    graphVersion?: string;
+  } = {}
 ) {
+  const graphVersion = options.graphVersion || process.env.META_GRAPH_VERSION || "v25.0";
   const url = `https://graph.facebook.com/${graphVersion}/${actorId}/messages`;
   
+  let messagePayload: any = { text: messageText };
+
+  // If buttons are provided, use a Generic Template
+  if (options.buttons && options.buttons.length > 0) {
+    messagePayload = {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "generic",
+          elements: [{
+            title: messageText.substring(0, 80),
+            buttons: options.buttons
+          }]
+        }
+      }
+    };
+  }
+
+  // If quick replies are provided
+  if (options.quickReplies && options.quickReplies.length > 0) {
+    messagePayload.quick_replies = options.quickReplies.map(qr => ({
+      content_type: "text",
+      title: qr.title,
+      payload: qr.payload
+    }));
+  }
+
   const payload = {
-    recipient: {
-      id: recipientId,
-    },
-    message: {
-      text: messageText,
-    },
+    recipient: { id: recipientId },
+    message: messagePayload,
     messaging_type: "RESPONSE",
   };
 
   let lastError: any = null;
   for (let i = 0; i < 3; i++) {
     try {
-      console.log(`[Instagram API] Sending message attempt ${i + 1} from ${actorId} to ${recipientId}...`);
       const res = await fetch(url, {
         method: "POST",
         headers: {
@@ -28,27 +55,19 @@ export async function sendInstagramMessage(
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(30000), // 30s timeout
+        signal: AbortSignal.timeout(20000),
       });
 
       const data = await res.json();
-      if (res.ok) {
-        console.log(`[Instagram API] Message sent successfully to ${recipientId}`);
-        return data;
-      }
+      if (res.ok) return data;
       
-      const apiMessage = typeof data?.error?.message === "string" ? data.error.message : res.statusText;
-      lastError = new Error(`Instagram API Error: ${apiMessage} (Status ${res.status})`);
-      console.warn(`[Instagram API] Attempt ${i + 1} failed: ${lastError.message}`);
+      lastError = new Error(`Instagram API Error: ${data?.error?.message || res.statusText}`);
     } catch (err: any) {
       lastError = err;
-      console.error(`[Instagram API] Attempt ${i + 1} connection failed: ${err.message}`);
     }
-    
-    if (i < 2) await new Promise(r => setTimeout(r, 2000));
+    if (i < 2) await new Promise(r => setTimeout(r, 1000));
   }
-
-  throw lastError || new Error("Failed to send Instagram message after 3 attempts");
+  throw lastError;
 }
 
 export async function replyToInstagramComment(

@@ -85,15 +85,23 @@ export const automations = sqliteTable("automations", {
   responseTemplate: text("response_template"), // public comment reply (for comment triggers)
   dmTemplate: text("dm_template").notNull(), // primary DM response
   targetUrl: text("target_url"), // optional link to include
+  linkText: text("link_text"), // label for the button
 
   // Follow-up sequence (simplified - up to 3 follow-ups)
   followUpTemplate: text("follow_up_template"),
   followUpDelayMinutes: integer("follow_up_delay_minutes").default(60),
+  followUpUrl: text("follow_up_url"),
+  followUpUrlText: text("follow_up_url_text"),
+  
   followUp2Template: text("follow_up_2_template"),
   followUp2DelayMinutes: integer("follow_up_2_delay_minutes").default(1440), // 24 hours
+  followUp2Url: text("follow_up_2_url"),
+  followUp2UrlText: text("follow_up_2_url_text"),
 
   // Smart features
   requireFollower: integer("require_follower", { mode: "boolean" }).default(false),
+  followerGateTemplate: text("follower_gate_template"),
+  followerGateButtonText: text("follower_gate_button_text"),
   aiEnabled: integer("ai_enabled", { mode: "boolean" }).default(false), // use AI for smart replies
   aiPrompt: text("ai_prompt"), // custom AI prompt
 
