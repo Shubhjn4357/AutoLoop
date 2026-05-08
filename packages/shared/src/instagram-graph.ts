@@ -90,7 +90,7 @@ export async function fetchIGInsights(
   const timeSeriesMetrics = [
     "reach", 
     "impressions", 
-    "profile_visits", 
+    "profile_views", 
     "website_clicks",
     "accounts_engaged",
     "total_interactions"

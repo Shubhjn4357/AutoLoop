@@ -1,40 +1,19 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { NotificationItem } from "@/components/dashboard/notification-item";
+import { NotificationLog } from "@/components/dashboard/notification-log";
+import { notificationLogs } from "@/lib/db/schema";
 
 export function NotificationsContent({ logs }: { 
-  logs: {
-    id: string;
-    userId: string;
-    type: string;
-    title: string;
-    message: string;
-    status: string;
-    metadata: string | null;
-    createdAt: Date;
-  }[] 
+  logs: (typeof notificationLogs.$inferSelect)[] 
 }) {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold tracking-tight">System Notifications</h2>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-3xl font-bold tracking-tight">System Notifications</h2>
+        <p className="text-muted-foreground">Monitor and manage your recent automation activities and system alerts.</p>
+      </div>
       
-      <Card>
-        <CardHeader>
-          <CardTitle>Activity Log</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {logs.length > 0 ? (
-              logs.map((log) => (
-                <NotificationItem key={log.id} log={log} />
-              ))
-            ) : (
-              <p className="text-center py-8 text-muted-foreground italic">No recent activity.</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <NotificationLog logs={logs} title="Full Activity History" />
     </div>
   );
 }

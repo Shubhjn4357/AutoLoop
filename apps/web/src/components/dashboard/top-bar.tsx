@@ -14,10 +14,12 @@ import {
   Settings, 
   CreditCard, 
   LogOut, 
-  ChevronDown
+  ChevronDown,
+  X
 } from "lucide-react";
 import Image from "next/image";
 import { signOut } from "next-auth/react";
+import { clearNotificationLogs } from "@/lib/actions/automations";
 
 const GlobalSearch = dynamic(() => import("./global-search").then(mod => mod.GlobalSearch), { ssr: false });
 const Sidebar = dynamic(() => import("./sidebar").then(mod => mod.Sidebar), { ssr: false });
@@ -89,11 +91,23 @@ export function TopBar() {
             <div className="absolute right-0 mt-2 w-80 glass-card rounded-2xl shadow-2xl border border-border/50 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
               <div className="p-4 border-b border-border/30 flex items-center justify-between">
                 <h3 className="font-bold text-sm">Notifications</h3>
-                <button onClick={() => setShowNotifications(false)} className="text-muted-foreground hover:text-foreground">
-                  <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l18 18" />
-                  </svg>
-                </button>
+                <div className="flex items-center gap-2">
+                  {recentLogs.length > 0 && (
+                    <button 
+                      onClick={async () => {
+                        if (confirm("Clear all?")) {
+                          await clearNotificationLogs();
+                        }
+                      }} 
+                      className="text-[10px] uppercase font-bold text-muted-foreground hover:text-rose-500 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <button onClick={() => setShowNotifications(false)} className="text-muted-foreground hover:text-foreground">
+                    <X className="size-4" />
+                  </button>
+                </div>
               </div>
               <div className="max-h-[300px] overflow-y-auto">
                 {recentLogs.length > 0 ? (

@@ -219,31 +219,39 @@ export const automationEngine = {
                          postbackPayload?.startsWith('CHECK_FOLLOW_') ? postbackPayload.replace('CHECK_FOLLOW_', '') : null;
 
     if (followCheckId) {
-      const profile = await getInstagramUserProfile(senderId, account.accessToken);
-      if (profile.is_user_follow_business) {
-        const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
-        if (rule) {
-          await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `Awesome! Thanks for following. Here is what I promised:`, account.accessToken);
-          await this.executeAutomation(rule, account, senderId, text, crypto.randomUUID(), undefined, true);
+      try {
+        const profile = await getInstagramUserProfile(senderId, account.accessToken);
+        if (profile.is_user_follow_business) {
+          const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
+          if (rule) {
+            console.log(`[Engine] User ${senderId} confirmed following for rule ${followCheckId}. Executing automation.`);
+            await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `Awesome! Thanks for following. Here is what I promised:`, account.accessToken);
+            await this.executeAutomation(rule, account, senderId, text, crypto.randomUUID(), undefined, true);
+            return;
+          }
+        } else {
+          // Resend the professional gate message with buttons so they can try again easily
+          const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
+          const gateMessage = rule?.followerGateTemplate || `Oops! It looks like you aren't following me yet. Please follow and then click again!`;
+          const followButtonText = rule?.followerGateButtonText || `Follow Me`;
+          const confirmButtonText = `I'm Following! ✅`;
+
+          await sendInstagramMessage((account.pageId || account.externalId)!, senderId, 
+            gateMessage, 
+            account.accessToken,
+            {
+              buttons: [
+                { type: 'web_url', url: `https://instagram.com/${account.instagramUsername || ''}`, title: followButtonText },
+                { type: 'postback', title: confirmButtonText, payload: `CHECK_FOLLOW_${followCheckId}` }
+              ]
+            }
+          );
           return;
         }
-      } else {
-        // Resend the professional gate message with buttons so they can try again easily
-        const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
-        const gateMessage = rule?.followerGateTemplate || `Oops! It looks like you aren't following me yet. Please follow and then click again!`;
-        const followButtonText = rule?.followerGateButtonText || `Follow Me`;
-        const confirmButtonText = `I'm Following! ✅`;
-
-        await sendInstagramMessage((account.pageId || account.externalId)!, senderId, 
-          gateMessage, 
-          account.accessToken,
-          {
-            buttons: [
-              { type: 'web_url', url: `https://instagram.com/${account.instagramUsername || ''}`, title: followButtonText },
-              { type: 'postback', title: confirmButtonText, payload: `CHECK_FOLLOW_${followCheckId}` }
-            ]
-          }
-        );
+      } catch (profileError: any) {
+        console.error(`[Engine] Follower re-check failed for ${senderId}: ${profileError.message}`);
+        // Fallback: inform user and let them try again later
+        await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `I'm having trouble checking your follow status right now. Please try again in a moment!`, account.accessToken);
         return;
       }
     }

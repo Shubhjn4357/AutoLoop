@@ -42,37 +42,37 @@ export async function saveAutomation(rule: AutomationRule) {
 
   const now = new Date();
 
-  console.log(`[Action] Saving automation for user ${session.user.id}:`, { 
-    id: rule.id, 
-    name: rule.name,
-    dm: rule.dmTemplate?.substring(0, 20),
-    fu1: rule.followUpTemplate?.substring(0, 20),
-    fu2: rule.followUp2Template?.substring(0, 20)
+  console.log(`[Action] PRE-SAVE Payload for ${rule.id}:`, {
+    linkText: rule.linkText,
+    fu1Url: rule.followUpUrl,
+    fu1Text: rule.followUpUrlText,
+    fu2Url: rule.followUp2Url,
+    fu2Text: rule.followUp2UrlText
   });
 
   const payload = {
     name: rule.name || "Untitled Automation",
     triggerType: rule.triggerType || "dm",
     conditionOperator: rule.conditionOperator || "contains",
-    condition: rule.condition ?? null,
-    targetPostId: rule.targetPostId ?? null,
-    responseTemplate: rule.responseTemplate ?? null,
+    condition: rule.condition || null,
+    targetPostId: rule.targetPostId || null,
+    responseTemplate: rule.responseTemplate || null,
     dmTemplate: rule.dmTemplate || "",
-    targetUrl: rule.targetUrl ?? null,
-    linkText: rule.linkText ?? null,
-    followUpTemplate: rule.followUpTemplate ?? null,
+    targetUrl: rule.targetUrl || null,
+    linkText: rule.linkText || null,
+    followUpTemplate: rule.followUpTemplate || null,
     followUpDelayMinutes: rule.followUpDelayMinutes ?? 0,
-    followUpUrl: rule.followUpUrl ?? null,
-    followUpUrlText: rule.followUpUrlText ?? null,
-    followUp2Template: rule.followUp2Template ?? null,
+    followUpUrl: rule.followUpUrl || null,
+    followUpUrlText: rule.followUpUrlText || null,
+    followUp2Template: rule.followUp2Template || null,
     followUp2DelayMinutes: rule.followUp2DelayMinutes ?? 1440,
-    followUp2Url: rule.followUp2Url ?? null,
-    followUp2UrlText: rule.followUp2UrlText ?? null,
+    followUp2Url: rule.followUp2Url || null,
+    followUp2UrlText: rule.followUp2UrlText || null,
     requireFollower: Boolean(rule.requireFollower),
-    followerGateTemplate: rule.followerGateTemplate ?? null,
-    followerGateButtonText: rule.followerGateButtonText ?? null,
+    followerGateTemplate: rule.followerGateTemplate || null,
+    followerGateButtonText: rule.followerGateButtonText || null,
     aiEnabled: Boolean(rule.aiEnabled),
-    aiPrompt: rule.aiPrompt ?? null,
+    aiPrompt: rule.aiPrompt || null,
     cooldownMinutes: rule.cooldownMinutes ?? 5,
     maxDailySends: rule.maxDailySends ?? 100,
     isActive: Boolean(rule.isActive),
