@@ -14,10 +14,7 @@ on:
 
 jobs:
   quality:
-<<<<<<< HEAD
     if: github.event.inputs.skip_quality != 'true'
-=======
->>>>>>> b9a55d1e497cfc83987cb99fcc0472e84f15b3b6
     name: Code Quality
     runs-on: ubuntu-latest
     env:
@@ -61,10 +58,7 @@ jobs:
         run: pnpm audit --audit-level=high
 
   build:
-<<<<<<< HEAD
     if: github.event.inputs.skip_quality != 'true'
-=======
->>>>>>> b9a55d1e497cfc83987cb99fcc0472e84f15b3b6
     name: Build & Size
     needs: quality
     runs-on: ubuntu-latest
@@ -110,10 +104,7 @@ jobs:
           fi
 
   test:
-<<<<<<< HEAD
     if: github.event.inputs.skip_quality != 'true'
-=======
->>>>>>> b9a55d1e497cfc83987cb99fcc0472e84f15b3b6
     name: Tests
     needs: quality
     runs-on: ubuntu-latest
@@ -158,13 +149,8 @@ jobs:
 
   deploy:
     name: Deploy & Sync
-<<<<<<< HEAD
     needs: [quality, build, test]
     if: always() && github.ref == 'refs/heads/main' && (github.event.inputs.skip_quality == 'true' || (needs.quality.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success'))
-=======
-    needs: [build, test]
-    if: github.ref == 'refs/heads/main'
->>>>>>> b9a55d1e497cfc83987cb99fcc0472e84f15b3b6
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -193,8 +179,4 @@ jobs:
           git config --global user.name "shubhjn"
           git config lfs.allowincompletepush true
           git remote add hf https://shubhjn:$HF_TOKEN@huggingface.co/spaces/shubhjn/autoloop
-<<<<<<< HEAD
           git push --force --no-verify hf main
-=======
-          git push --force hf main
->>>>>>> b9a55d1e497cfc83987cb99fcc0472e84f15b3b6
