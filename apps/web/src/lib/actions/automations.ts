@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db/client";
-import { automations } from "@/lib/db/schema";
+import { automations, notificationLogs } from "@/lib/db/schema";
 import { auth } from "@/lib/auth/config";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -42,33 +42,41 @@ export async function saveAutomation(rule: AutomationRule) {
 
   const now = new Date();
 
-  const payload = {
+  console.log(`[Action] Saving automation for user ${session.user.id}:`, { 
+    id: rule.id, 
     name: rule.name,
-    triggerType: rule.triggerType,
-    conditionOperator: rule.conditionOperator,
-    condition: rule.condition || null,
-    targetPostId: rule.targetPostId || null,
-    responseTemplate: rule.responseTemplate || null,
-    dmTemplate: rule.dmTemplate,
-    targetUrl: rule.targetUrl || null,
-    linkText: rule.linkText || null,
-    followUpTemplate: rule.followUpTemplate || null,
-    followUpDelayMinutes: rule.followUpDelayMinutes,
-    followUpUrl: rule.followUpUrl || null,
-    followUpUrlText: rule.followUpUrlText || null,
-    followUp2Template: rule.followUp2Template || null,
-    followUp2DelayMinutes: rule.followUp2DelayMinutes,
-    followUp2Url: rule.followUp2Url || null,
-    followUp2UrlText: rule.followUp2UrlText || null,
-    requireFollower: rule.requireFollower,
-    followerGateTemplate: rule.followerGateTemplate || null,
-    followerGateButtonText: rule.followerGateButtonText || null,
-    aiEnabled: rule.aiEnabled,
-    aiPrompt: rule.aiPrompt || null,
-    cooldownMinutes: rule.cooldownMinutes,
-    maxDailySends: rule.maxDailySends,
-    isActive: rule.isActive,
-    priority: rule.priority,
+    dm: rule.dmTemplate?.substring(0, 20),
+    fu1: rule.followUpTemplate?.substring(0, 20),
+    fu2: rule.followUp2Template?.substring(0, 20)
+  });
+
+  const payload = {
+    name: rule.name || "Untitled Automation",
+    triggerType: rule.triggerType || "dm",
+    conditionOperator: rule.conditionOperator || "contains",
+    condition: rule.condition ?? null,
+    targetPostId: rule.targetPostId ?? null,
+    responseTemplate: rule.responseTemplate ?? null,
+    dmTemplate: rule.dmTemplate || "",
+    targetUrl: rule.targetUrl ?? null,
+    linkText: rule.linkText ?? null,
+    followUpTemplate: rule.followUpTemplate ?? null,
+    followUpDelayMinutes: rule.followUpDelayMinutes ?? 0,
+    followUpUrl: rule.followUpUrl ?? null,
+    followUpUrlText: rule.followUpUrlText ?? null,
+    followUp2Template: rule.followUp2Template ?? null,
+    followUp2DelayMinutes: rule.followUp2DelayMinutes ?? 1440,
+    followUp2Url: rule.followUp2Url ?? null,
+    followUp2UrlText: rule.followUp2UrlText ?? null,
+    requireFollower: Boolean(rule.requireFollower),
+    followerGateTemplate: rule.followerGateTemplate ?? null,
+    followerGateButtonText: rule.followerGateButtonText ?? null,
+    aiEnabled: Boolean(rule.aiEnabled),
+    aiPrompt: rule.aiPrompt ?? null,
+    cooldownMinutes: rule.cooldownMinutes ?? 5,
+    maxDailySends: rule.maxDailySends ?? 100,
+    isActive: Boolean(rule.isActive),
+    priority: rule.priority ?? 0,
     updatedAt: now,
   };
 
@@ -121,4 +129,27 @@ export async function deleteAutomation(id: string) {
     ));
 
   revalidatePath("/dashboard/automations");
+}
+
+export async function deleteNotificationLog(id: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  await db.delete(notificationLogs)
+    .where(and(
+      eq(notificationLogs.id, id),
+      eq(notificationLogs.userId, session.user.id)
+    ));
+
+  revalidatePath("/dashboard/notifications");
+}
+
+export async function clearNotificationLogs() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  await db.delete(notificationLogs)
+    .where(eq(notificationLogs.userId, session.user.id));
+
+  revalidatePath("/dashboard/notifications");
 }

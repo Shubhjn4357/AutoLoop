@@ -228,10 +228,26 @@ export const automationEngine = {
           return;
         }
       } else {
-        await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `Oops! It looks like you aren't following me yet. Please follow and then click again!`, account.accessToken);
+        // Resend the professional gate message with buttons so they can try again easily
+        const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
+        const gateMessage = rule?.followerGateTemplate || `Oops! It looks like you aren't following me yet. Please follow and then click again!`;
+        const followButtonText = rule?.followerGateButtonText || `Follow Me`;
+        const confirmButtonText = `I'm Following! ✅`;
+
+        await sendInstagramMessage((account.pageId || account.externalId)!, senderId, 
+          gateMessage, 
+          account.accessToken,
+          {
+            buttons: [
+              { type: 'web_url', url: `https://instagram.com/${account.instagramUsername || ''}`, title: followButtonText },
+              { type: 'postback', title: confirmButtonText, payload: `CHECK_FOLLOW_${followCheckId}` }
+            ]
+          }
+        );
         return;
       }
     }
+
 
     // 1. Store incoming message
     const messageId = crypto.randomUUID();
