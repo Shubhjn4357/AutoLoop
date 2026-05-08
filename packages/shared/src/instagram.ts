@@ -14,6 +14,7 @@ export async function sendInstagramMessage(
     message: {
       text: messageText,
     },
+    messaging_type: "RESPONSE",
   };
 
   const res = await fetch(url, {

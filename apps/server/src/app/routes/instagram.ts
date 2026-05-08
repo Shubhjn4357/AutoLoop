@@ -137,69 +137,32 @@ async function subscribeToWebhooks(params: {
   pageAccessToken: string;
 }) {
   const attempts = [];
-  const instagramSubscriptionUrl = `${GRAPH_BASE}/${params.igId}/subscribed_apps`;
+  // For Instagram Business Messaging, we primarily subscribe the PAGE.
+  // Direct Instagram Account subscription often fails with "Capability" errors and is usually redundant.
+
   const pageSubscriptionUrl = `${GRAPH_BASE}/${params.pageId}/subscribed_apps`;
+  const pageFields = "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads,instagram_manage_comments,feed";
 
-  try {
-    attempts.push(
-      await postSubscription(
-        "instagram-account/comments-messages-page-token",
-        instagramSubscriptionUrl,
-        params.pageAccessToken,
-        "comments,messages"
-      )
-    );
-  } catch (error) {
-    console.error("[IG Callback] Instagram account webhook subscription failed:", error);
-  }
-
-  if (params.userAccessToken !== params.pageAccessToken) {
+  // Retry Page subscription up to 3 times due to network instability
+  for (let i = 0; i < 3; i++) {
     try {
-      attempts.push(
-        await postSubscription(
-          "instagram-account/comments-messages-user-token",
-          instagramSubscriptionUrl,
-          params.userAccessToken,
-          "comments,messages"
-        )
+      const res = await postSubscription(
+        "page/all-fields",
+        pageSubscriptionUrl,
+        params.pageAccessToken,
+        pageFields
       );
+      attempts.push(res);
+      if (res.ok) break;
     } catch (error) {
-      console.error("[IG Callback] Instagram account webhook subscription with user token failed:", error);
+      console.error(`[IG Callback] Page subscription attempt ${i + 1} failed:`, error);
+      if (i < 2) await new Promise(r => setTimeout(r, 2000));
     }
   }
 
-  try {
-    attempts.push(
-      await postSubscription(
-        "page/messages",
-        pageSubscriptionUrl,
-        params.pageAccessToken,
-        "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads"
-      )
-    );
-  } catch (error) {
-    console.error("[IG Callback] Page messages webhook subscription failed:", error);
-  }
-
-  try {
-    attempts.push(
-      await postSubscription(
-        "page/feed",
-        pageSubscriptionUrl,
-        params.pageAccessToken,
-        "feed"
-      )
-    );
-  } catch (error) {
-    console.error("[IG Callback] Page feed webhook subscription failed:", error);
-  }
+  // We already included 'feed' in the Page subscription above.
 
   await Promise.allSettled([
-    getSubscriptionStatus(
-      "instagram-account",
-      instagramSubscriptionUrl,
-      params.pageAccessToken
-    ),
     getSubscriptionStatus("page", pageSubscriptionUrl, params.pageAccessToken),
   ]);
 
