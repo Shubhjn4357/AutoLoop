@@ -1,6 +1,7 @@
 {
   "name": "autoloop-monorepo",
   "private": true,
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
     "dev": "pnpm -r dev",
     "build": "pnpm -r build",
@@ -17,8 +18,9 @@
     "docker:dev": "docker compose -f docker-compose.dev.yml up"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "turbo": "^2.9.10",
+    "typescript": "^5"
   },
   "pnpm": {
     "supportedArchitectures": {
