@@ -127,7 +127,7 @@ instagramRouter.get('/callback', async (c) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subscribed_fields: "messages,messaging_postbacks,messaging_optins,comments,mentions",
+          subscribed_fields: "messages,messaging_postbacks,messaging_optins,feed,mention",
           access_token: pageAccessToken
         })
       });
