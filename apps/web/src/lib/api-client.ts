@@ -1,4 +1,4 @@
-const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || "https://shubhjn-autoloop.hf.space";
+const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || process.env.SERVER_BASE_URL || "https://shubhjn-autoloop.hf.space";
 
 export async function serverFetch(path: string, userId: string, options: RequestInit = {}) {
   const url = new URL(`${SERVER_URL}${path}`);

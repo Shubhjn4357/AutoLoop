@@ -9,7 +9,7 @@ export const instagramWebhookHandler = {
     const challenge = c.req.query('hub.challenge');
 
     if (mode && token) {
-      if (mode === 'subscribe' && token === process.env.INSTAGRAM_VERIFY_TOKEN) {
+      if (mode === 'subscribe' && token === process.env.META_VERIFY_TOKEN) {
         console.log('[Instagram Webhook] Verified');
         return c.text(challenge || '');
       }
