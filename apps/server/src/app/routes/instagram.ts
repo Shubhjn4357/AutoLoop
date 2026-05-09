@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { db, socialAccounts, eq, and } from '@autoloop/db';
 import crypto from 'crypto';
-import { lookup } from 'node:dns/promises';
 import { redisConnection } from '../../config/redis';
 import { 
   fetchIGMedia, 
@@ -10,11 +9,12 @@ import {
   searchIGUser, 
   fuzzySearchIGUsers, 
   publishIGPost,
-  fetchIGProfile
+  fetchIGProfile,
+  fetchWithRetry
 } from '@autoloop/shared';
 import { emitToUser } from '../../lib/socket';
 
-const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v25.0";
+const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v21.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const STATE_TTL_MS = 60 * 60 * 1000;
 
@@ -57,60 +57,6 @@ function verifySignedState(state: string | undefined) {
   return parsed.userId;
 }
 
-async function fetchWithRetry(url: string, options: any = {}, retries = 7, backoff = 3000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      console.log(`[Fetch Attempt ${i + 1}] Calling: ${url.split('?')[0]}...`);
-      const res = await fetch(url, { 
-        ...options, 
-        signal: AbortSignal.timeout(30000),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json',
-          'Accept-Language': 'en-US,en;q=0.9',
-          ...options.headers
-        }
-      });
-      if (res.ok) return res;
-      
-      const errorText = await res.clone().text().catch(() => "No error body");
-      console.warn(`[Fetch Retry] Status ${res.status}: ${errorText.substring(0, 100)}`);
-      
-      if (i < retries - 1) {
-        await new Promise(r => setTimeout(r, backoff * (i + 1)));
-        continue;
-      }
-      return res;
-    } catch (err: any) {
-      if (i > 0) {
-        try {
-          const host = new URL(url).hostname;
-          const addr = await lookup(host);
-          console.log(`[Fetch Retry] DNS Diagnostic for ${host}: ${addr.address} (${addr.family})`);
-        } catch (dnsErr: any) {
-          console.warn(`[Fetch Retry] DNS Diagnostic Failed: ${dnsErr.message}`);
-        }
-      }
-
-      if (i === retries - 1) throw err;
-      const detailedError = err.cause ? `${err.message} (Cause: ${err.cause.message || err.cause})` : err.message;
-      console.warn(`[Fetch Retry] Network Error: ${detailedError}. Retrying in ${backoff * (i + 1)}ms...`);
-      await new Promise(r => setTimeout(r, backoff * (i + 1)));
-    }
-  }
-}
-
-async function parseMetaResponse(res: Response) {
-  const text = await res.text();
-  if (!text) return {};
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { raw: text };
-  }
-}
-
 function isSubscriptionSuccess(body: any) {
   return Boolean(body?.success) && !body?.error;
 }
@@ -121,23 +67,25 @@ async function postSubscription(
   accessToken: string,
   fields: string
 ) {
-  const params = new URLSearchParams();
-  params.set("subscribed_fields", fields);
-  params.set("access_token", accessToken);
+  // Use both 'fields' and 'subscribed_fields' to cover both Page and Instagram object requirements.
+  // Meta often prefers these as query parameters even in POST requests.
+  const targetUrl = new URL(url);
+  targetUrl.searchParams.set("subscribed_fields", fields);
+  targetUrl.searchParams.set("fields", fields);
+  targetUrl.searchParams.set("access_token", accessToken);
 
-  const res = await fetchWithRetry(url, {
-    method: "POST",
-    body: params,
+  const res = await fetchWithRetry(targetUrl.toString(), {
+    method: "POST"
   });
+  
   if (!res) throw new Error(`Fetch failed for ${label}`);
-  const body = await parseMetaResponse(res);
-  const ok = res.ok && isSubscriptionSuccess(body);
+  const ok = !res.error;
 
   console.log(
-    `[IG Callback] Webhook subscription ${label}: status=${res.status} ok=${ok} fields=${fields} body=${JSON.stringify(body)}`
+    `[IG Callback] Webhook subscription ${label}: ok=${ok} fields=${fields} body=${JSON.stringify(res)}`
   );
 
-  return { label, ok, status: res.status, fields, body };
+  return { label, ok, fields, body: res };
 }
 
 async function getSubscriptionStatus(label: string, url: string, accessToken: string) {
@@ -146,13 +94,12 @@ async function getSubscriptionStatus(label: string, url: string, accessToken: st
 
   const res = await fetchWithRetry(statusUrl.toString());
   if (!res) throw new Error(`Fetch failed for status ${label}`);
-  const body = await parseMetaResponse(res);
 
   console.log(
-    `[IG Callback] Webhook subscription status ${label}: status=${res.status} body=${JSON.stringify(body)}`
+    `[IG Callback] Webhook subscription status ${label}: body=${JSON.stringify(res)}`
   );
 
-  return { label, status: res.status, body };
+  return { label, body: res };
 }
 
 async function subscribeToWebhooks(userId: string, params: {
@@ -193,7 +140,8 @@ async function subscribeToWebhooks(userId: string, params: {
     // Also try to subscribe the Instagram ID directly for Mentions/Insights
     (async () => {
        const igSubscriptionUrl = `${GRAPH_BASE}/${params.igId}/subscribed_apps`;
-       const igFields = "mentions,comments,insights";
+       // Explicitly include all fields needed for Instagram Business Account webhooks
+       const igFields = "comments,mentions,insights,story_insights";
        try {
          const res = await postSubscription("ig/direct", igSubscriptionUrl, params.userAccessToken, igFields);
          attempts.push(res);
@@ -298,19 +246,14 @@ instagramRouter.get('/callback', async (c) => {
   try {
     // 1. Exchange code for short-lived token
     const tokenUrl = `${GRAPH_BASE}/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
-    const tokenRes = await fetchWithRetry(tokenUrl);
-    const tokenData = await tokenRes!.json();
-    
-    if (tokenData.error) throw new Error(tokenData.error.message);
+    const tokenData = await fetchWithRetry(tokenUrl);
     const shortToken = tokenData.access_token;
 
     await new Promise(r => setTimeout(r, 500));
 
     // 2. Exchange for long-lived token
     const longTokenUrl = `${GRAPH_BASE}/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`;
-    const longTokenRes = await fetchWithRetry(longTokenUrl);
-    const longTokenData = await longTokenRes!.json();
-    if (longTokenData.error) throw new Error(longTokenData.error.message);
+    const longTokenData = await fetchWithRetry(longTokenUrl);
     const accessToken = longTokenData.access_token;
     if (!accessToken) throw new Error("Meta did not return a long-lived access token");
 
@@ -318,8 +261,7 @@ instagramRouter.get('/callback', async (c) => {
 
     // 3. Get Pages & IG Business Account
     emitToUser(userId, 'instagram:connecting', { step: 'pages', message: 'Fetching your Instagram pages...' });
-    const pagesRes = await fetchWithRetry(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name,access_token`);
-    const pagesData = await pagesRes!.json();
+    const pagesData = await fetchWithRetry(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name,access_token`);
     if (pagesData.error) throw new Error(pagesData.error.message);
     const pageWithIG = pagesData.data?.find((p: any) => p.instagram_business_account);
 

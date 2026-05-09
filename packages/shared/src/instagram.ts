@@ -1,4 +1,31 @@
+import { 
+  IGMedia, 
+  IGInsightMetric, 
+  IGUserProfile, 
+  HashtagSearchResult, 
+  HashtagMedia 
+} from '@autoloop/types';
 import { fetchWithRetry } from "./fetch-utils";
+
+const DEFAULT_GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v21.0";
+const BASE = `https://graph.facebook.com/${DEFAULT_GRAPH_VERSION}`;
+
+/**
+ * Internal helper for Graph API calls
+ */
+async function graphFetch<T>(
+  path: string,
+  accessToken: string,
+  params: Record<string, string> = {}
+): Promise<T> {
+  const url = new URL(`${BASE}${path}`);
+  url.searchParams.set("access_token", accessToken);
+  for (const [k, v] of Object.entries(params)) {
+    url.searchParams.set(k, v);
+  }
+
+  return fetchWithRetry(url.toString()) as Promise<T>;
+}
 
 export async function sendInstagramMessage(
   actorId: string,
@@ -13,7 +40,7 @@ export async function sendInstagramMessage(
     graphVersion?: string;
   } = {}
 ) {
-  const graphVersion = options.graphVersion || process.env.META_GRAPH_VERSION || "v25.0";
+  const graphVersion = options.graphVersion || DEFAULT_GRAPH_VERSION;
   const url = `https://graph.facebook.com/${graphVersion}/${actorId}/messages`;
   
   let messagePayload: any = {};
@@ -21,7 +48,6 @@ export async function sendInstagramMessage(
     messagePayload.text = messageText;
   }
 
-  // Handle Multi-media or Attachment IDs
   const mediaElements: any[] = [];
   if (options.mediaUrls) {
     options.mediaUrls.forEach(url => mediaElements.push({ type: 'image', payload: { url } }));
@@ -34,11 +60,10 @@ export async function sendInstagramMessage(
     if (mediaElements.length === 1) {
       messagePayload.attachment = mediaElements[0];
     } else {
-      messagePayload.attachments = mediaElements.slice(0, 10); // Meta limit is 10
+      messagePayload.attachments = mediaElements.slice(0, 10);
     }
   }
 
-  // If buttons are provided, use a Generic Template
   if (options.buttons && options.buttons.length > 0) {
     messagePayload = {
       attachment: {
@@ -54,7 +79,6 @@ export async function sendInstagramMessage(
     };
   }
 
-  // If quick replies are provided
   if (options.quickReplies && options.quickReplies.length > 0) {
     messagePayload.quick_replies = options.quickReplies.map(qr => ({
       content_type: "text",
@@ -69,80 +93,40 @@ export async function sendInstagramMessage(
     messaging_type: "RESPONSE",
   };
 
-  let lastError: any = null;
-  const retries = 5;
-  for (let i = 0; i < retries; i++) {
-    try {
-      const res = await fetchWithRetry(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      }, 5, 2000);
-
-      const data = await res.json();
-      if (res.ok) return data;
-      
-      lastError = new Error(`Instagram API Error: ${data?.error?.message || res.statusText}`);
-    } catch (err: any) {
-      lastError = err;
-    }
-    if (i < retries - 1) await new Promise(r => setTimeout(r, 2000 * Math.pow(2, i)));
-  }
-  throw lastError;
+  return fetchWithRetry(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function replyToInstagramComment(
   commentId: string,
   messageText: string,
   accessToken: string,
-  graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
+  graphVersion: string = DEFAULT_GRAPH_VERSION
 ) {
   const url = `https://graph.facebook.com/${graphVersion}/${commentId}/replies`;
-  
-  const payload = {
-    message: messageText,
-  };
+  const payload = { message: messageText };
 
-  let lastError: any = null;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const res = await fetchWithRetry(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (res.ok) return data;
-      lastError = new Error(`Instagram API Error: ${data?.error?.message || res.statusText}`);
-    } catch (err) {
-      lastError = err;
-    }
-    if (i < 2) await new Promise(r => setTimeout(r, 2000));
-  }
-  throw lastError;
-}
-
-export interface InstagramUserProfile {
-  id: string;
-  name?: string;
-  username?: string;
-  profile_pic?: string;
-  is_user_follow_business?: boolean;
-  is_business_follow_user?: boolean;
+  return fetchWithRetry(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getInstagramUserProfile(
   recipientId: string,
   accessToken: string,
-  graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
-): Promise<InstagramUserProfile> {
+  graphVersion: string = DEFAULT_GRAPH_VERSION
+): Promise<IGUserProfile> {
   const fields = [
     "id",
     "name",
@@ -155,73 +139,302 @@ export async function getInstagramUserProfile(
   url.searchParams.set("fields", fields);
   url.searchParams.set("access_token", accessToken);
 
-  let lastError: any = null;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const res = await fetchWithRetry(url.toString());
-      const data = await res.json();
-
-      if (!res.ok) {
-        const apiMessage =
-          typeof data?.error?.message === "string" ? data.error.message : res.statusText;
-        throw new Error(`Instagram profile lookup failed: ${apiMessage}`);
-      }
-
-      return data as InstagramUserProfile;
-    } catch (err) {
-      lastError = err;
-    }
-    if (i < 2) await new Promise(r => setTimeout(r, 2000));
-  }
-  throw lastError;
+  return fetchWithRetry(url.toString()) as Promise<IGUserProfile>;
 }
 
-/**
- * Like or unlike an Instagram media post or comment.
- * Requires instagram_manage_engagement permission.
- */
 export async function likeMediaOrComment(
   igUserId: string,
-  targetId: string, // media_id or comment_id
+  targetId: string,
   accessToken: string,
   action: 'POST' | 'DELETE' = 'POST',
   type: 'media_id' | 'comment_id' = 'comment_id',
-  graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
+  graphVersion: string = DEFAULT_GRAPH_VERSION
 ) {
   const url = `https://graph.facebook.com/${graphVersion}/${igUserId}/likes`;
   
+  if (action === 'DELETE') {
+    const deleteUrl = new URL(url);
+    deleteUrl.searchParams.set("access_token", accessToken);
+    deleteUrl.searchParams.set(type, targetId);
+    return fetchWithRetry(deleteUrl.toString(), { method: 'DELETE' });
+  }
+
   const payload: Record<string, string> = {};
   payload[type] = targetId;
 
-  let lastError: any = null;
-  for (let i = 0; i < 3; i++) {
-    try {
-      if (action === 'DELETE') {
-        const deleteUrl = new URL(url);
-        deleteUrl.searchParams.set("access_token", accessToken);
-        deleteUrl.searchParams.set(type, targetId);
-        const delRes = await fetch(deleteUrl.toString(), { method: 'DELETE' });
-        const delData = await delRes.json();
-        if (delRes.ok) return delData;
-        throw new Error(delData?.error?.message || delRes.statusText);
-      }
+  return fetchWithRetry(url, {
+    method: action,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+}
 
-      const res = await fetch(url, {
-        method: action,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (res.ok) return data;
-      lastError = new Error(`Instagram Engagement API Error: ${data?.error?.message || res.statusText}`);
-    } catch (err) {
-      lastError = err;
+/** Fetch all media posts for an IG Business account */
+export async function fetchIGMedia(
+  externalId: string,
+  accessToken: string,
+  limit = 20
+): Promise<IGMedia[]> {
+  const data = await graphFetch<{ data: IGMedia[] }>(
+    `/${externalId}/media`,
+    accessToken,
+    {
+      fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count,reposts_count,permalink,children{id,media_url,media_type,thumbnail_url}",
+      limit: String(limit),
     }
-    if (i < 2) await new Promise(r => setTimeout(r, 2000));
+  );
+  return data.data ?? [];
+}
+
+/** Fetch active stories for an IG Business account */
+export async function fetchIGStories(
+  externalId: string,
+  accessToken: string
+): Promise<IGMedia[]> {
+  const data = await graphFetch<{ data: IGMedia[] }>(
+    `/${externalId}/stories`,
+    accessToken,
+    {
+      fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,permalink",
+    }
+  );
+  return data.data ?? [];
+}
+
+/** Fetch account-level insights */
+export async function fetchIGInsights(
+  externalId: string,
+  accessToken: string,
+  metrics: string[] = ["reach", "profile_visits", "views", "accounts_engaged"],
+  period: "day" | "week" | "days_28" = "day",
+  since?: string,
+  until?: string
+): Promise<IGInsightMetric[]> {
+  const lifetimeMetrics = ["followers_count", "follows_count"];
+  const timeSeriesMetrics = [
+    "reach", 
+    "views", 
+    "profile_visits", 
+    "website_clicks",
+    "accounts_engaged",
+    "total_interactions",
+    "likes"
+  ];
+
+  const metricMap: Record<string, string> = {
+    "impressions": "views",
+    "profile_views": "profile_visits",
+    "plays": "views"
+  };
+
+  const finalMetrics = metrics.map(m => metricMap[m] || m);
+
+  const lifetimeMetricsToFetch = finalMetrics.filter((m) => lifetimeMetrics.includes(m));
+  const timeSeriesMetricsToFetch = finalMetrics.filter((m) => timeSeriesMetrics.includes(m));
+
+  const results: IGInsightMetric[] = [];
+
+  if (lifetimeMetricsToFetch.length > 0) {
+    const lifetimeParams: Record<string, string> = {
+      metric: lifetimeMetricsToFetch.join(","),
+      period: "lifetime",
+      metric_type: "total_value",
+    };
+    if (since) lifetimeParams.since = since;
+    if (until) lifetimeParams.until = until;
+
+    try {
+      const lifetimeData = await graphFetch<{ data: IGInsightMetric[] }>(
+        `/${externalId}/insights`,
+        accessToken,
+        lifetimeParams
+      );
+      if (lifetimeData.data) {
+        results.push(...lifetimeData.data);
+      }
+    } catch (err) {
+      console.error("[fetchIGInsights] Lifetime metrics failed:", err);
+    }
   }
-  throw lastError;
+
+  if (timeSeriesMetricsToFetch.length > 0) {
+    const timeParams: Record<string, string> = {
+      metric: timeSeriesMetricsToFetch.join(","),
+      period,
+    };
+    if (since) timeParams.since = since;
+    if (until) timeParams.until = until;
+
+    try {
+      const timeData = await graphFetch<{ data: IGInsightMetric[] }>(
+        `/${externalId}/insights`,
+        accessToken,
+        timeParams
+      );
+      if (timeData.data) {
+        // Reverse mapping to maintain compatibility with dashboard expectation
+        const normalized = timeData.data.map(m => {
+          const requestedName = metrics.find(rm => (metricMap[rm] || rm) === m.name);
+          return requestedName ? { ...m, name: requestedName } : m;
+        });
+        results.push(...normalized);
+      }
+    } catch (err) {
+      console.error("[fetchIGInsights] Time-series metrics failed:", err);
+    }
+  }
+
+  return results;
+}
+
+/** Fetch IG Business user profile */
+export async function fetchIGProfile(
+  externalId: string,
+  accessToken: string
+): Promise<IGUserProfile> {
+  return graphFetch<IGUserProfile>(
+    `/${externalId}`,
+    accessToken,
+    {
+      fields: "id,name,username,biography,profile_picture_url,followers_count,follows_count,media_count,website",
+    }
+  );
+}
+
+/** Publish a photo post to Instagram */
+export async function publishIGPost(
+  externalId: string,
+  accessToken: string,
+  imageUrl: string,
+  caption: string
+): Promise<{ id: string }> {
+  const containerUrl = new URL(`${BASE}/${externalId}/media`);
+  containerUrl.searchParams.set("access_token", accessToken);
+  containerUrl.searchParams.set("image_url", imageUrl);
+  containerUrl.searchParams.set("caption", caption);
+
+  const containerData: any = await fetchWithRetry(containerUrl.toString(), { method: "POST" });
+
+  const publishUrl = new URL(`${BASE}/${externalId}/media_publish`);
+  publishUrl.searchParams.set("access_token", accessToken);
+  publishUrl.searchParams.set("creation_id", containerData.id);
+
+  const publishData: any = await fetchWithRetry(publishUrl.toString(), { method: "POST" });
+  return { id: publishData.id };
+}
+
+/** Search hashtags by name */
+export async function searchHashtags(
+  externalId: string,
+  accessToken: string,
+  hashtagName: string
+): Promise<HashtagSearchResult[]> {
+  const data = await graphFetch<{ data: HashtagSearchResult[] }>(
+    "/ig_hashtag_search",
+    accessToken,
+    {
+      user_id: externalId,
+      q: hashtagName,
+    }
+  );
+  return data.data ?? [];
+}
+
+/** Get recent media for a hashtag */
+export async function getHashtagRecentMedia(
+  hashtagId: string,
+  accessToken: string,
+  limit = 25
+): Promise<HashtagMedia[]> {
+  const data = await graphFetch<{ data: HashtagMedia[] }>(
+    `/${hashtagId}/recent_media`,
+    accessToken,
+    {
+      fields: "id,caption,media_url,thumbnail_url,media_type,permalink,timestamp,like_count,comments_count,owner{username}",
+      limit: String(limit),
+    }
+  );
+  return data.data ?? [];
+}
+
+/** Fuzzy search for IG users via hashtags */
+export async function fuzzySearchIGUsers(
+  externalId: string,
+  accessToken: string,
+  query: string
+): Promise<{ username: string; mediaCount: number; sampleMedia: HashtagMedia }[]> {
+  if (!query || query.length < 1) return [];
+
+  const hashtags = await searchHashtags(externalId, accessToken, query);
+  if (hashtags.length === 0) return [];
+  const topHashtag = hashtags[0];
+  const media = await getHashtagRecentMedia(topHashtag.id, accessToken, 50);
+
+  const usernameMap = new Map<string, { count: number; sample: HashtagMedia }>();
+
+  for (const item of media) {
+    const username = item.owner?.username || item.username;
+    if (!username) continue;
+
+    const existing = usernameMap.get(username);
+    if (existing) {
+      existing.count++;
+    } else {
+      usernameMap.set(username, { count: 1, sample: item });
+    }
+  }
+
+  return Array.from(usernameMap.entries())
+    .map(([username, data]) => ({
+      username,
+      mediaCount: data.count,
+      sampleMedia: data.sample,
+    }))
+    .sort((a, b) => b.mediaCount - a.mediaCount)
+    .slice(0, 10);
+}
+
+/** Business Discovery: Search and fetch other business profiles */
+export async function searchIGUser(
+  externalId: string,
+  accessToken: string,
+  targetUsername: string
+): Promise<IGUserProfile & { media?: { data: IGMedia[] } }> {
+  const res = await graphFetch<{ business_discovery: IGUserProfile & { media?: { data: IGMedia[] } } }>(
+    `/${externalId}`,
+    accessToken,
+    {
+      fields: `business_discovery.username(${targetUsername}){id,username,biography,name,profile_picture_url,followers_count,follows_count,media_count,media{id,caption,media_url,thumbnail_url,media_type,permalink,timestamp,like_count,comments_count,children{id,media_url,media_type,thumbnail_url}}}`,
+    }
+  );
+  return res.business_discovery;
+}
+
+/** Upload an attachment to Meta CDN */
+export async function uploadAttachment(
+  pageId: string,
+  accessToken: string,
+  mediaUrl: string,
+  type: 'image' | 'video' | 'audio' | 'file' = 'image'
+): Promise<string> {
+  const data = await graphFetch<{ attachment_id: string }>(
+    `/${pageId}/message_attachments`,
+    accessToken,
+    {
+      platform: "instagram",
+      message: JSON.stringify({
+        attachment: {
+          type,
+          payload: {
+            url: mediaUrl,
+            is_reusable: "true"
+          }
+        }
+      })
+    }
+  );
+  return data.attachment_id;
 }

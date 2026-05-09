@@ -84,6 +84,23 @@ export const instagramWebhookHandler = {
               timestamp: value.timestamp,
               rawPayload: value,
             });
+          } else if (field === 'feed') {
+            // Instagram comments can sometimes arrive via the linked Page's feed
+            if (value.item === 'comment' && value.verb === 'add' && value.from) {
+              internalEvents.push({
+                eventId: value.comment_id || value.id,
+                platform: 'instagram',
+                triggerType: TriggerType.COMMENT,
+                accountId,
+                userId: value.from.id,
+                username: value.from.name || value.from.username || '',
+                message: value.message || value.text,
+                commentId: value.comment_id || value.id,
+                mediaId: value.post_id || value.media_id,
+                timestamp: value.created_time || Math.floor(Date.now() / 1000),
+                rawPayload: value,
+              });
+            }
           } else if (field === 'mentions') {
             internalEvents.push({
               eventId: value.media_id || value.comment_id || `mention-${Date.now()}`,
