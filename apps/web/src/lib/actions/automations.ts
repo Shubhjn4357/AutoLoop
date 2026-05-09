@@ -34,6 +34,9 @@ export interface AutomationRule {
   maxDailySends: number;
   isActive: boolean;
   priority: number;
+  autoLike?: boolean;
+  mediaUrls?: string;
+  attachmentIds?: string;
 }
 
 export async function saveAutomation(rule: AutomationRule) {
@@ -77,6 +80,9 @@ export async function saveAutomation(rule: AutomationRule) {
     maxDailySends: Number(rule.maxDailySends) || 100,
     isActive: Boolean(rule.isActive),
     priority: Number(rule.priority) || 0,
+    autoLike: Boolean(rule.autoLike),
+    mediaUrls: rule.mediaUrls || "[]",
+    attachmentIds: rule.attachmentIds || "[]",
     updatedAt: now,
   };
 

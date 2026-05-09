@@ -1,7 +1,6 @@
 import { auth } from "@/lib/auth/config";
 import { redirect } from "next/navigation";
 import { DashboardProvider } from "@/components/dashboard/dashboard-context";
-import { getDashboardData } from "@/lib/dashboard/data";
 import LayoutWrapper from "./layout-wrapper";
 
 import { headers } from "next/headers";

@@ -21,7 +21,8 @@ import {
   matchesAutomationCondition, 
   sendInstagramMessage, 
   replyToInstagramComment, 
-  getInstagramUserProfile 
+  getInstagramUserProfile,
+  likeMediaOrComment
 } from "@autoloop/shared";
 import { analyzeSentiment, generateSmartReply, trackAnalytics } from "../ai/pipeline";
 import { incomingQueue } from "../queue";
@@ -46,27 +47,41 @@ export const automationEngine = {
     for (const entry of payload.entry) {
       const externalId = entry.id;
 
-      // Handle DMs
+      // Handle DMs (Messaging)
       if (entry.messaging) {
         for (const msg of entry.messaging) {
-          const postback = msg.postback;
-          
-          if (!msg.message?.text && !postback?.payload) continue;
+          const senderId = msg.sender?.id;
+          if (!senderId) continue;
+
+          let eventType = "dm";
+          if (msg.message?.reply_to?.story) {
+            eventType = "story_reply";
+          } else if (msg.message?.is_echo) {
+            eventType = "dm_echo";
+          } else if (msg.reaction) {
+            eventType = "reaction";
+          } else if (msg.postback) {
+            eventType = "dm"; // Treat postbacks as keyword triggers
+          }
+
+          // Don't skip reactions even if they have no text
+          if (!msg.message?.text && !msg.postback?.payload && !msg.reaction) continue;
 
           await this.queueEvent({
-            eventType: msg.message?.reply_to?.story ? "story_reply" : 
-                       msg.message?.is_live ? "live_comment" : "dm",
+            eventType,
             payload: {
               externalId,
-              senderId: msg.sender.id,
-              text: msg.message?.text || "",
+              senderId,
+              text: msg.message?.text || msg.reaction?.emoji || "",
               quickReplyPayload: msg.message?.quick_reply?.payload,
-              postbackPayload: postback?.payload,
+              postbackPayload: msg.postback?.payload,
               storyId: msg.message?.reply_to?.story?.id,
+              linkStickerUrl: msg.message?.reply_to?.story?.link_sticker_url,
+              reaction: msg.reaction,
               timestamp: msg.timestamp,
             },
             externalId,
-            recipientId: msg.sender.id,
+            recipientId: senderId,
           });
           queued++;
         }
@@ -487,6 +502,14 @@ export const automationEngine = {
       await replyToInstagramComment(commentId, interpolatedReply, account.accessToken);
     }
 
+    // Auto-Like Engagement
+    if (commentId && rule.autoLike) {
+      console.log(`[Automation] Auto-liking comment: ${commentId}`);
+      await likeMediaOrComment(account.externalId, commentId, account.accessToken, 'POST', 'comment_id').catch(err => {
+        console.warn(`[Automation] Auto-like failed: ${err.message}`);
+      });
+    }
+
     // Send Main DM with Button support
     if (interpolatedDM.trim()) {
       const buttons: any[] = [];
@@ -498,7 +521,15 @@ export const automationEngine = {
         buttons.push({ type: 'web_url' as const, url: targetUrl, title: linkText });
       }
 
-      await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolatedDM, account.accessToken, { buttons });
+      // Multi-Media Support
+      const mediaUrls = rule.mediaUrls ? JSON.parse(rule.mediaUrls) : undefined;
+      const attachmentIds = rule.attachmentIds ? JSON.parse(rule.attachmentIds) : undefined;
+
+      await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolatedDM, account.accessToken, { 
+        buttons,
+        mediaUrls,
+        attachmentIds
+      });
       
       await db.insert(dbMessages).values({
         id: crypto.randomUUID(),

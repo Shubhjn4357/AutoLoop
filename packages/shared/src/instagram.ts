@@ -1,18 +1,40 @@
 export async function sendInstagramMessage(
   actorId: string,
   recipientId: string,
-  messageText: string,
+  messageText: string | null,
   accessToken: string,
   options: {
     buttons?: Array<{ type: 'web_url', url: string, title: string } | { type: 'postback', title: string, payload: string }>;
     quickReplies?: Array<{ title: string, payload: string }>;
+    mediaUrls?: string[];
+    attachmentIds?: string[];
     graphVersion?: string;
   } = {}
 ) {
   const graphVersion = options.graphVersion || process.env.META_GRAPH_VERSION || "v25.0";
   const url = `https://graph.facebook.com/${graphVersion}/${actorId}/messages`;
   
-  let messagePayload: any = { text: messageText };
+  let messagePayload: any = {};
+  if (messageText) {
+    messagePayload.text = messageText;
+  }
+
+  // Handle Multi-media or Attachment IDs
+  const mediaElements: any[] = [];
+  if (options.mediaUrls) {
+    options.mediaUrls.forEach(url => mediaElements.push({ type: 'image', payload: { url } }));
+  }
+  if (options.attachmentIds) {
+    options.attachmentIds.forEach(id => mediaElements.push({ type: 'image', payload: { attachment_id: id } }));
+  }
+
+  if (mediaElements.length > 0) {
+    if (mediaElements.length === 1) {
+      messagePayload.attachment = mediaElements[0];
+    } else {
+      messagePayload.attachments = mediaElements.slice(0, 10); // Meta limit is 10
+    }
+  }
 
   // If buttons are provided, use a Generic Template
   if (options.buttons && options.buttons.length > 0) {
@@ -22,7 +44,7 @@ export async function sendInstagramMessage(
         payload: {
           template_type: "generic",
           elements: [{
-            title: messageText.substring(0, 80),
+            title: (messageText || "Explore").substring(0, 80),
             buttons: options.buttons
           }]
         }
@@ -146,6 +168,56 @@ export async function getInstagramUserProfile(
       }
 
       return data as InstagramUserProfile;
+    } catch (err) {
+      lastError = err;
+    }
+    if (i < 2) await new Promise(r => setTimeout(r, 2000));
+  }
+  throw lastError;
+}
+
+/**
+ * Like or unlike an Instagram media post or comment.
+ * Requires instagram_manage_engagement permission.
+ */
+export async function likeMediaOrComment(
+  igUserId: string,
+  targetId: string, // media_id or comment_id
+  accessToken: string,
+  action: 'POST' | 'DELETE' = 'POST',
+  type: 'media_id' | 'comment_id' = 'comment_id',
+  graphVersion: string = process.env.META_GRAPH_VERSION || "v25.0"
+) {
+  const url = `https://graph.facebook.com/${graphVersion}/${igUserId}/likes`;
+  
+  const payload: Record<string, string> = {};
+  payload[type] = targetId;
+
+  let lastError: any = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      if (action === 'DELETE') {
+        const deleteUrl = new URL(url);
+        deleteUrl.searchParams.set("access_token", accessToken);
+        deleteUrl.searchParams.set(type, targetId);
+        const delRes = await fetch(deleteUrl.toString(), { method: 'DELETE' });
+        const delData = await delRes.json();
+        if (delRes.ok) return delData;
+        throw new Error(delData?.error?.message || delRes.statusText);
+      }
+
+      const res = await fetch(url, {
+        method: action,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok) return data;
+      lastError = new Error(`Instagram Engagement API Error: ${data?.error?.message || res.statusText}`);
     } catch (err) {
       lastError = err;
     }

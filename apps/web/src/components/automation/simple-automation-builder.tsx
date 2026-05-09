@@ -145,6 +145,9 @@ interface AutomationRule {
   maxDailySends: number;
   isActive: boolean;
   priority: number;
+  autoLike?: boolean;
+  mediaUrls?: string;
+  attachmentIds?: string;
 }
 
 interface SimpleAutomationBuilderProps {
@@ -178,6 +181,9 @@ const defaultRule: AutomationRule = {
   maxDailySends: 100,
   isActive: true,
   priority: 0,
+  autoLike: false,
+  mediaUrls: "[]",
+  attachmentIds: "[]",
 };
 
 export function SimpleAutomationBuilder({
@@ -900,13 +906,14 @@ export function SimpleAutomationBuilder({
                         type="number"
                         min="0"
                         className="w-20"
-                        value={rule.followUpDelayMinutes}
-                        onChange={(e) =>
+                        value={rule.followUpDelayMinutes === 0 && rule.followUpTemplate === "" ? "" : rule.followUpDelayMinutes}
+                        onChange={(e) => {
+                          const val = e.target.value;
                           setRule({
                             ...rule,
-                            followUpDelayMinutes: e.target.value === "" ? 0 : parseInt(e.target.value),
-                          })
-                        }
+                            followUpDelayMinutes: val === "" ? 0 : parseInt(val),
+                          });
+                        }}
                       />
                       <span className="text-sm text-muted-foreground">minutes (0 = immediate)</span>
                     </div>
@@ -1053,6 +1060,29 @@ export function SimpleAutomationBuilder({
                   )}
                 </div>
 
+                {/* Auto-Like Engagement (Only for comment triggers) */}
+                {rule.triggerType === "comment" && (
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                        <Zap className="size-5" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Auto-Like Comment</p>
+                        <p className="text-xs text-muted-foreground">
+                          Automatically like the comment when replying to boost engagement
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={rule.autoLike || false}
+                      onCheckedChange={(checked) =>
+                        setRule({ ...rule, autoLike: checked })
+                      }
+                    />
+                  </div>
+                )}
+
                 {/* Rate Limiting */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -1061,13 +1091,14 @@ export function SimpleAutomationBuilder({
                       id="cooldown"
                       type="number"
                       min="1"
-                      value={rule.cooldownMinutes}
-                      onChange={(e) =>
+                      value={rule.cooldownMinutes === 5 ? "" : rule.cooldownMinutes}
+                      onChange={(e) => {
+                        const val = e.target.value;
                         setRule({
                           ...rule,
-                          cooldownMinutes: e.target.value === "" ? 5 : parseInt(e.target.value),
-                        })
-                      }
+                          cooldownMinutes: val === "" ? 5 : parseInt(val),
+                        });
+                      }}
                     />
                     <p className="text-xs text-muted-foreground">
                       Minimum time between replies to the same user
@@ -1079,13 +1110,14 @@ export function SimpleAutomationBuilder({
                       id="maxDaily"
                       type="number"
                       min="1"
-                      value={rule.maxDailySends}
-                      onChange={(e) =>
+                      value={rule.maxDailySends === 100 ? "" : rule.maxDailySends}
+                      onChange={(e) => {
+                        const val = e.target.value;
                         setRule({
                           ...rule,
-                          maxDailySends: e.target.value === "" ? 100 : parseInt(e.target.value),
-                        })
-                      }
+                          maxDailySends: val === "" ? 100 : parseInt(val),
+                        });
+                      }}
                     />
                     <p className="text-xs text-muted-foreground">
                       Maximum sends per day for this automation
@@ -1100,13 +1132,14 @@ export function SimpleAutomationBuilder({
                     id="priority"
                     type="number"
                     min="0"
-                    value={rule.priority}
-                    onChange={(e) =>
+                    value={rule.priority === 0 ? "" : rule.priority}
+                    onChange={(e) => {
+                      const val = e.target.value;
                       setRule({
                         ...rule,
-                        priority: parseInt(e.target.value) || 0,
-                      })
-                    }
+                        priority: val === "" ? 0 : parseInt(val),
+                      });
+                    }}
                   />
                   <p className="text-xs text-muted-foreground">
                     Higher priority automations are checked first
@@ -1226,6 +1259,11 @@ export function SimpleAutomationBuilder({
                       {rule.requireFollower && (
                         <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border-none gap-1">
                           <Shield className="size-3" /> Followers Only
+                        </Badge>
+                      )}
+                      {rule.autoLike && (
+                        <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border-none gap-1">
+                          <Zap className="size-3" /> Auto-Like
                         </Badge>
                       )}
                     </div>

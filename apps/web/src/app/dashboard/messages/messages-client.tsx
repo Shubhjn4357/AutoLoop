@@ -6,7 +6,7 @@ import { serverFetch } from "@/lib/api-client";
 
 import { 
   Send, User, Tag, MessageSquare, Sparkles, Loader2, 
-  Trash2, ChevronLeft, ChevronRight, Menu 
+  Trash2, ChevronLeft, Menu 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";

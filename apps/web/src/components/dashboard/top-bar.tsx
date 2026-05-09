@@ -175,7 +175,7 @@ export function TopBar() {
             startClearing(async () => {
               try {
                 await clearNotificationLogs();
-              } catch (err) {
+              } catch {
                 setLocalLogs(oldLogs); // Rollback
               }
             });

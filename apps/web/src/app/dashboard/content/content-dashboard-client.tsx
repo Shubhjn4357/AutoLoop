@@ -74,7 +74,7 @@ export function ContentDashboardClient({ automations, initialMedia, userId }: Pr
       try {
         await bindAutomationToPost(selectedAutomation || null, selectedPost.id);
         toast.success("Automation bound to post!");
-      } catch (err) {
+      } catch {
         toast.error("Failed to bind automation");
       }
     });

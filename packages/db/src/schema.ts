@@ -108,6 +108,9 @@ export const automations = sqliteTable("automations", {
   // Rate limiting
   cooldownMinutes: integer("cooldown_minutes").default(5), // prevent spam
   maxDailySends: integer("max_daily_sends").default(100), // daily limit
+  autoLike: integer("auto_like", { mode: "boolean" }).default(false), // auto-like triggering comment
+  mediaUrls: text("media_urls"), // JSON array of image/video URLs
+  attachmentIds: text("attachment_ids"), // JSON array of pre-uploaded Meta attachment IDs
 
   // Status
   isActive: integer("is_active", { mode: "boolean" }).default(false),

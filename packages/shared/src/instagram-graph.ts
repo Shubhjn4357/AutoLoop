@@ -73,7 +73,7 @@ export async function fetchIGMedia(
     `/${externalId}/media`,
     accessToken,
     {
-      fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count,permalink,children{id,media_url,media_type,thumbnail_url}",
+      fields: "id,media_type,media_product_type,media_url,thumbnail_url,caption,timestamp,like_count,comments_count,reposts_count,permalink,children{id,media_url,media_type,thumbnail_url}",
       limit: String(limit),
     }
   );
@@ -111,7 +111,10 @@ export async function fetchIGInsights(
     "profile_views", 
     "website_clicks",
     "accounts_engaged",
-    "total_interactions"
+    "total_interactions",
+    "total_views",
+    "facebook_views",
+    "likes"
   ];
 
   const metricMap: Record<string, string> = {
@@ -306,4 +309,33 @@ export async function searchIGUser(
     }
   );
   return res.business_discovery;
+}
+
+/** 
+ * Upload an attachment to Meta CDN for reuse in messages.
+ * Prevents timeouts during high-volume messaging.
+ */
+export async function uploadAttachment(
+  pageId: string,
+  accessToken: string,
+  mediaUrl: string,
+  type: 'image' | 'video' | 'audio' | 'file' = 'image'
+): Promise<string> {
+  const data = await graphFetch<{ attachment_id: string }>(
+    `/${pageId}/message_attachments`,
+    accessToken,
+    {
+      platform: "instagram",
+      message: JSON.stringify({
+        attachment: {
+          type,
+          payload: {
+            url: mediaUrl,
+            is_reusable: "true"
+          }
+        }
+      })
+    }
+  );
+  return data.attachment_id;
 }

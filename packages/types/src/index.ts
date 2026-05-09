@@ -30,6 +30,7 @@ export interface IGMedia {
   timestamp: string;
   like_count?: number;
   comments_count?: number;
+  reposts_count?: number;
   permalink?: string;
   children?: { data: { id: string; media_url: string; media_type: string; thumbnail_url?: string }[] };
 }

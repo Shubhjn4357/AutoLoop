@@ -72,6 +72,9 @@ export default async function AutomationsPage() {
                 maxDailySends: a.maxDailySends ?? 100,
                 isActive: a.isActive ?? false,
                 priority: a.priority ?? 0,
+                autoLike: a.autoLike ?? false,
+                mediaUrls: a.mediaUrls || "[]",
+                attachmentIds: a.attachmentIds || "[]",
               }))}
               onSave={saveAutomation}
               onDelete={deleteAutomation}

@@ -10,8 +10,7 @@ interface Props {
 
 function sumValues(metric: IGInsightMetric | undefined): number {
   if (!metric) return 0;
-  const total = metric.values.reduce((acc: number, v: { value: number }) => acc + v.value, 0);
-  return total;
+  return metric.values.reduce((acc: number, v: { value: number }) => acc + v.value, 0);
 }
 
 export async function InsightsContent({ externalId, userId }: Props) {
@@ -40,8 +39,8 @@ export async function InsightsContent({ externalId, userId }: Props) {
   const profileViews = metrics.find((m) => m.name === "profile_views" || m.name === "profile_visits");
   const interactions = metrics.find((m) => m.name === "total_interactions");
   const engaged = metrics.find((m) => m.name === "accounts_engaged");
-
-  const impressions = metrics.find((m) => m.name === "impressions");
+  const totalViews = metrics.find((m) => m.name === "total_views");
+  const facebookViews = metrics.find((m) => m.name === "facebook_views");
 
   const igStats = [
     {
@@ -56,8 +55,8 @@ export async function InsightsContent({ externalId, userId }: Props) {
       bg: "bg-primary/10",
     },
     {
-      label: "Impressions",
-      value: sumValues(impressions).toLocaleString(),
+      label: "Total Views",
+      value: sumValues(totalViews).toLocaleString(),
       icon: (props: React.SVGProps<SVGSVGElement>) => (
         <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -66,6 +65,17 @@ export async function InsightsContent({ externalId, userId }: Props) {
       ),
       color: "text-blue-500",
       bg: "bg-blue-500/10",
+    },
+    {
+      label: "Facebook Views",
+      value: sumValues(facebookViews).toLocaleString(),
+      icon: (props: React.SVGProps<SVGSVGElement>) => (
+        <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z" />
+        </svg>
+      ),
+      color: "text-indigo-500",
+      bg: "bg-indigo-500/10",
     },
     {
       label: "Engaged Accounts",
@@ -78,22 +88,10 @@ export async function InsightsContent({ externalId, userId }: Props) {
       color: "text-fuchsia-500",
       bg: "bg-fuchsia-500/10",
     },
-    {
-      label: "Total Interactions",
-      value: sumValues(interactions).toLocaleString(),
-      icon: (props: React.SVGProps<SVGSVGElement>) => (
-        <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-        </svg>
-      ),
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
-    },
   ];
 
   return (
     <>
-      {/* API Error Banner */}
       {apiError && (
         <Card className="border-amber-500/20 bg-amber-500/5">
           <CardContent className="flex items-center gap-3 py-4">
@@ -108,7 +106,6 @@ export async function InsightsContent({ externalId, userId }: Props) {
         </Card>
       )}
 
-      {/* IG Profile Header - Only if available */}
       {profile && (
         <div className="glass-card rounded-2xl p-5 flex items-center gap-4">
           <div>
@@ -132,7 +129,6 @@ export async function InsightsContent({ externalId, userId }: Props) {
         </div>
       )}
 
-      {/* IG Stats - Only if available */}
       {hasIGData && (
         <>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -160,7 +156,6 @@ export async function InsightsContent({ externalId, userId }: Props) {
         </>
       )}
 
-      {/* App-Level Fallback Data */}
       <AppInsightsData userId={userId} externalId={externalId} />
     </>
   );
