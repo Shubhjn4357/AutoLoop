@@ -73,6 +73,7 @@ export const socialAccounts = sqliteTable("social_accounts", {
 export const automations = sqliteTable("automations", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  externalId: text("external_id"), // link to specific social account (optional for global)
   name: text("name").notNull(),
 
   // Trigger configuration

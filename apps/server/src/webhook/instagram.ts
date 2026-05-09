@@ -84,7 +84,6 @@ export const instagramWebhookHandler = {
               timestamp: value.timestamp,
               rawPayload: value,
             });
-          }
           } else if (field === 'mentions') {
             internalEvents.push({
               eventId: value.media_id || value.comment_id || `mention-${Date.now()}`,

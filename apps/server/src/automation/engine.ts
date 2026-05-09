@@ -284,8 +284,6 @@ export const automationEngine = {
     );
   },
 
-  async interpolateVariables(text: string, userId: string, externalId: string, recipientId: string) {
-
   async checkRateLimits(externalId: string, recipientId: string, cooldownMinutes: number) {
     let state = await db.query.rateLimitState.findFirst({ where: eq(rateLimitState.externalId, externalId) });
     if (!state) {
