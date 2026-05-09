@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, socialAccounts, eq, and } from '@autoloop/db';
 import crypto from 'crypto';
+import { lookup } from 'node:dns/promises';
 import { redisConnection } from '../../config/redis';
 import { 
   fetchIGMedia, 
@@ -11,6 +12,7 @@ import {
   publishIGPost,
   fetchIGProfile
 } from '@autoloop/shared';
+import { emitToUser } from '../../lib/socket';
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v25.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -65,6 +67,7 @@ async function fetchWithRetry(url: string, options: any = {}, retries = 7, backo
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'application/json',
+          'Accept-Language': 'en-US,en;q=0.9',
           ...options.headers
         }
       });
@@ -79,9 +82,19 @@ async function fetchWithRetry(url: string, options: any = {}, retries = 7, backo
       }
       return res;
     } catch (err: any) {
+      if (i > 0) {
+        try {
+          const host = new URL(url).hostname;
+          const addr = await lookup(host);
+          console.log(`[Fetch Retry] DNS Diagnostic for ${host}: ${addr.address} (${addr.family})`);
+        } catch (dnsErr: any) {
+          console.warn(`[Fetch Retry] DNS Diagnostic Failed: ${dnsErr.message}`);
+        }
+      }
+
       if (i === retries - 1) throw err;
       const detailedError = err.cause ? `${err.message} (Cause: ${err.cause.message || err.cause})` : err.message;
-      console.warn(`[Fetch Retry] Network Error: ${detailedError}. Retrying...`);
+      console.warn(`[Fetch Retry] Network Error: ${detailedError}. Retrying in ${backoff * (i + 1)}ms...`);
       await new Promise(r => setTimeout(r, backoff * (i + 1)));
     }
   }
@@ -112,10 +125,11 @@ async function postSubscription(
   params.set("subscribed_fields", fields);
   params.set("access_token", accessToken);
 
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: "POST",
     body: params,
   });
+  if (!res) throw new Error(`Fetch failed for ${label}`);
   const body = await parseMetaResponse(res);
   const ok = res.ok && isSubscriptionSuccess(body);
 
@@ -130,7 +144,8 @@ async function getSubscriptionStatus(label: string, url: string, accessToken: st
   const statusUrl = new URL(url);
   statusUrl.searchParams.set("access_token", accessToken);
 
-  const res = await fetch(statusUrl);
+  const res = await fetchWithRetry(statusUrl.toString());
+  if (!res) throw new Error(`Fetch failed for status ${label}`);
   const body = await parseMetaResponse(res);
 
   console.log(
@@ -140,7 +155,7 @@ async function getSubscriptionStatus(label: string, url: string, accessToken: st
   return { label, status: res.status, body };
 }
 
-async function subscribeToWebhooks(params: {
+async function subscribeToWebhooks(userId: string, params: {
   igId: string;
   pageId: string;
   userAccessToken: string;
@@ -149,9 +164,10 @@ async function subscribeToWebhooks(params: {
   const attempts = [];
   // For Instagram Business Messaging, we primarily subscribe the PAGE.
   // Direct Instagram Account subscription often fails with "Capability" errors and is usually redundant.
+  emitToUser(userId, 'instagram:connecting', { step: 'webhooks', message: 'Configuring Meta Webhooks...' });
 
   const pageSubscriptionUrl = `${GRAPH_BASE}/${params.pageId}/subscribed_apps`;
-  const pageFields = "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads,message_edit,message_reactions,instagram_manage_comments,feed,mentions,story_insights";
+  const pageFields = "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads,message_edits,message_reactions,instagram_manage_comments,feed,mentions,story_insights";
 
   // Retry Page subscription up to 3 times due to network instability
   for (let i = 0; i < 3; i++) {
@@ -301,6 +317,7 @@ instagramRouter.get('/callback', async (c) => {
     await new Promise(r => setTimeout(r, 500));
 
     // 3. Get Pages & IG Business Account
+    emitToUser(userId, 'instagram:connecting', { step: 'pages', message: 'Fetching your Instagram pages...' });
     const pagesRes = await fetchWithRetry(`${GRAPH_BASE}/me/accounts?access_token=${accessToken}&fields=instagram_business_account,name,access_token`);
     const pagesData = await pagesRes!.json();
     if (pagesData.error) throw new Error(pagesData.error.message);
@@ -316,6 +333,7 @@ instagramRouter.get('/callback', async (c) => {
     const accountAccessToken = pageAccessToken || accessToken;
     
     // 3.5 Fetch Profile with retries
+    emitToUser(userId, 'instagram:connecting', { step: 'profile', message: 'Retrieving profile data...' });
     let igProfile: any;
     try {
       igProfile = await fetchIGProfile(igId, accountAccessToken);
@@ -326,7 +344,7 @@ instagramRouter.get('/callback', async (c) => {
     }
 
     // 4. Subscribe the IG/Page account to our app's webhooks.
-    await subscribeToWebhooks({
+    await subscribeToWebhooks(userId, {
       igId,
       pageId,
       userAccessToken: accessToken,
@@ -358,6 +376,8 @@ instagramRouter.get('/callback', async (c) => {
         instagramProfilePicture: igProfile.profile_picture_url,
       });
     }
+
+    emitToUser(userId, 'instagram:connecting', { step: 'done', message: 'Success! Your account is ready.' });
 
     return c.redirect(`${webUrl}/dashboard/settings?success=instagram_connected`);
   } catch (err: any) {

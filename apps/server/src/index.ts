@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
 import dns from 'node:dns';
+import { initSocket } from './lib/socket';
 
 // Stabilize networking for Hugging Face Spaces
 dns.setDefaultResultOrder('ipv4first');
@@ -61,7 +62,9 @@ if (process.env.DISABLE_WORKERS === 'true') {
     .catch((error) => console.error('Failed to start queue scheduler:', error));
 }
 
-serve({
+const server = serve({
   fetch: app.fetch,
   port,
 });
+
+initSocket(server);

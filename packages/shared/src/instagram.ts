@@ -1,3 +1,5 @@
+import { fetchWithRetry } from "./fetch-utils";
+
 export async function sendInstagramMessage(
   actorId: string,
   recipientId: string,
@@ -71,15 +73,14 @@ export async function sendInstagramMessage(
   const retries = 5;
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithRetry(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(30000),
-      });
+      }, 5, 2000);
 
       const data = await res.json();
       if (res.ok) return data;
@@ -108,14 +109,13 @@ export async function replyToInstagramComment(
   let lastError: any = null;
   for (let i = 0; i < 3; i++) {
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithRetry(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(20000),
       });
 
       const data = await res.json();
@@ -158,7 +158,7 @@ export async function getInstagramUserProfile(
   let lastError: any = null;
   for (let i = 0; i < 3; i++) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      const res = await fetchWithRetry(url.toString());
       const data = await res.json();
 
       if (!res.ok) {

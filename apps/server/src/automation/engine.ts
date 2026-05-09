@@ -26,6 +26,7 @@ import {
 } from "@autoloop/shared";
 import { analyzeSentiment, generateSmartReply, trackAnalytics } from "../ai/pipeline";
 import { incomingQueue } from "../queue";
+import { InternalEvent, TriggerType, Workflow, ActionType } from "@autoloop/types";
 
 // Rate limits per Instagram account
 const RATE_LIMITS = {
@@ -35,119 +36,19 @@ const RATE_LIMITS = {
 };
 
 export const automationEngine = {
-  // Process incoming webhook event
-  async processEvent(payload: any) {
-    console.log(`[Webhook] Incoming Event: Object=${payload.object}, Entries=${payload.entry?.length || 0}`);
-    if (payload.object !== "instagram" || !payload.entry) {
-      console.log("[Webhook] Ignored non-instagram event:", JSON.stringify(payload).substring(0, 200));
-      return { success: false, queued: 0 };
-    }
+  // Process incoming normalized event
+  async processEvent(event: InternalEvent) {
+    console.log(`[Engine] Processing Event: ${event.triggerType} from ${event.userId}`);
+    
+    // 1. Log and Queue for auditability
+    await this.queueEvent({
+      eventType: event.triggerType,
+      payload: event,
+      externalId: event.accountId,
+      recipientId: event.userId,
+    });
 
-    let queued = 0;
-    for (const entry of payload.entry) {
-      const externalId = entry.id;
-
-      // Handle DMs (Messaging)
-      if (entry.messaging) {
-        for (const msg of entry.messaging) {
-          const senderId = msg.sender?.id;
-          if (!senderId) continue;
-
-          let eventType = "dm";
-          if (msg.message?.reply_to?.story) {
-            eventType = "story_reply";
-          } else if (msg.message?.is_echo) {
-            eventType = "dm_echo";
-          } else if (msg.reaction) {
-            eventType = "reaction";
-          } else if (msg.postback) {
-            eventType = "dm"; // Treat postbacks as keyword triggers
-          }
-
-          // Don't skip reactions even if they have no text
-          if (!msg.message?.text && !msg.postback?.payload && !msg.reaction) continue;
-
-          await this.queueEvent({
-            eventType,
-            payload: {
-              externalId,
-              senderId,
-              text: msg.message?.text || msg.reaction?.emoji || "",
-              quickReplyPayload: msg.message?.quick_reply?.payload,
-              postbackPayload: msg.postback?.payload,
-              storyId: msg.message?.reply_to?.story?.id,
-              linkStickerUrl: msg.message?.reply_to?.story?.link_sticker_url,
-              reaction: msg.reaction,
-              timestamp: msg.timestamp,
-            },
-            externalId,
-            recipientId: senderId,
-          });
-          queued++;
-        }
-      }
-
-      // Handle Comments, Mentions, and Feed changes
-      if (entry.changes) {
-        for (const change of entry.changes) {
-          const val = change.value;
-          if (!val) continue;
-
-          // Detect Live Comments vs Post Comments vs Mentions
-          const isLive = val.media?.media_product_type === "LIVE" || val.media_product_type === "LIVE";
-          
-          // Mentions can come in 'mentions' field OR in 'feed' field with specific value structure
-          let eventType: string = "comment";
-          if (change.field === "mentions") {
-            eventType = "mention";
-          } else if (change.field === "comments") {
-            eventType = isLive ? "live_comment" : "comment";
-          } else if (change.field === "feed") {
-            // Some mentions or comments arrive via feed
-            if (val.item === "mention") {
-              eventType = "mention";
-            } else if (val.item === "comment") {
-              eventType = isLive ? "live_comment" : "comment";
-            } else {
-              continue; // Unknown feed item
-            }
-          }
-
-          if (change.field === "comments" || change.field === "feed" || change.field === "mentions") {
-            // Only process top-level comments for non-mentions
-            if (eventType !== "mention" && val.parent_id) continue;
-
-            await this.queueEvent({
-              eventType,
-              payload: {
-                externalId,
-                senderId: val.from?.id || val.user_id, // Support different Meta structures
-                text: val.text || val.message || (eventType === "mention" ? "[MENTION]" : ""),
-                mediaId: val.media?.id || val.post_id || val.media_id,
-                commentId: val.id || val.comment_id,
-                timestamp: val.created_time || Date.now(),
-              },
-              externalId,
-              recipientId: val.from?.id || val.user_id,
-            });
-            queued++;
-          } else if (change.field === "follows" && val.action === "follow") {
-            await this.queueEvent({
-              eventType: "follow",
-              payload: {
-                externalId,
-                senderId: val.from.id,
-                followerUsername: val.from.username,
-              },
-              externalId,
-              recipientId: val.from.id,
-            });
-            queued++;
-          }
-        }
-      }
-    }
-    return { success: true, queued };
+    return { success: true, queued: 1 };
   },
 
   // Queue a new event for processing
@@ -200,24 +101,38 @@ export const automationEngine = {
     await db.update(eventQueue).set({ status: "processing", attempts: (event.attempts || 0) + 1 }).where(eq(eventQueue.id, eventId));
 
     try {
-      const payload = JSON.parse(event.payload);
+      const eventData: InternalEvent = JSON.parse(event.payload);
 
-      switch (event.eventType) {
-        case "dm":
-        case "story_reply":
-          await this.handleDM(payload, event.eventType);
-          break;
-        case "comment":
-          await this.handleComment(payload);
-          break;
-        case "follow":
-          await this.handleFollow(payload);
-          break;
-        case "mention":
-          await this.handleMention(payload);
-          break;
-        default:
-          throw new Error(`Unknown event type: ${event.eventType}`);
+      // 1. Condition Engine Logic
+      const workflows = await db.query.automations.findMany({
+        where: and(
+          eq(automations.externalId, event.externalId || ""),
+          eq(automations.triggerType, eventData.triggerType),
+          eq(automations.isActive, true)
+        ),
+        orderBy: [desc(automations.priority)],
+      });
+
+      console.log(`[Engine] Matching ${workflows.length} workflows for event ${event.id}`);
+
+      for (const workflow of workflows) {
+        // Evaluate conditions
+        const matches = matchesAutomationCondition(
+          workflow.conditionOperator || 'contains', 
+          workflow.condition || '', 
+          eventData.message || ""
+        );
+
+        if (!matches) continue;
+
+        console.log(`[Engine] Workflow triggered: ${workflow.name}`);
+        
+        // 2. Action System Execution
+        await this.handleWorkflowExecution(workflow, eventData);
+        
+        // Follow prompt: "Execute Actions... Pick randomly... variation engine"
+        // For now, we process first matching workflow
+        break;
       }
 
       await db.update(eventQueue).set({ status: "completed", processedAt: new Date() }).where(eq(eventQueue.id, eventId));
@@ -233,358 +148,143 @@ export const automationEngine = {
     }
   },
 
-  async handleDM(payload: any, eventType: string) {
-    const { externalId, senderId, text, quickReplyPayload, postbackPayload } = payload;
-    const account = await db.query.socialAccounts.findFirst({ where: eq(socialAccounts.externalId, externalId) });
+  // NEW: Modular Workflow Executor
+  async handleWorkflowExecution(workflow: any, event: InternalEvent) {
+    const account = await db.query.socialAccounts.findFirst({ 
+      where: eq(socialAccounts.externalId, event.accountId) 
+    });
     if (!account?.accessToken) return;
 
-    // Handle Follower-Check Quick Reply or Postback
-    const followCheckId = quickReplyPayload?.startsWith('CHECK_FOLLOW_') ? quickReplyPayload.replace('CHECK_FOLLOW_', '') : 
-                         postbackPayload?.startsWith('CHECK_FOLLOW_') ? postbackPayload.replace('CHECK_FOLLOW_', '') : null;
-
-    if (followCheckId) {
-      try {
-        console.log(`[Engine] Re-checking follow status for user ${senderId} (Rule: ${followCheckId})`);
-        const profile = await getInstagramUserProfile(senderId, account.accessToken);
-        
-        if (profile.is_user_follow_business) {
-          const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
-          if (rule) {
-            console.log(`[Engine] User ${senderId} confirmed following. Executing automation ${followCheckId}.`);
-            // Immediate positive reinforcement
-            await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `Awesome! Thanks for following. Here is the info I promised:`, account.accessToken);
-            await this.executeAutomation(rule, account, senderId, text || "confirmed follow", crypto.randomUUID(), undefined, true);
-            return;
-          }
-        } else {
-          console.log(`[Engine] User ${senderId} still NOT following. Resending gate.`);
-          const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
-          const gateMessage = rule?.followerGateTemplate || `Oops! It looks like you aren't following me yet. Please follow and then click the button again!`;
-          const followButtonText = rule?.followerGateButtonText || `Follow Me`;
-          
-          await sendInstagramMessage((account.pageId || account.externalId)!, senderId, 
-            gateMessage, 
-            account.accessToken,
-            {
-              buttons: [
-                { type: 'web_url', url: `https://instagram.com/${account.instagramUsername || ''}`, title: followButtonText },
-                { type: 'postback', title: `I'm Following! ✅`, payload: `CHECK_FOLLOW_${followCheckId}` }
-              ]
-            }
-          );
-          return;
-        }
-      } catch (profileError: any) {
-        console.error(`[Engine] Follower re-check failed for ${senderId}: ${profileError.message}`);
-        // If it's a network error, we might want to tell them to wait 2 seconds and try again
-        await sendInstagramMessage((account.pageId || account.externalId)!, senderId, 
-          `I'm having a bit of trouble checking your status due to a connection glitch. Please wait 5 seconds and click "I'm Following" again!`, 
-          account.accessToken
-        );
-        return;
-      }
-    }
-
-
-    // 1. Store incoming message
-    const messageId = crypto.randomUUID();
-    await db.insert(dbMessages).values({
-      id: messageId,
-      userId: account.userId,
-      externalId,
-      senderId,
-      direction: "inbound",
-      status: "received",
-      text,
-      timestamp: new Date(payload.timestamp || Date.now()),
-    });
-
-    // 2. Analyze sentiment (DISABLED for now to save AI quota)
-    /*
-    const { sentiment } = await analyzeSentiment(text);
-    await db.update(dbMessages).set({ sentiment }).where(eq(dbMessages.id, messageId));
-    */
-    const sentiment = "neutral";
-
-    // 3. Upsert contact
-    await this.upsertContact(account.userId, externalId, senderId, account.accessToken);
-
-    // 4. Log notification
-    await this.createNotificationLog({
-      userId: account.userId,
-      type: "message.received",
-      title: "Incoming Instagram DM",
-      message: `From ${senderId}: "${text.substring(0, 50)}..."`,
-      metadata: { externalId, senderId, messageId, sentiment },
-    });
-
-    // 5. Execute automations
-    const rules = await db.query.automations.findMany({
-      where: and(
-        eq(automations.userId, account.userId),
-        eq(automations.triggerType, eventType),
-        eq(automations.isActive, true)
-      ),
-      orderBy: [desc(automations.priority)],
-    });
-
-    for (const rule of rules) {
-      if (rule.targetPostId && rule.targetPostId !== payload.storyId) continue;
-      if (!matchesAutomationCondition(rule.conditionOperator || 'contains', rule.condition || '', text)) continue;
-
-      console.log(`[Automation] Triggered rule: "${rule.name}" (ID: ${rule.id})`);
-      console.log(`[Automation] Data - URL: ${rule.targetUrl || "None"}, Button: ${rule.linkText || "Default"}, AI: ${rule.aiEnabled}`);
-
-      // Rate limit check
-      const rateCheck = await this.checkRateLimits(externalId, senderId, rule.cooldownMinutes || 5);
-      if (!rateCheck.allowed) {
-        // Instead of skipping, check if we already have a pending message for this user/automation
-        const alreadyQueued = await db.query.scheduledMessages.findFirst({
-          where: and(
-            eq(scheduledMessages.externalId, externalId),
-            eq(scheduledMessages.recipientId, senderId),
-            eq(scheduledMessages.automationId, rule.id),
-            eq(scheduledMessages.status, "pending")
-          )
-        });
-
-        if (!alreadyQueued) {
-          console.log(`[Automation] Cooldown active. Queuing response for ${senderId} in ${Math.round(rateCheck.retryAfterMs / 1000)}s`);
-          await this.scheduleFollowUp(
-            account.userId, 
-            rule.id, 
-            externalId, 
-            senderId, 
-            rule.dmTemplate, 
-            Math.ceil(rateCheck.retryAfterMs / 60000),
-            rule.targetUrl,
-            rule.linkText
-          );
-        }
-        continue;
-      }
-
-      await this.executeAutomation(rule, account, senderId, text, messageId);
-      break;
-    }
-  },
-
-  async handleComment(payload: any) {
-    const { externalId, senderId, text, commentId, mediaId } = payload;
-    const account = await db.query.socialAccounts.findFirst({ where: eq(socialAccounts.externalId, externalId) });
-    if (!account?.accessToken) return;
-
-    const rules = await db.query.automations.findMany({
-      where: and(
-        eq(automations.userId, account.userId),
-        eq(automations.triggerType, "comment"),
-        eq(automations.isActive, true)
-      ),
-      orderBy: [desc(automations.priority)],
-    });
-
-    for (const rule of rules) {
-      if (rule.targetPostId && rule.targetPostId !== mediaId) continue;
-      if (!matchesAutomationCondition(rule.conditionOperator || 'contains', rule.condition || '', text)) continue;
-
-      await this.executeAutomation(rule, account, senderId, text, undefined, commentId);
-      break;
-    }
-  },
-
-  async handleFollow(payload: any) {
-    const { externalId, senderId, followerUsername } = payload;
-    const account = await db.query.socialAccounts.findFirst({ where: eq(socialAccounts.externalId, externalId) });
-    if (!account?.accessToken) return;
-
-    const rules = await db.query.automations.findMany({
-      where: and(
-        eq(automations.userId, account.userId),
-        eq(automations.triggerType, "follow"),
-        eq(automations.isActive, true)
-      ),
-      orderBy: [desc(automations.priority)],
-    });
-
-    for (const rule of rules) {
-      await this.executeAutomation(rule, account, senderId, `[NEW_FOLLOW] ${followerUsername || senderId}`);
-      break;
-    }
-  },
-
-  async handleMention(payload: any) {
-    const { externalId, senderId, text, commentId, mediaId } = payload;
-    const account = await db.query.socialAccounts.findFirst({ where: eq(socialAccounts.externalId, externalId) });
-    if (!account?.accessToken) return;
-
-    const rules = await db.query.automations.findMany({
-      where: and(
-        eq(automations.userId, account.userId),
-        eq(automations.triggerType, "mention"),
-        eq(automations.isActive, true)
-      ),
-      orderBy: [desc(automations.priority)],
-    });
-
-    for (const rule of rules) {
-      if (rule.targetPostId && rule.targetPostId !== mediaId) continue;
-      if (!matchesAutomationCondition(rule.conditionOperator || 'contains', rule.condition || '', text)) continue;
-
-      await this.executeAutomation(rule, account, senderId, text, undefined, commentId);
-      break;
-    }
-  },
-
-  async executeAutomation(rule: any, account: any, recipientId: string, messageText: string, messageId?: string, commentId?: string, skipFollowCheck = false) {
-    // 1. Follower requirement logic (Apply to ALL triggers: DM, Comment, Mention, etc.)
-    if (rule.requireFollower && !skipFollowCheck) {
-      const profile = await getInstagramUserProfile(recipientId, account.accessToken).catch(() => null);
+    // 1. Follower Gate Check (Deterministic Condition)
+    if (workflow.requireFollower) {
+      const profile = await getInstagramUserProfile(event.userId, account.accessToken).catch(() => null);
       if (profile && !profile.is_user_follow_business) {
-        console.log(`[Automation] User ${recipientId} not following. Sending follower-gate for rule ${rule.id}`);
-        
-        // Send professional "Follow Me" template with custom buttons
-        const gateMessage = rule.followerGateTemplate || `Hey there! Please follow me first to unlock this automation. Once you follow, click the button below!`;
-        const followButtonText = rule.followerGateButtonText || `Follow Me`;
-        const confirmButtonText = `I'm Following! ✅`;
-        
-        await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, 
-          gateMessage, 
-          account.accessToken,
-          {
-            buttons: [
-              { type: 'web_url', url: `https://instagram.com/${account.instagramUsername || ''}`, title: followButtonText },
-              { type: 'postback', title: confirmButtonText, payload: `CHECK_FOLLOW_${rule.id}` }
-            ]
-          }
-        );
-        return; // Stop here until they follow
+         // Execute Follower Gate Action
+         await this.executeAction({
+           id: 'gate',
+           type: ActionType.SEND_DM,
+           payload: {
+             message: workflow.followerGateTemplate || "Please follow to continue!",
+             buttons: [
+               { type: 'web_url', url: `https://instagram.com/${account.instagramUsername}`, title: workflow.followerGateButtonText || "Follow Me" },
+               { type: 'postback', title: "I'm Following!", payload: `CHECK_FOLLOW_${workflow.id}` }
+             ]
+           }
+         }, account, event.userId);
+         return;
       }
     }
 
-    let dmContent = rule.dmTemplate;
+    // 2. Map Legacy Fields to Action List
+    const actions: any[] = [];
 
-    // AI Support
-    if (rule.aiEnabled && rule.aiPrompt) {
-      const conversation = await db.query.aiConversations.findFirst({
-        where: and(eq(aiConversations.externalId, account.externalId), eq(aiConversations.recipientId, recipientId)),
+    // Public Comment Reply
+    if (event.commentId && workflow.responseTemplate) {
+      actions.push({
+        id: 'comment-reply',
+        type: ActionType.REPLY_COMMENT,
+        payload: { message: workflow.responseTemplate, commentId: event.commentId }
       });
+    }
 
-      const aiResponse = await generateSmartReply({
-        userMessage: messageText,
-        prompt: rule.aiPrompt,
-        context: conversation?.context || undefined,
+    // Main DM
+    if (workflow.dmTemplate) {
+      actions.push({
+        id: 'main-dm',
+        type: ActionType.SEND_DM,
+        payload: { 
+          message: workflow.dmTemplate,
+          targetUrl: workflow.targetUrl,
+          linkText: workflow.linkText,
+          aiEnabled: workflow.aiEnabled,
+          aiPrompt: workflow.aiPrompt
+        }
       });
+    }
 
-      if (aiResponse?.reply) {
-        dmContent = aiResponse.reply;
-        // Update context (best effort)
-        const newHistory = [...(conversation?.context ? JSON.parse(conversation.context).history : []).slice(-4), { role: "user", content: messageText }, { role: "assistant", content: dmContent }];
-        await db.insert(aiConversations).values({
-          id: crypto.randomUUID(),
-          userId: rule.userId,
-          externalId: account.externalId,
-          recipientId,
-          context: JSON.stringify({ history: newHistory }),
-          intent: aiResponse.intent || "unknown",
-          lastMessageAt: new Date(),
-        }).onConflictDoUpdate({
-          target: [aiConversations.externalId, aiConversations.recipientId],
-          set: { context: JSON.stringify({ history: newHistory }), intent: aiResponse.intent || "unknown", lastMessageAt: new Date() }
-        });
+    // Follow-ups
+    if (workflow.followUpTemplate) {
+      actions.push({
+        id: 'follow-up-1',
+        type: ActionType.SEND_DM,
+        delay: workflow.followUpDelayMinutes || 60,
+        payload: { message: workflow.followUpTemplate, targetUrl: workflow.followUpUrl, linkText: workflow.followUpUrlText }
+      });
+    }
+
+    // 3. Execute Actions
+    for (const action of actions) {
+      if (action.delay && action.delay > 0) {
+        await this.scheduleAction(action, workflow.id, account, event.userId);
+      } else {
+        await this.executeAction(action, account, event.userId, event.message);
       }
     }
 
-    const interpolatedDM = await this.interpolateVariables(dmContent, rule.userId, account.externalId, recipientId);
-    
-    // Send Public Comment Reply
-    if (commentId && rule.responseTemplate) {
-      const interpolatedReply = await this.interpolateVariables(rule.responseTemplate, rule.userId, account.externalId, recipientId);
-      await replyToInstagramComment(commentId, interpolatedReply, account.accessToken);
-    }
-
-    // Auto-Like Engagement
-    if (commentId && rule.autoLike) {
-      console.log(`[Automation] Auto-liking comment: ${commentId}`);
-      await likeMediaOrComment(account.externalId, commentId, account.accessToken, 'POST', 'comment_id').catch(err => {
-        console.warn(`[Automation] Auto-like failed: ${err.message}`);
-      });
-    }
-
-    // Send Main DM with Button support
-    if (interpolatedDM.trim()) {
-      const buttons: any[] = [];
-      const targetUrl = rule.targetUrl;
-      const linkText = rule.linkText || (targetUrl ? "Visit Website" : null);
-
-      if (targetUrl && linkText) {
-        console.log(`[Automation] Attaching button to DM: "${linkText}" -> ${targetUrl}`);
-        buttons.push({ type: 'web_url' as const, url: targetUrl, title: linkText });
-      }
-
-      // Multi-Media Support
-      const mediaUrls = rule.mediaUrls ? JSON.parse(rule.mediaUrls) : undefined;
-      const attachmentIds = rule.attachmentIds ? JSON.parse(rule.attachmentIds) : undefined;
-
-      await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolatedDM, account.accessToken, { 
-        buttons,
-        mediaUrls,
-        attachmentIds
-      });
-      
-      await db.insert(dbMessages).values({
-        id: crypto.randomUUID(),
-        userId: rule.userId,
-        externalId: account.externalId,
-        senderId: recipientId,
-        automationId: rule.id,
-        direction: "outbound",
-        status: "sent",
-        text: interpolatedDM,
-        timestamp: new Date(),
-      });
-    }
-
-    // Handle Sequential / Immediate Follow-up
-    if (rule.followUpTemplate && (rule.followUpDelayMinutes || 0) === 0) {
-      const interpolatedFollowUp = await this.interpolateVariables(rule.followUpTemplate, rule.userId, account.externalId, recipientId);
-      const fuButtons: any[] = [];
-      const fuUrl = rule.followUpUrl;
-      const fuText = rule.followUpUrlText || (fuUrl ? "Learn More" : null);
-
-      if (fuUrl && fuText) {
-        fuButtons.push({ type: 'web_url' as const, url: fuUrl, title: fuText });
-      }
-      await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolatedFollowUp, account.accessToken, { buttons: fuButtons });
-    } else if (rule.followUpTemplate) {
-      await this.scheduleFollowUp(
-        rule.userId, 
-        rule.id, 
-        account.externalId, 
-        recipientId, 
-        rule.followUpTemplate, 
-        rule.followUpDelayMinutes || 60,
-        rule.followUpUrl,
-        rule.followUpUrlText
-      );
-    }
-
-    if (rule.followUp2Template) {
-      await this.scheduleFollowUp(
-        rule.userId, 
-        rule.id, 
-        account.externalId, 
-        recipientId, 
-        rule.followUp2Template, 
-        rule.followUp2DelayMinutes || 1440,
-        rule.followUp2Url,
-        rule.followUp2UrlText
-      );
-    }
-
-    // Track Metrics & Analytics
-    await this.trackAutomationMetrics(rule.userId, rule.id);
-    await trackAnalytics({ userId: rule.userId, eventType: "automation_triggered", automationId: rule.id, externalId: account.externalId, recipientId });
+    // Track Metrics
+    await this.trackAutomationMetrics(workflow.userId, workflow.id);
   },
+
+  async executeAction(action: any, account: any, recipientId: string, triggerText?: string) {
+    console.log(`[Action] Executing ${action.type} for ${recipientId}`);
+    
+    try {
+      switch (action.type) {
+        case ActionType.SEND_DM:
+          await this.executeDMAction(action, account, recipientId, triggerText);
+          break;
+        case ActionType.REPLY_COMMENT:
+          const interpolated = await this.interpolateVariables(action.payload.message, account.userId, account.externalId, recipientId);
+          await replyToInstagramComment(action.payload.commentId, interpolated, account.accessToken);
+          break;
+        // Add more action handlers
+      }
+    } catch (err: any) {
+      console.error(`[Action] Failed: ${err.message}`);
+      throw err;
+    }
+  },
+
+  async executeDMAction(action: any, account: any, recipientId: string, triggerText?: string) {
+    let message = action.payload.message;
+
+    // AI Generation if enabled
+    if (action.payload.aiEnabled && triggerText) {
+       const aiResponse = await generateSmartReply({
+         userMessage: triggerText,
+         prompt: action.payload.aiPrompt,
+       });
+       if (aiResponse?.reply) message = aiResponse.reply;
+    }
+
+    const interpolated = await this.interpolateVariables(message, account.userId, account.externalId, recipientId);
+    
+    const buttons = [];
+    if (action.payload.targetUrl) {
+      buttons.push({ type: 'web_url' as const, url: action.payload.targetUrl, title: action.payload.linkText || "Learn More" });
+    }
+    if (action.payload.buttons) {
+      buttons.push(...action.payload.buttons);
+    }
+
+    await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolated, account.accessToken, { buttons });
+  },
+
+  async scheduleAction(action: any, workflowId: string, account: any, recipientId: string) {
+    console.log(`[Scheduler] Queuing ${action.type} in ${action.delay}m`);
+    await this.scheduleFollowUp(
+      account.userId,
+      workflowId,
+      account.externalId,
+      recipientId,
+      action.payload.message,
+      action.delay,
+      action.payload.targetUrl,
+      action.payload.linkText
+    );
+  },
+
+  async interpolateVariables(text: string, userId: string, externalId: string, recipientId: string) {
 
   async checkRateLimits(externalId: string, recipientId: string, cooldownMinutes: number) {
     let state = await db.query.rateLimitState.findFirst({ where: eq(rateLimitState.externalId, externalId) });

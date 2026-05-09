@@ -1,5 +1,6 @@
 import { Context } from 'hono';
 import crypto from 'crypto';
+import { emitToUser } from '../lib/socket';
 
 function isValidMetaSignature(rawBody: string, signatureHeader?: string) {
   const appSecret = process.env.META_APP_SECRET || process.env.FACEBOOK_CLIENT_SECRET;
@@ -55,12 +56,92 @@ export const instagramWebhookHandler = {
       
       const body = JSON.parse(rawBody);
       const { incomingQueue } = await import('../queue');
+      const { TriggerType } = await import('@autoloop/types');
 
-      // Acknowledge immediately to avoid Meta retries
-      await incomingQueue.add('webhook-event', body, {
-        removeOnComplete: true,
-        attempts: 1,
-      });
+      // Event Normalizer
+      const entries = body.entry || [];
+      const internalEvents: any[] = [];
+
+      for (const entry of entries) {
+        const accountId = entry.id;
+        const changes = entry.changes || [];
+        const messaging = entry.messaging || [];
+
+        // Handle Comments/Mentions (Changes)
+        for (const change of changes) {
+          const { field, value } = change;
+          if (field === 'comments') {
+            internalEvents.push({
+              eventId: value.id,
+              platform: 'instagram',
+              triggerType: TriggerType.COMMENT,
+              accountId,
+              userId: value.from.id,
+              username: value.from.username,
+              message: value.text,
+              commentId: value.id,
+              mediaId: value.media?.id,
+              timestamp: value.timestamp,
+              rawPayload: value,
+            });
+          }
+          } else if (field === 'mentions') {
+            internalEvents.push({
+              eventId: value.media_id || value.comment_id || `mention-${Date.now()}`,
+              platform: 'instagram',
+              triggerType: TriggerType.MENTION,
+              accountId,
+              userId: value.from?.id,
+              username: value.from?.username || '',
+              message: value.text || 'Mentioned you',
+              mediaId: value.media_id,
+              commentId: value.comment_id,
+              timestamp: value.timestamp || Math.floor(Date.now() / 1000),
+              rawPayload: value,
+            });
+          }
+        }
+
+        // Handle DMs (Messaging)
+        for (const msg of messaging) {
+          const senderId = msg.sender?.id;
+          const recipientId = msg.recipient?.id;
+          const timestamp = msg.timestamp;
+          
+          if (msg.message) {
+            const isStoryReply = !!msg.message.reply_to?.story;
+            internalEvents.push({
+              eventId: msg.message.mid,
+              platform: 'instagram',
+              triggerType: isStoryReply ? TriggerType.STORY_REPLY : TriggerType.DM,
+              accountId: recipientId, // The bot's ID
+              userId: senderId,
+              username: '', // Username not always in raw DM payload
+              message: msg.message.text,
+              timestamp,
+              rawPayload: msg,
+            });
+          }
+        }
+      }
+
+      // Dispatch normalized events to queue
+      for (const event of internalEvents) {
+        await incomingQueue.add('webhook-event', event, {
+          removeOnComplete: true,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+        });
+
+        // 2. Real-time update to dashboard
+        const { db, socialAccounts, eq } = await import('@autoloop/db');
+        const account = await db.query.socialAccounts.findFirst({
+          where: eq(socialAccounts.externalId, event.accountId || "")
+        });
+        if (account) {
+          emitToUser(account.userId, 'instagram:event', event);
+        }
+      }
 
       return c.text('EVENT_RECEIVED', 200);
     } catch (error: any) {
