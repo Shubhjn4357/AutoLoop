@@ -74,33 +74,22 @@ export const automationEngine = {
           const val = change.value;
           if (!val) continue;
 
-          if (change.field === "comments" || change.field === "feed") {
-            // Only process top-level comments
-            if (val.parent_id) continue;
+          // Detect Live Comments vs Post Comments
+          const isLive = val.media?.media_product_type === "LIVE" || val.media_product_type === "LIVE";
+          const eventType = change.field === "mentions" ? "mention" : (isLive ? "live_comment" : "comment");
+
+          if (change.field === "comments" || change.field === "feed" || change.field === "mentions") {
+            // Only process top-level comments for non-mentions
+            if (change.field !== "mentions" && val.parent_id) continue;
 
             await this.queueEvent({
-              eventType: "comment",
+              eventType,
               payload: {
                 externalId,
                 senderId: val.from?.id,
-                text: val.text || val.message || "",
+                text: val.text || val.message || (change.field === "mentions" ? "[MENTION]" : ""),
                 mediaId: val.media?.id || val.post_id,
                 commentId: val.id || val.comment_id,
-                timestamp: val.created_time,
-              },
-              externalId,
-              recipientId: val.from?.id,
-            });
-            queued++;
-          } else if (change.field === "mentions") {
-            await this.queueEvent({
-              eventType: "mention",
-              payload: {
-                externalId,
-                senderId: val.from?.id,
-                text: val.text || "[STORY_MENTION]",
-                mediaId: val.media?.id,
-                commentId: val.id,
                 timestamp: val.created_time,
               },
               externalId,
@@ -220,29 +209,31 @@ export const automationEngine = {
 
     if (followCheckId) {
       try {
+        console.log(`[Engine] Re-checking follow status for user ${senderId} (Rule: ${followCheckId})`);
         const profile = await getInstagramUserProfile(senderId, account.accessToken);
+        
         if (profile.is_user_follow_business) {
           const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
           if (rule) {
-            console.log(`[Engine] User ${senderId} confirmed following for rule ${followCheckId}. Executing automation.`);
-            await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `Awesome! Thanks for following. Here is what I promised:`, account.accessToken);
-            await this.executeAutomation(rule, account, senderId, text, crypto.randomUUID(), undefined, true);
+            console.log(`[Engine] User ${senderId} confirmed following. Executing automation ${followCheckId}.`);
+            // Immediate positive reinforcement
+            await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `Awesome! Thanks for following. Here is the info I promised:`, account.accessToken);
+            await this.executeAutomation(rule, account, senderId, text || "confirmed follow", crypto.randomUUID(), undefined, true);
             return;
           }
         } else {
-          // Resend the professional gate message with buttons so they can try again easily
+          console.log(`[Engine] User ${senderId} still NOT following. Resending gate.`);
           const rule = await db.query.automations.findFirst({ where: eq(automations.id, followCheckId) });
-          const gateMessage = rule?.followerGateTemplate || `Oops! It looks like you aren't following me yet. Please follow and then click again!`;
+          const gateMessage = rule?.followerGateTemplate || `Oops! It looks like you aren't following me yet. Please follow and then click the button again!`;
           const followButtonText = rule?.followerGateButtonText || `Follow Me`;
-          const confirmButtonText = `I'm Following! ✅`;
-
+          
           await sendInstagramMessage((account.pageId || account.externalId)!, senderId, 
             gateMessage, 
             account.accessToken,
             {
               buttons: [
                 { type: 'web_url', url: `https://instagram.com/${account.instagramUsername || ''}`, title: followButtonText },
-                { type: 'postback', title: confirmButtonText, payload: `CHECK_FOLLOW_${followCheckId}` }
+                { type: 'postback', title: `I'm Following! ✅`, payload: `CHECK_FOLLOW_${followCheckId}` }
               ]
             }
           );
@@ -250,8 +241,11 @@ export const automationEngine = {
         }
       } catch (profileError: any) {
         console.error(`[Engine] Follower re-check failed for ${senderId}: ${profileError.message}`);
-        // Fallback: inform user and let them try again later
-        await sendInstagramMessage((account.pageId || account.externalId)!, senderId, `I'm having trouble checking your follow status right now. Please try again in a moment!`, account.accessToken);
+        // If it's a network error, we might want to tell them to wait 2 seconds and try again
+        await sendInstagramMessage((account.pageId || account.externalId)!, senderId, 
+          `I'm having a bit of trouble checking your status due to a connection glitch. Please wait 5 seconds and click "I'm Following" again!`, 
+          account.accessToken
+        );
         return;
       }
     }
@@ -486,11 +480,29 @@ export const automationEngine = {
       }
       await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, interpolatedFollowUp, account.accessToken, { buttons: fuButtons });
     } else if (rule.followUpTemplate) {
-      await this.scheduleFollowUp(rule.userId, rule.id, account.externalId, recipientId, rule.followUpTemplate, rule.followUpDelayMinutes || 60);
+      await this.scheduleFollowUp(
+        rule.userId, 
+        rule.id, 
+        account.externalId, 
+        recipientId, 
+        rule.followUpTemplate, 
+        rule.followUpDelayMinutes || 60,
+        rule.followUpUrl,
+        rule.followUpUrlText
+      );
     }
 
     if (rule.followUp2Template) {
-      await this.scheduleFollowUp(rule.userId, rule.id, account.externalId, recipientId, rule.followUp2Template, rule.followUp2DelayMinutes || 1440);
+      await this.scheduleFollowUp(
+        rule.userId, 
+        rule.id, 
+        account.externalId, 
+        recipientId, 
+        rule.followUp2Template, 
+        rule.followUp2DelayMinutes || 1440,
+        rule.followUp2Url,
+        rule.followUp2UrlText
+      );
     }
 
     // Track Metrics & Analytics
@@ -557,7 +569,16 @@ export const automationEngine = {
     }
   },
 
-  async scheduleFollowUp(userId: string, automationId: string, externalId: string, recipientId: string, template: string, delayMinutes: number) {
+  async scheduleFollowUp(
+    userId: string, 
+    automationId: string, 
+    externalId: string, 
+    recipientId: string, 
+    template: string, 
+    delayMinutes: number,
+    targetUrl?: string | null,
+    linkText?: string | null
+  ) {
     await db.insert(scheduledMessages).values({
       id: crypto.randomUUID(),
       userId,
@@ -565,6 +586,8 @@ export const automationEngine = {
       externalId,
       recipientId,
       messageText: template,
+      targetUrl: targetUrl || null,
+      linkText: linkText || null,
       status: "pending",
       dueAt: new Date(Date.now() + delayMinutes * 60000),
     });
@@ -601,18 +624,19 @@ export const automationEngine = {
     try {
       const interpolated = await this.interpolateVariables(msg.messageText, msg.userId, msg.externalId, msg.recipientId);
       
-      // Support buttons in follow-ups
+      // Support buttons in follow-ups from stored data
       const buttons: any[] = [];
-      if (msg.automationId) {
+      if (msg.targetUrl) {
+        const btnText = msg.linkText || "Learn More";
+        buttons.push({ type: 'web_url' as const, url: msg.targetUrl, title: btnText });
+      } else if (msg.automationId) {
+        // Fallback to rule search if not in msg (legacy support)
         const rule = await db.query.automations.findFirst({ where: eq(automations.id, msg.automationId) });
         if (rule) {
-          // If this text matches follow-up 1 or 2, use their respective buttons
           if (msg.messageText === rule.followUpTemplate && rule.followUpUrl) {
-            const fuText = rule.followUpUrlText || "Learn More";
-            buttons.push({ type: 'web_url' as const, url: rule.followUpUrl, title: fuText });
+            buttons.push({ type: 'web_url' as const, url: rule.followUpUrl, title: rule.followUpUrlText || "Learn More" });
           } else if (msg.messageText === rule.followUp2Template && rule.followUp2Url) {
-            const fu2Text = rule.followUp2UrlText || "Get Details";
-            buttons.push({ type: 'web_url' as const, url: rule.followUp2Url, title: fu2Text });
+            buttons.push({ type: 'web_url' as const, url: rule.followUp2Url, title: rule.followUp2UrlText || "Get Details" });
           }
         }
       }

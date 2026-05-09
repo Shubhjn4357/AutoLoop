@@ -28,8 +28,8 @@ async function graphFetch<T>(
 
   for (let i = 0; i < retries; i++) {
     try {
-      // Use a slightly shorter timeout for initial attempts to fail fast on stuck connections
-      const timeout = i === 0 ? 15000 : 30000;
+      // Aggressive timeouts for production stability
+      const timeout = i === 0 ? 30000 : 45000;
       const res = await fetch(url.toString(), { signal: AbortSignal.timeout(timeout) });
       
       if (!res.ok) {
@@ -38,7 +38,7 @@ async function graphFetch<T>(
         
         // If it's a rate limit (429) or server error (5xx), we should retry
         if (i < retries - 1 && (res.status === 429 || res.status >= 500)) {
-          const delay = Math.pow(2, i) * 1000;
+          const delay = Math.pow(2, i) * 2000; // Increased delay
           console.warn(`[GraphFetch] ${res.status} error. Retrying in ${delay}ms...`);
           await new Promise(r => setTimeout(r, delay));
           continue;
@@ -47,10 +47,10 @@ async function graphFetch<T>(
       }
       return res.json() as Promise<T>;
     } catch (err: any) {
-      const isNetworkError = err.name === 'AbortError' || err.message.includes('fetch failed') || err.message.includes('timeout');
+      const isNetworkError = err.name === 'AbortError' || err.message.includes('fetch failed') || err.message.includes('timeout') || err.name === 'TimeoutError';
       
       if (i < retries - 1 && isNetworkError) {
-        const delay = Math.pow(2, i) * 2000; // Longer delay for network errors
+        const delay = Math.pow(2, i) * 3000; // Even longer delay for network errors
         console.warn(`[GraphFetch] Network error: ${err.message}. Retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
         await new Promise(r => setTimeout(r, delay));
         continue;
@@ -266,6 +266,7 @@ export async function fuzzySearchIGUsers(
   if (hashtags.length === 0) return [];
   const topHashtag = hashtags[0];
   const media = await getHashtagRecentMedia(topHashtag.id, accessToken, 50);
+
 
   const usernameMap = new Map<string, { count: number; sample: HashtagMedia }>();
 

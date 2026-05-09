@@ -141,7 +141,7 @@ async function subscribeToWebhooks(params: {
   // Direct Instagram Account subscription often fails with "Capability" errors and is usually redundant.
 
   const pageSubscriptionUrl = `${GRAPH_BASE}/${params.pageId}/subscribed_apps`;
-  const pageFields = "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads,instagram_manage_comments,feed";
+  const pageFields = "messages,messaging_postbacks,messaging_optins,message_deliveries,message_reads,instagram_manage_comments,feed,mentions,story_insights";
 
   // Retry Page subscription up to 3 times due to network instability
   for (let i = 0; i < 3; i++) {

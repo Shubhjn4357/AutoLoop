@@ -584,40 +584,65 @@ export function SimpleAutomationBuilder({
                     </div>
 
                     {rule.targetPostId ? (
-                      <div className="space-y-3">
-                        <p className="text-xs text-muted-foreground">Select the post or story this rule should apply to:</p>
-                        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar snap-x">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+                          <span>Currently Selected Content:</span>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setRule({ ...rule, targetPostId: null })}
+                          >
+                            Deselect All
+                          </Button>
+                        </div>
+                        
+                        <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x">
                           {loadingMedia ? (
                             Array.from({ length: 5 }).map((_, i) => (
-                              <div key={i} className="shrink-0 w-24 aspect-square rounded-xl bg-muted animate-pulse" />
+                              <div key={i} className="shrink-0 w-32 aspect-square rounded-2xl bg-muted animate-pulse" />
                             ))
                           ) : media.length === 0 ? (
-                            <p className="text-xs italic text-muted-foreground py-4 text-center w-full">No media found on your account.</p>
+                            <p className="text-xs italic text-muted-foreground py-8 text-center w-full">No media found on your account.</p>
                           ) : (
-                            media.map((m) => (
-                              <button
-                                key={m.id}
-                                onClick={() => setRule({ ...rule, targetPostId: m.id })}
-                                className={cn(
-                                  "shrink-0 w-24 aspect-square rounded-xl overflow-hidden border-2 transition-all snap-start",
-                                  rule.targetPostId === m.id ? "border-primary scale-105 shadow-lg" : "border-transparent opacity-60 grayscale hover:grayscale-0"
-                                )}
-                              >
-                                <Image src={m.thumbnail_url || m.media_url || ""} alt="post" width={96} height={96} className="object-cover size-full" unoptimized />
-                              </button>
-                            ))
+                            media.map((m) => {
+                              const isSelected = rule.targetPostId === m.id;
+                              return (
+                                <div key={m.id} className="relative shrink-0 snap-center group">
+                                  <button
+                                    onClick={() => setRule({ ...rule, targetPostId: m.id })}
+                                    className={cn(
+                                      "w-32 aspect-square rounded-2xl overflow-hidden border-2 transition-all",
+                                      isSelected ? "border-primary shadow-lg ring-2 ring-primary/20" : "border-transparent opacity-60 hover:opacity-100"
+                                    )}
+                                  >
+                                    <Image 
+                                      src={m.thumbnail_url || m.media_url || ""} 
+                                      alt="media" 
+                                      fill unoptimized 
+                                      className="object-cover"
+                                    />
+                                    {isSelected && (
+                                      <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                                        <div className="bg-primary text-white rounded-full p-1 shadow-md">
+                                          <Check className="size-4" />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </button>
+                                  <div className="mt-1 flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">{m.media_type}</span>
+                                  </div>
+                                </div>
+                              );
+                            })
                           )}
                         </div>
                       </div>
                     ) : (
-                      <div className="p-3 rounded-xl bg-primary/5 border border-primary/10 flex items-start gap-3">
-                        <div className="p-1.5 rounded-lg bg-primary/10 text-primary mt-0.5">
-                          <Bot className="size-3.5" />
-                        </div>
                         <p className="text-[10px] leading-relaxed text-muted-foreground">
                           <span className="font-bold text-foreground">Global Mode:</span> This automation will trigger for <span className="font-bold text-foreground">ANY</span> post or story on your account that matches your keywords.
                         </p>
-                      </div>
                     )}
                   </div>
                 )}

@@ -155,6 +155,8 @@ export const scheduledMessages = sqliteTable("scheduled_messages", {
   attempts: integer("attempts").notNull().default(0),
   lastError: text("last_error"),
   dueAt: integer("due_at", { mode: "timestamp_ms" }).notNull(),
+  targetUrl: text("target_url"),
+  linkText: text("link_text"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
   sentAt: integer("sent_at", { mode: "timestamp_ms" }),
 });

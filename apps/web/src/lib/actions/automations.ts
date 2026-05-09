@@ -41,61 +41,64 @@ export async function saveAutomation(rule: AutomationRule) {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const now = new Date();
-
-  console.log(`[Action] PRE-SAVE Payload for ${rule.id}:`, {
+  console.log(`[Action] Saving automation ${rule.id || 'NEW'}:`, {
+    name: rule.name,
     linkText: rule.linkText,
-    fu1Url: rule.followUpUrl,
-    fu1Text: rule.followUpUrlText,
-    fu2Url: rule.followUp2Url,
-    fu2Text: rule.followUp2UrlText
+    targetUrl: rule.targetUrl,
+    requireFollower: rule.requireFollower,
+    fu1: { template: rule.followUpTemplate, delay: rule.followUpDelayMinutes, url: rule.followUpUrl, text: rule.followUpUrlText },
+    fu2: { template: rule.followUp2Template, delay: rule.followUp2DelayMinutes, url: rule.followUp2Url, text: rule.followUp2UrlText },
   });
 
   const payload = {
-    name: rule.name || "Untitled Automation",
+    name: rule.name?.trim() || "Untitled Automation",
     triggerType: rule.triggerType || "dm",
     conditionOperator: rule.conditionOperator || "contains",
-    condition: rule.condition || null,
+    condition: rule.condition?.trim() || null,
     targetPostId: rule.targetPostId || null,
-    responseTemplate: rule.responseTemplate || null,
-    dmTemplate: rule.dmTemplate || "",
-    targetUrl: rule.targetUrl || null,
-    linkText: rule.linkText || null,
-    followUpTemplate: rule.followUpTemplate || null,
-    followUpDelayMinutes: rule.followUpDelayMinutes ?? 0,
-    followUpUrl: rule.followUpUrl || null,
-    followUpUrlText: rule.followUpUrlText || null,
-    followUp2Template: rule.followUp2Template || null,
-    followUp2DelayMinutes: rule.followUp2DelayMinutes ?? 1440,
-    followUp2Url: rule.followUp2Url || null,
-    followUp2UrlText: rule.followUp2UrlText || null,
+    responseTemplate: rule.responseTemplate?.trim() || null,
+    dmTemplate: rule.dmTemplate?.trim() || "",
+    targetUrl: rule.targetUrl?.trim() || null,
+    linkText: rule.linkText?.trim() || null,
+    followUpTemplate: rule.followUpTemplate?.trim() || null,
+    followUpDelayMinutes: Number(rule.followUpDelayMinutes) || 0,
+    followUpUrl: rule.followUpUrl?.trim() || null,
+    followUpUrlText: rule.followUpUrlText?.trim() || null,
+    followUp2Template: rule.followUp2Template?.trim() || null,
+    followUp2DelayMinutes: Number(rule.followUp2DelayMinutes) || 1440,
+    followUp2Url: rule.followUp2Url?.trim() || null,
+    followUp2UrlText: rule.followUp2UrlText?.trim() || null,
     requireFollower: Boolean(rule.requireFollower),
-    followerGateTemplate: rule.followerGateTemplate || null,
-    followerGateButtonText: rule.followerGateButtonText || null,
+    followerGateTemplate: rule.followerGateTemplate?.trim() || null,
+    followerGateButtonText: rule.followerGateButtonText?.trim() || null,
     aiEnabled: Boolean(rule.aiEnabled),
-    aiPrompt: rule.aiPrompt || null,
-    cooldownMinutes: rule.cooldownMinutes ?? 5,
-    maxDailySends: rule.maxDailySends ?? 100,
+    aiPrompt: rule.aiPrompt?.trim() || null,
+    cooldownMinutes: Number(rule.cooldownMinutes) || 5,
+    maxDailySends: Number(rule.maxDailySends) || 100,
     isActive: Boolean(rule.isActive),
-    priority: rule.priority ?? 0,
+    priority: Number(rule.priority) || 0,
     updatedAt: now,
   };
 
   if (rule.id) {
     // Update existing
-    await db.update(automations)
+    const result = await db.update(automations)
       .set(payload)
       .where(and(
         eq(automations.id, rule.id),
         eq(automations.userId, session.user.id)
       ));
+    console.log(`[Action] Update result for ${rule.id}:`, result);
   } else {
     // Create new
+    const id = crypto.randomUUID();
     await db.insert(automations).values({
       ...payload,
-      id: crypto.randomUUID(),
+      id,
       userId: session.user.id,
       createdAt: now,
     });
+    console.log(`[Action] Created new automation: ${id}`);
   }
 
   revalidatePath("/dashboard/automations");

@@ -20,7 +20,7 @@ messagesRouter.post('/send', async (c) => {
       return c.json({ error: 'No Instagram account connected' }, 404);
     }
 
-    await sendInstagramMessage(account.externalId, recipientId, text.trim(), account.accessToken);
+    await sendInstagramMessage((account.pageId || account.externalId)!, recipientId, text.trim(), account.accessToken);
 
     await db.insert(messages).values({
       id: crypto.randomUUID(),

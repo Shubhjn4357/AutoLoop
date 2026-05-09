@@ -4,7 +4,10 @@ import { useState } from "react";
 import { formatDistanceToNowSimple } from "@/lib/date-utils";
 import { serverFetch } from "@/lib/api-client";
 
-import { Send, User, Tag, MessageSquare, Sparkles, Loader2 } from "lucide-react";
+import { 
+  Send, User, Tag, MessageSquare, Sparkles, Loader2, 
+  Trash2, ChevronLeft, ChevronRight, Menu 
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +31,8 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   const activeConversation = conversations.find(
     (c) => c.contact.senderId === activeSenderId
@@ -108,10 +113,32 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
     }
   }
 
+  async function deleteConversation(senderId: string) {
+    if (!confirm("Are you sure you want to delete this conversation? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      const res = await serverFetch("/api/messages/delete-conversation", userId, {
+        method: "POST",
+        body: JSON.stringify({ senderId }),
+      });
+      if (res.ok) {
+        setActiveSenderId(null);
+        window.location.reload(); // Simplest way to refresh the list
+      }
+    } catch (err) {
+      console.error("Delete failed:", err);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-0 border border-border rounded-2xl overflow-hidden bg-card/30">
-      {/* Conversation List */}
-      <div className="w-80 border-r border-border bg-card/50 flex flex-col">
+    <div className="flex h-[calc(100vh-8rem)] gap-0 border border-border rounded-2xl overflow-hidden bg-card/30 relative">
+      {/* Conversation List Sidebar */}
+      <div className={cn(
+        "border-r border-border bg-card/50 flex flex-col transition-all duration-300",
+        sidebarOpen ? "w-80" : "w-0 overflow-hidden border-r-0"
+      )}>
         <div className="p-4 border-b border-border">
           <h3 className="font-semibold text-sm">Conversations</h3>
           <p className="text-xs text-muted-foreground mt-1">
@@ -206,7 +233,7 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
                   <User className="size-4 text-primary" />
                 )}
               </div>
-              <div>
+              <div className="flex-1">
                 <p className="font-semibold text-sm">
                   {activeConversation.contact.name ?? activeConversation.contact.username ?? "Unknown"}
                 </p>
@@ -214,6 +241,18 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
                   {activeConversation.contact.isFollower ? "Follower" : "Not following"} ·{" "}
                   {activeConversation.contact.status}
                 </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="size-8 text-muted-foreground hover:text-destructive rounded-lg"
+                  onClick={() => deleteConversation(activeSenderId!)}
+                  disabled={deleting}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
               </div>
             </div>
 
@@ -254,6 +293,14 @@ export function MessagesClient({ conversations, initialMessages, selectedSenderI
 
             {/* Reply Input */}
             <div className="h-16 border-t border-border p-3 flex items-center gap-3 bg-card/30">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-lg text-muted-foreground hover:text-foreground hidden md:flex"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+              >
+                {sidebarOpen ? <ChevronLeft className="size-4" /> : <Menu className="size-4" />}
+              </Button>
               <Input
                 placeholder="Type a reply..."
                 value={replyText}

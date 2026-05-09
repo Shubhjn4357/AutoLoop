@@ -46,7 +46,8 @@ export async function sendInstagramMessage(
   };
 
   let lastError: any = null;
-  for (let i = 0; i < 3; i++) {
+  const retries = 5;
+  for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -55,7 +56,7 @@ export async function sendInstagramMessage(
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(30000),
       });
 
       const data = await res.json();
@@ -65,7 +66,7 @@ export async function sendInstagramMessage(
     } catch (err: any) {
       lastError = err;
     }
-    if (i < 2) await new Promise(r => setTimeout(r, 1000));
+    if (i < retries - 1) await new Promise(r => setTimeout(r, 2000 * Math.pow(2, i)));
   }
   throw lastError;
 }
@@ -82,23 +83,28 @@ export async function replyToInstagramComment(
     message: messageText,
   };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  let lastError: any = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(20000),
+      });
 
-  const data = await res.json();
-  if (!res.ok) {
-    const apiMessage =
-      typeof data?.error?.message === "string" ? data.error.message : res.statusText;
-    throw new Error(`Instagram API Error: ${apiMessage}`);
+      const data = await res.json();
+      if (res.ok) return data;
+      lastError = new Error(`Instagram API Error: ${data?.error?.message || res.statusText}`);
+    } catch (err) {
+      lastError = err;
+    }
+    if (i < 2) await new Promise(r => setTimeout(r, 2000));
   }
-
-  return data;
+  throw lastError;
 }
 
 export interface InstagramUserProfile {
@@ -127,14 +133,23 @@ export async function getInstagramUserProfile(
   url.searchParams.set("fields", fields);
   url.searchParams.set("access_token", accessToken);
 
-  const res = await fetch(url);
-  const data = await res.json();
+  let lastError: any = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      const data = await res.json();
 
-  if (!res.ok) {
-    const apiMessage =
-      typeof data?.error?.message === "string" ? data.error.message : res.statusText;
-    throw new Error(`Instagram profile lookup failed: ${apiMessage}`);
+      if (!res.ok) {
+        const apiMessage =
+          typeof data?.error?.message === "string" ? data.error.message : res.statusText;
+        throw new Error(`Instagram profile lookup failed: ${apiMessage}`);
+      }
+
+      return data as InstagramUserProfile;
+    } catch (err) {
+      lastError = err;
+    }
+    if (i < 2) await new Promise(r => setTimeout(r, 2000));
   }
-
-  return data as InstagramUserProfile;
+  throw lastError;
 }
