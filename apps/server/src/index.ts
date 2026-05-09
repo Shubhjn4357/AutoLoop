@@ -3,6 +3,16 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { cors } from 'hono/cors';
+import dns from 'node:dns';
+
+// Stabilize networking for Hugging Face Spaces
+dns.setDefaultResultOrder('ipv4first');
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+  console.log('[DNS] Global resolvers set to Google/Cloudflare');
+} catch (e) {
+  console.warn('[DNS] Failed to set custom servers:', e);
+}
 import { healthRouter } from './health/index';
 import { webhookRouter } from './webhook/index';
 import { aiRouter } from './app/routes/ai';

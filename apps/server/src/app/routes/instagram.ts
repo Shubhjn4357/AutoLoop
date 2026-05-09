@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { db, socialAccounts, eq, and } from '@autoloop/db';
 import crypto from 'crypto';
+import { redisConnection } from '../../config/redis';
 import { 
   fetchIGMedia, 
   fetchIGStories, 
@@ -58,7 +59,15 @@ async function fetchWithRetry(url: string, options: any = {}, retries = 7, backo
   for (let i = 0; i < retries; i++) {
     try {
       console.log(`[Fetch Attempt ${i + 1}] Calling: ${url.split('?')[0]}...`);
-      const res = await fetch(url, { ...options, signal: AbortSignal.timeout(30000) });
+      const res = await fetch(url, { 
+        ...options, 
+        signal: AbortSignal.timeout(30000),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          ...options.headers
+        }
+      });
       if (res.ok) return res;
       
       const errorText = await res.clone().text().catch(() => "No error body");
@@ -71,7 +80,8 @@ async function fetchWithRetry(url: string, options: any = {}, retries = 7, backo
       return res;
     } catch (err: any) {
       if (i === retries - 1) throw err;
-      console.warn(`[Fetch Retry] Network Error: ${err.message}. Retrying...`);
+      const detailedError = err.cause ? `${err.message} (Cause: ${err.cause.message || err.cause})` : err.message;
+      console.warn(`[Fetch Retry] Network Error: ${detailedError}. Retrying...`);
       await new Promise(r => setTimeout(r, backoff * (i + 1)));
     }
   }
@@ -251,6 +261,14 @@ instagramRouter.get('/callback', async (c) => {
 
   if (error || !code || !userId) {
     return c.redirect(`${webUrl}/dashboard/settings?error=instagram_auth_failed`);
+  }
+
+  // 0. Redis Lock to prevent duplicate processing
+  const lockKey = `ig_callback_lock:${code}`;
+  const isLocked = await redisConnection.set(lockKey, "1", "EX", 60, "NX");
+  if (!isLocked) {
+    console.log(`[IG Callback] Duplicate request for code detected, skipping lock acquisition.`);
+    return c.text("Processing request...", 202);
   }
 
   const appId = process.env.META_APP_ID || process.env.FACEBOOK_CLIENT_ID;
