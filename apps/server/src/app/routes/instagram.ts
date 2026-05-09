@@ -164,12 +164,28 @@ async function subscribeToWebhooks(params: {
 
   await Promise.allSettled([
     getSubscriptionStatus("page", pageSubscriptionUrl, params.pageAccessToken),
+    // Also try to subscribe the Instagram ID directly for Mentions/Insights
+    (async () => {
+       const igSubscriptionUrl = `${GRAPH_BASE}/${params.igId}/subscribed_apps`;
+       const igFields = "mentions,comments,insights";
+       try {
+         const res = await postSubscription("ig/direct", igSubscriptionUrl, params.userAccessToken, igFields);
+         attempts.push(res);
+       } catch (igErr: any) {
+         console.warn(`[IG Callback] IG-level subscription failed: ${igErr.message}`);
+       }
+    })()
   ]);
+
+  const summary = attempts.map(a => `${a.label}: ${a.ok ? "SUCCESS" : "FAILED"}`).join(", ");
+  console.log(`[IG Callback] Webhook Subscription Summary: ${summary}`);
 
   if (!attempts.some((attempt) => attempt.ok)) {
     console.warn(
-      "[IG Callback] No webhook subscription attempt succeeded. Check Meta app webhook product setup, callback verification, and pages_manage_metadata / instagram_manage_messages permissions."
+      "[IG Callback] CRITICAL: No webhook subscription attempt succeeded. Check permissions and Meta App setup."
     );
+  } else {
+    console.log("[IG Callback] Webhook setup verified. System is ready to receive events.");
   }
 
   return attempts;
@@ -210,6 +226,7 @@ instagramRouter.get('/connect', async (c) => {
     "pages_manage_engagement",
     "pages_manage_metadata",
     "pages_read_engagement",
+    "business_management",
     "public_profile"
   ].join(",");
 

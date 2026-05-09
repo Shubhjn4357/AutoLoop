@@ -36,7 +36,11 @@ const RATE_LIMITS = {
 export const automationEngine = {
   // Process incoming webhook event
   async processEvent(payload: any) {
-    if (payload.object !== "instagram" || !payload.entry) return { success: false, queued: 0 };
+    console.log(`[Webhook] Incoming Event: Object=${payload.object}, Entries=${payload.entry?.length || 0}`);
+    if (payload.object !== "instagram" || !payload.entry) {
+      console.log("[Webhook] Ignored non-instagram event:", JSON.stringify(payload).substring(0, 200));
+      return { success: false, queued: 0 };
+    }
 
     let queued = 0;
     for (const entry of payload.entry) {
@@ -74,26 +78,42 @@ export const automationEngine = {
           const val = change.value;
           if (!val) continue;
 
-          // Detect Live Comments vs Post Comments
+          // Detect Live Comments vs Post Comments vs Mentions
           const isLive = val.media?.media_product_type === "LIVE" || val.media_product_type === "LIVE";
-          const eventType = change.field === "mentions" ? "mention" : (isLive ? "live_comment" : "comment");
+          
+          // Mentions can come in 'mentions' field OR in 'feed' field with specific value structure
+          let eventType: string = "comment";
+          if (change.field === "mentions") {
+            eventType = "mention";
+          } else if (change.field === "comments") {
+            eventType = isLive ? "live_comment" : "comment";
+          } else if (change.field === "feed") {
+            // Some mentions or comments arrive via feed
+            if (val.item === "mention") {
+              eventType = "mention";
+            } else if (val.item === "comment") {
+              eventType = isLive ? "live_comment" : "comment";
+            } else {
+              continue; // Unknown feed item
+            }
+          }
 
           if (change.field === "comments" || change.field === "feed" || change.field === "mentions") {
             // Only process top-level comments for non-mentions
-            if (change.field !== "mentions" && val.parent_id) continue;
+            if (eventType !== "mention" && val.parent_id) continue;
 
             await this.queueEvent({
               eventType,
               payload: {
                 externalId,
-                senderId: val.from?.id,
-                text: val.text || val.message || (change.field === "mentions" ? "[MENTION]" : ""),
-                mediaId: val.media?.id || val.post_id,
+                senderId: val.from?.id || val.user_id, // Support different Meta structures
+                text: val.text || val.message || (eventType === "mention" ? "[MENTION]" : ""),
+                mediaId: val.media?.id || val.post_id || val.media_id,
                 commentId: val.id || val.comment_id,
-                timestamp: val.created_time,
+                timestamp: val.created_time || Date.now(),
               },
               externalId,
-              recipientId: val.from?.id,
+              recipientId: val.from?.id || val.user_id,
             });
             queued++;
           } else if (change.field === "follows" && val.action === "follow") {
@@ -302,7 +322,32 @@ export const automationEngine = {
 
       // Rate limit check
       const rateCheck = await this.checkRateLimits(externalId, senderId, rule.cooldownMinutes || 5);
-      if (!rateCheck.allowed) continue;
+      if (!rateCheck.allowed) {
+        // Instead of skipping, check if we already have a pending message for this user/automation
+        const alreadyQueued = await db.query.scheduledMessages.findFirst({
+          where: and(
+            eq(scheduledMessages.externalId, externalId),
+            eq(scheduledMessages.recipientId, senderId),
+            eq(scheduledMessages.automationId, rule.id),
+            eq(scheduledMessages.status, "pending")
+          )
+        });
+
+        if (!alreadyQueued) {
+          console.log(`[Automation] Cooldown active. Queuing response for ${senderId} in ${Math.round(rateCheck.retryAfterMs / 1000)}s`);
+          await this.scheduleFollowUp(
+            account.userId, 
+            rule.id, 
+            externalId, 
+            senderId, 
+            rule.dmTemplate, 
+            Math.ceil(rateCheck.retryAfterMs / 60000),
+            rule.targetUrl,
+            rule.linkText
+          );
+        }
+        continue;
+      }
 
       await this.executeAutomation(rule, account, senderId, text, messageId);
       break;
@@ -517,17 +562,20 @@ export const automationEngine = {
       await db.insert(rateLimitState).values({ id, externalId, lastSendToRecipient: "{}" });
       state = await db.query.rateLimitState.findFirst({ where: eq(rateLimitState.id, id) });
     }
-    if (!state) return { allowed: false };
+    if (!state) return { allowed: false, retryAfterMs: 0 };
 
     const lastSendMap = JSON.parse(state.lastSendToRecipient || "{}");
     const lastSend = lastSendMap[recipientId];
-    if (lastSend && (Date.now() - lastSend < cooldownMinutes * 60000)) {
-      return { allowed: false };
+    const now = Date.now();
+    const cooldownMs = cooldownMinutes * 60000;
+    
+    if (lastSend && (now - lastSend < cooldownMs)) {
+      return { allowed: false, retryAfterMs: cooldownMs - (now - lastSend) };
     }
 
-    lastSendMap[recipientId] = Date.now();
+    lastSendMap[recipientId] = now;
     await db.update(rateLimitState).set({ lastSendToRecipient: JSON.stringify(lastSendMap) }).where(eq(rateLimitState.id, state.id));
-    return { allowed: true };
+    return { allowed: true, retryAfterMs: 0 };
   },
 
   async interpolateVariables(text: string, userId: string, externalId: string, recipientId: string) {
