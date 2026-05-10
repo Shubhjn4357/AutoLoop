@@ -55,6 +55,9 @@ export interface IGUserProfile {
   username: string;
   biography?: string;
   profile_picture_url?: string;
+  profile_pic?: string;
+  is_user_follow_business?: boolean;
+  is_business_follow_user?: boolean;
   followers_count?: number;
   follows_count?: number;
   media_count?: number;
